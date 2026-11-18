@@ -213,6 +213,8 @@ if [[ -f "${TAR}" ]]; then
     expect "rootfs: masked units point at /dev/null" "${LISTING}" 'etc/systemd/system/apt-daily\.timer -> /dev/null'
     expect "rootfs: the mask list is consumed" \
         "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-mask' || true)" '^0$'
+    expect "rootfs: the hostname survives the build" "$(tar -xOf "${TAR}" ./etc/hostname)" '^debian-switch$'
+    expect "rootfs: fstab mounts root by label" "$(tar -xOf "${TAR}" ./etc/fstab)" '^LABEL=SWR-DEB +/ +ext4'
     expect "rootfs: the copyright files are kept" "${LISTING}" 'usr/share/doc/[^/]+/copyright'
     expect "rootfs: the output is not left to root only" \
         "$(stat -c '%u' "${TAR}")" "^$(stat -c '%u' "${WORK}")\$"

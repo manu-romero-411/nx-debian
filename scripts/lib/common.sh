@@ -182,3 +182,12 @@ dpkg_excludes_file() {
         printf 'path-include=%s\n' "${pattern}"
     done
 }
+
+# hand_back_ownership DIR: when running as root, give DIR to the owner of the
+# directory it lives in, so it can be read and written without sudo.
+hand_back_ownership() {
+    local dir="$1" owner
+    [[ "${EUID}" -eq 0 ]] || return 0
+    owner="$(stat -c '%u:%g' "$(dirname "${dir}")")"
+    [[ "${owner}" == "0:0" ]] || chown -R "${owner}" "${dir}"
+}

@@ -101,6 +101,7 @@ Notes:
 ```
 tests/test-lists.sh        # offline, no root
 sudo tests/integration.sh  # fake signed L4T repo, runs the spike and a rootfs
+sudo tests/image.sh        # nxd image on a hand-made rootfs
 ```
 
 ## The first user
@@ -136,3 +137,34 @@ without `sudo`.
 (`config/hooks/30-services.sh`). Retrobox masks the apt-daily timers and
 services; NetworkManager, bluez and the audio daemons are left alone because
 Retrobox drives them.
+
+## The SD card installer (`nxd image`)
+
+```sh
+sudo ./nxd container image --variant retrobox      # or: sudo ./nxd image ...
+```
+
+It takes `rootfs.tar` and writes `<output>/<variant>/installer.zip` plus
+`SHA256SUMS`:
+
+- the tree is unpacked as root and copied into an ext4 image labelled
+  `SWR-DEB` (`--size`, default 5120M; the first boot expands it to the
+  partition), checked with `e2fsck`, and split in `l4t.00`, `l4t.01`... of
+  4092M, the most FAT32 can hold;
+- the kernel (`uImage`), `initramfs`, `nx-plat.dtimg`, `bl31.bin`, `bl33.bin`
+  and `boot.scr` come from the `switch-bsp` package inside the rootfs: no
+  kernel is built here. `boot.scr` gets `NXD_KERNEL_CMDLINE_EXTRA`
+  (default `net.ifnames=0`, which keeps `wlan0`) after the cgroup flag;
+- `config/boot/hekate.ini` becomes `bootloader/ini/debian.ini` (name, id and
+  title from `NXD_BOOT_NAME`, `NXD_BOOT_ID`, `NXD_BOOT_TITLE`);
+- the boot logo and icon are `assets/bootlogo.bmp` and `assets/icon.bmp` when
+  they exist, else the ones of `switch-bsp`;
+- Hekate itself is the latest release (cached in `downloads/`), or `--hekate
+  ZIP`, or nothing with `--no-hekate`.
+
+Unzip the installer at the root of the SD card, boot Hekate and flash the
+`l4t.*` parts from its partition manager.
+
+`/etc/fstab`, `/etc/hostname` and `/etc/hosts` come from
+`config/overlay/common`; `config/overlay/<variant>` adds to it. The root
+filesystem is mounted by label, not by partition number.

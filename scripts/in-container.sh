@@ -14,7 +14,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source-path=SCRIPTDIR
 . "${SCRIPT_DIR}/lib/common.sh"
 
-IMAGE="${NXD_CONTAINER_IMAGE:-nxd-builder}"
+# The tag follows the Containerfile, so a changed one is rebuilt by itself.
+IMAGE="${NXD_CONTAINER_IMAGE:-nxd-builder:$(sha256sum "${NXD_ROOT}/docker/Containerfile" | cut -c1-8)}"
 ENGINE="${NXD_CONTAINER_ENGINE:-}"
 if [[ -z "${ENGINE}" ]]; then
     for candidate in podman docker; do
@@ -40,5 +41,5 @@ fi
 exec "${ENGINE}" run --rm --privileged --security-opt label=disable "${TTY[@]}" \
     -v "${NXD_ROOT}:/nxd" -w /nxd \
     -e NXD_SUITE -e NXD_ARCH -e NXD_MIRROR -e NXD_L4T_COMPONENT -e NXD_OUTPUT_DIR \
-    -e NXD_PASSWORD \
+    -e NXD_PASSWORD -e NXD_IMAGE_SIZE -e NXD_BOOT_NAME -e NXD_BOOT_ID \
     "${IMAGE}" ./nxd "$@"

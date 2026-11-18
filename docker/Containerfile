@@ -1,10 +1,11 @@
 FROM debian:trixie
 
-# What the first steps need: apt (already there), mmdebstrap, gnupg for the
-# key check, and the archive keyring. qemu-user-static is only used when the
-# host is not arm64.
+# What the steps need: apt (already there), mmdebstrap, gnupg for the key
+# check, the archive keyring and the image tools (mke2fs, mkimage, zip).
+# qemu-user-static is only used when the host is not arm64.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates debian-archive-keyring gnupg mmdebstrap \
         qemu-user-static binfmt-support \
+        e2fsprogs u-boot-tools zip unzip curl \
     && rm -rf /var/lib/apt/lists/*

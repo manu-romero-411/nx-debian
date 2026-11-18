@@ -177,6 +177,14 @@ CMD+=(
     --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends \$(cat /tmp/nxd-packages)"'
     --customize-hook='rm -f "$1/tmp/nxd-packages"'
 )
+# Static files of the repository (hostname, fstab...): config/overlay/common,
+# then config/overlay/<variant>, each top-level entry copied into /.
+for overlay in "${NXD_CONFIG_DIR}/overlay/common" "${NXD_CONFIG_DIR}/overlay/${VARIANT}"; do
+    [[ -d "${overlay}" ]] || continue
+    for entry in "${overlay}"/*; do
+        [[ -e "${entry}" ]] && CMD+=(--customize-hook="copy-in ${entry} /")
+    done
+done
 if [[ -s "${STAGE}/nxd-mask" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-mask /tmp")
 fi
@@ -210,10 +218,7 @@ wait
 rm -rf "${STAGE}"
 # Built as root (sudo, or a container): hand the output back to whoever owns
 # the directory it lives in, so it can be read and written without sudo.
-if [[ "${EUID}" -eq 0 ]]; then
-    owner="$(stat -c '%u:%g' "$(dirname "${NXD_OUTPUT_DIR}")")"
-    [[ "${owner}" == "0:0" ]] || chown -R "${owner}" "${NXD_OUTPUT_DIR}"
-fi
+hand_back_ownership "${NXD_OUTPUT_DIR}"
 if [[ "${status}" -ne 0 ]]; then
     warn "last lines of the log:"
     tail -n 25 "${BUILD_LOG}" >&2

@@ -144,7 +144,16 @@ need_cmd mmdebstrap "apt install mmdebstrap (or use: nxd container rootfs)"
 rm -rf "${TARGET}"
 mkdir -p "${OUT_DIR}"
 log "building ${VARIANT}: ${#PACKAGES[@]} packages, ${NXD_SUITE}/${NXD_ARCH} + L4T ${NXD_L4T_COMPONENT}"
-"${CMD[@]}"
+BUILD_LOG="${OUT_DIR}/build.log"
+status=0
+"${CMD[@]}" > >(tee "${BUILD_LOG}") 2>&1 || status=$?
+wait
 rm -rf "${STAGE}"
+if [[ "${status}" -ne 0 ]]; then
+    warn "last lines of the log:"
+    tail -n 25 "${BUILD_LOG}" >&2
+    die "the build failed (exit ${status}); full log: ${BUILD_LOG}"
+fi
+log "log: ${BUILD_LOG}"
 log "rootfs: ${TARGET}"
 log "manifest: ${NXD_MANIFEST}"

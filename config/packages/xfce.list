@@ -1,0 +1,23 @@
+# The XFCE desktop variant. A starting point taken from the old image; it is
+# meant to be trimmed after the first boot on a console.
+
+xfce4-session
+xfwm4
+xfce4-panel
+xfdesktop4
+xfce4-settings
+xfce4-terminal
+xfce4-notifyd
+xfce4-power-manager
+xfce4-power-manager-plugins
+xfce4-pulseaudio-plugin
+xfce4-genmon-plugin
+xfce4-screenshooter
+thunar
+onboard
+network-manager-gnome
+blueman
+lxpolkit
+gvfs
+adwaita-icon-theme
+firefox-esr

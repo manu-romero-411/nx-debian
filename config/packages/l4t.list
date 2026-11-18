@@ -1,0 +1,25 @@
+# Packages that come from the L4T repository (see config/apt/l4t.pref).
+# Taken from the package set the old build.sh downloaded; which one ships
+# what (nvpmodel, the polkit policy, the audio profiles...) is still to be
+# confirmed with `nxd spike --contents`.
+
+joycond
+nvidia-l4t-3d-core
+nvidia-l4t-configs
+nvidia-l4t-core
+nvidia-l4t-firmware
+nvidia-l4t-init
+nvidia-l4t-multimedia
+nvidia-l4t-multimedia-utils
+nvidia-l4t-x11
+switch-alsa-ucm2
+switch-bsp
+switch-dock-handler
+switch-joystick-mouse
+switch-touch-rules
+switch-l4t-configs
+
+# Xorg 1.20, pinned to this repository
+xserver-xorg-core
+xserver-xorg-input-libinput
+xserver-xorg-video-fbdev

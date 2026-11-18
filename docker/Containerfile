@@ -1,0 +1,10 @@
+FROM debian:trixie
+
+# What the first steps need: apt (already there), mmdebstrap, gnupg for the
+# key check, and the archive keyring. qemu-user-static is only used when the
+# host is not arm64.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        ca-certificates debian-archive-keyring gnupg mmdebstrap \
+        qemu-user-static binfmt-support \
+    && rm -rf /var/lib/apt/lists/*

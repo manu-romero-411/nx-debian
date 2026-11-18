@@ -1,0 +1,6 @@
+# The minimal variant Retrobox runs on. Only the window manager and the
+# session glue are listed here: retrobox-core, retrobox-emulationstation,
+# retrobox-overlay and retrobox-mangohud are installed from their own
+# releases, and bring their dependencies with them.
+
+openbox

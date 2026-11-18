@@ -1,0 +1,184 @@
+#!/usr/bin/env bash
+# Integration test of `nxd spike` and `nxd rootfs` against a fake L4T
+# repository, so the machinery can be tested without the real one.
+#
+# It needs root, network (an Ubuntu archive), mmdebstrap, dpkg-dev and gnupg.
+# Ubuntu noble / amd64 stands in for Debian trixie / arm64: the mechanics
+# (apt, pins, hooks, the L4T source and key) are the same, the package names
+# the real build needs are not tested here.
+#
+# The fake repository has two components, like the real one:
+#   jammy: nvidia-l4t-core needs a library nobody has      -> must be reported
+#   noble: nvidia-l4t-core needs a library noble has       -> must resolve
+# plus a "xserver-xorg-core" older than the suite's, which only the pin keeps.
+set -euo pipefail
+
+TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+NXD_ROOT="$(cd "${TESTS_DIR}/.." && pwd)"
+NXD="${NXD_ROOT}/nxd"
+MIRROR="${NXD_TEST_MIRROR:-http://archive.ubuntu.com/ubuntu}"
+KEYRING="${NXD_TEST_KEYRING:-/usr/share/keyrings/ubuntu-archive-keyring.gpg}"
+
+[[ "$(id -u)" -eq 0 ]] || {
+    echo "needs root (mmdebstrap)" >&2
+    exit 1
+}
+for cmd in mmdebstrap dpkg-scanpackages dpkg-deb apt-ftparchive gpg; do
+    command -v "${cmd}" > /dev/null || {
+        echo "missing ${cmd}" >&2
+        exit 1
+    }
+done
+
+WORK="$(mktemp -d)"
+trap 'rm -rf "${WORK}"' EXIT
+PASS=0
+FAIL=0
+
+ok() {
+    PASS=$((PASS + 1))
+    printf 'ok   %s\n' "$1"
+}
+bad() {
+    FAIL=$((FAIL + 1))
+    printf 'FAIL %s\n' "$1"
+}
+# expect DESCRIPTION TEXT PATTERN: TEXT must match the extended regex.
+expect() {
+    if grep -Eq -- "$3" <<< "$2"; then
+        ok "$1"
+    else
+        bad "$1"
+    fi
+}
+
+# --- a signing key and the fake repository -------------------------------
+export GNUPGHOME="${WORK}/gnupg"
+mkdir -m 700 "${GNUPGHOME}"
+gpg --batch --quiet --passphrase '' --quick-generate-key "nxd test <test@invalid>" rsa2048 sign never
+KEY_FPR="$(gpg --batch --with-colons --list-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
+
+# mkpkg POOLDIR NAME VERSION DEPENDS [FILE]: a one-file package.
+mkpkg() {
+    local pool="$1" name="$2" version="$3" depends="$4" file="${5:-}" tree
+    tree="$(mktemp -d "${WORK}/pkg.XXXXXX")"
+    mkdir -p "${tree}/DEBIAN"
+    {
+        printf 'Package: %s\nVersion: %s\nArchitecture: amd64\n' "${name}" "${version}"
+        printf 'Maintainer: test <test@invalid>\nDescription: nxd test package\n'
+        if [[ -n "${depends}" ]]; then
+            printf 'Depends: %s\n' "${depends}"
+        fi
+    } > "${tree}/DEBIAN/control"
+    if [[ -n "${file}" ]]; then
+        mkdir -p "${tree}/$(dirname "${file}")"
+        printf '#!/bin/sh\n' > "${tree}/${file}"
+        chmod 755 "${tree}/${file}"
+    fi
+    mkdir -p "${pool}"
+    dpkg-deb --build "${tree}" "${pool}/${name}_${version}_amd64.deb" > /dev/null
+}
+
+REPO="${WORK}/repo"
+for component in jammy noble; do
+    if [[ "${component}" == "jammy" ]]; then
+        core_dep="libnonexistent-l4t0"
+    else
+        core_dep="libpng16-16t64"
+    fi
+    mkpkg "${REPO}/pool/${component}" nvidia-l4t-core "1.0~${component}" "${core_dep}" usr/sbin/nvpmodel
+    mkpkg "${REPO}/pool/${component}" switch-bsp "1.0~${component}" ""
+    mkpkg "${REPO}/pool/${component}" xserver-xorg-core "2:1.20.13-fake1" ""
+    mkdir -p "${REPO}/dists/l4t/${component}/binary-amd64"
+    (cd "${REPO}" && dpkg-scanpackages --arch amd64 "pool/${component}" \
+        > "dists/l4t/${component}/binary-amd64/Packages" 2> /dev/null)
+done
+apt-ftparchive \
+    -o APT::FTPArchive::Release::Suite=l4t -o APT::FTPArchive::Release::Codename=l4t \
+    -o APT::FTPArchive::Release::Components="jammy noble" \
+    -o APT::FTPArchive::Release::Architectures=amd64 \
+    release "${REPO}/dists/l4t" > "${REPO}/dists/l4t/Release"
+gpg --batch --quiet --clearsign -o "${REPO}/dists/l4t/InRelease" "${REPO}/dists/l4t/Release"
+gpg --batch --quiet --armor --export "${KEY_FPR}" > "${WORK}/test-L4T.asc"
+
+# --- a config for the test -------------------------------------------------
+CONFIG="${WORK}/config"
+cp -r "${NXD_ROOT}/config" "${CONFIG}"
+rm -f "${CONFIG}/keys/"*
+cp "${WORK}/test-L4T.asc" "${CONFIG}/keys/test-L4T.asc"
+printf 'ca-certificates\n' > "${CONFIG}/packages/base.list"
+printf 'nvidia-l4t-core\nswitch-bsp\nxserver-xorg-core\n' > "${CONFIG}/packages/l4t.list"
+printf '# nothing\n' > "${CONFIG}/packages/x11.list"
+printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\n' > "${CONFIG}/variants/test.conf"
+
+export NXD_CONFIG_DIR="${CONFIG}"
+export NXD_L4T_KEY="${CONFIG}/keys/test-L4T.asc"
+export NXD_L4T_KEY_FPR="${KEY_FPR}"
+export NXD_L4T_URL="file://${REPO}"
+export NXD_ARCH=amd64
+export NXD_SUITE=noble
+export NXD_MIRROR="${MIRROR}"
+export NXD_COMPONENTS="main universe"
+
+# --- the spike -----------------------------------------------------------------
+REPORT="${WORK}/report.md"
+"${NXD}" spike --variant test --components "jammy noble" --keyring "${KEYRING}" \
+    --contents --report "${REPORT}" > "${WORK}/spike.out" 2>&1 || {
+    cat "${WORK}/spike.out"
+    bad "the spike ran"
+}
+SPIKE_OUT="$(cat "${WORK}/spike.out")"
+
+# section NAME: the report from "## NAME" to the next "## ".
+section() {
+    awk -v name="$1" '/^## / { f = (index($0, "## " name) == 1) } f' "${REPORT}"
+}
+
+expect "spike: the Debian side resolves" "${SPIKE_OUT}" '^debian +OK'
+expect "spike: a missing library is reported (jammy)" "${SPIKE_OUT}" '^l4t-jammy-nopin +UNMET DEPENDENCIES'
+expect "spike: the jammy report names the library" "$(section l4t-jammy-nopin)" 'libnonexistent-l4t0'
+expect "spike: noble resolves without pins" "${SPIKE_OUT}" '^l4t-noble-nopin +OK'
+expect "spike: noble resolves with pins" "${SPIKE_OUT}" '^l4t-noble-pin +OK'
+expect "spike: without the pin the suite's Xorg wins" "$(section l4t-noble-nopin)" \
+    'xserver-xorg-core +2:21\.[0-9.]+.* 500 '
+expect "spike: with the pin the L4T Xorg wins" "$(section l4t-noble-pin)" \
+    'xserver-xorg-core +2:1\.20\.13-fake1 +1001 '
+expect "spike: --contents finds nvpmodel" "$(cat "${REPORT}")" 'nvidia-l4t-core: .*/usr/sbin/nvpmodel'
+expect "spike: the extras table is there" "$(cat "${REPORT}")" 'xfce4-volumed-pulse'
+
+# --- the rootfs -------------------------------------------------------------------
+# apt runs inside the rootfs, which cannot see file:// paths of the host: serve
+# the repository over http on the loopback interface.
+PORT=18080
+python3 -m http.server "${PORT}" --bind 127.0.0.1 --directory "${REPO}" > "${WORK}/http.log" 2>&1 &
+HTTP_PID=$!
+trap 'kill "${HTTP_PID}" 2> /dev/null || true; rm -rf "${WORK}"' EXIT
+sleep 1
+export NXD_L4T_URL="http://127.0.0.1:${PORT}/"
+OUT="${WORK}/out"
+"${NXD}" rootfs --variant test --component noble --output "${OUT}" > "${WORK}/rootfs.out" 2>&1 || {
+    tail -n 30 "${WORK}/rootfs.out"
+    bad "the rootfs was built"
+}
+TAR="${OUT}/test/rootfs.tar"
+if [[ -f "${TAR}" ]]; then
+    ok "rootfs: the tarball exists"
+    LISTING="$(tar -tvf "${TAR}")"
+    expect "rootfs: the L4T key is in the image" "${LISTING}" 'etc/apt/keyrings/test-L4T\.asc'
+    expect "rootfs: the pins are in the image" "${LISTING}" 'etc/apt/preferences\.d/10-nxd-l4t\.pref'
+    expect "rootfs: firstboot is masked" "${LISTING}" 'systemd-firstboot\.service -> /dev/null'
+    expect "rootfs: the machine-id is empty" "$(tar -tvf "${TAR}" ./etc/machine-id)" ' 0 [0-9-]+ [0-9:]+ \./etc/machine-id'
+    expect "rootfs: the L4T source is kept, with its key" \
+        "$(tar -xOf "${TAR}" ./etc/apt/sources.list.d/nxd-l4t.sources 2> /dev/null || true)" \
+        'Signed-By: /etc/apt/keyrings/test-L4T\.asc'
+    MANIFEST="$(cat "${OUT}/test/manifest.txt")"
+    expect "rootfs: the pinned Xorg is the one installed" "${MANIFEST}" $'xserver-xorg-core\t2:1\\.20\\.13-fake1'
+    expect "rootfs: the L4T packages are installed" "${MANIFEST}" $'nvidia-l4t-core\t1\\.0~noble'
+    expect "rootfs: the Debian side is installed" "${MANIFEST}" $'ca-certificates\t'
+    expect "rootfs: dpkg knows the packages (manifest from dpkg-query)" "${MANIFEST}" $'switch-bsp\t'
+else
+    bad "rootfs: the tarball exists"
+fi
+
+printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
+[[ "${FAIL}" -eq 0 ]]

@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# nxd: build driver of the Switchroot Debian images.
+set -euo pipefail
+
+NXD_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export NXD_ROOT
+# shellcheck source=scripts/lib/common.sh
+. "${NXD_ROOT}/scripts/lib/common.sh"
+
+usage() {
+    cat << 'EOF'
+Usage: nxd COMMAND [options]
+
+  spike [options]         does Debian + the L4T repository resolve? (apt, no root)
+  rootfs [options]        build the root filesystem of a variant
+  container COMMAND ...   run any of these in a Debian trixie container
+  variants                list the variants
+  packages VARIANT        print the package set of a variant
+
+Every command takes --help.
+EOF
+}
+
+command="${1:-}"
+[[ $# -gt 0 ]] && shift
+
+case "${command}" in
+    spike) exec "${NXD_ROOT}/scripts/spike-l4t.sh" "$@" ;;
+    rootfs) exec "${NXD_ROOT}/scripts/build-rootfs.sh" "$@" ;;
+    container) exec "${NXD_ROOT}/scripts/in-container.sh" "$@" ;;
+    variants)
+        while IFS= read -r name; do
+            description="$(
+                NXD_VARIANT_DESCRIPTION=""
+                # shellcheck source=/dev/null
+                . "${NXD_CONFIG_DIR}/variants/${name}.conf"
+                printf '%s' "${NXD_VARIANT_DESCRIPTION}"
+            )"
+            printf '%-10s %s\n' "${name}" "${description}"
+        done < <(list_variants)
+        ;;
+    packages)
+        [[ $# -eq 1 ]] || die "usage: nxd packages VARIANT"
+        variant_packages "$1"
+        ;;
+    -h | --help | help | "")
+        usage
+        ;;
+    *)
+        usage >&2
+        die "unknown command: ${command}"
+        ;;
+esac

@@ -1,0 +1,93 @@
+# nxd: viability spike and rootfs skeleton
+
+`nxd` is the entry point of the new, apt-based build. The legacy `build.sh`
+keeps working untouched; nothing here replaces it yet.
+
+## 1. The spike: does Debian + the L4T repository resolve?
+
+```
+./nxd spike --contents
+```
+
+No root needed. It uses a private apt state (nothing is installed, nothing on
+the host is touched) and simulates `apt-get install` of a whole variant for
+three scenarios:
+
+| scenario            | meaning                                                      |
+|---------------------|--------------------------------------------------------------|
+| `debian`            | Debian trixie alone                                          |
+| `l4t-<comp>-nopin`  | Debian + the L4T component, no pins                          |
+| `l4t-<comp>-pin`    | the same, with `config/apt/l4t.pref` (Xorg 1.20 from L4T)    |
+
+`<comp>` is each entry of `--components` (default `jammy noble`; the L4T repo
+uses the Ubuntu release as component). The result is `spike-report.md`:
+
+* packages that do not exist in Debian (candidates to drop or to package),
+* unmet dependencies per scenario (a `jammy` component usually fails on
+  `t64` library names, `noble` should not),
+* the candidate source and priority of the key packages: with the pin, the
+  `xserver-xorg-core` candidate must come from L4T (1.20.x), not Debian,
+* with `--contents`, what the L4T packages ship (`nvpmodel`, polkit actions,
+  `nvidia_drv.so`, ucm2, udev rules, ...), to know what no longer has to live
+  in this repository.
+
+Pick the component that resolves with pins and set `NXD_L4T_COMPONENT` in
+`config/nxd.conf` (or pass `--component` to `nxd rootfs`).
+
+Please send back `spike-report.md`: it decides the contents of
+`config/packages/*.list`.
+
+## 2. The rootfs
+
+```
+sudo ./nxd rootfs --variant xfce            # or: retrobox
+./nxd rootfs --variant retrobox --dry-run   # only print the mmdebstrap command
+```
+
+Output: `build_output/<variant>/rootfs.tar` and `manifest.txt` (package and
+version of everything installed, from `dpkg-query`).
+
+The build has two phases:
+
+1. `mmdebstrap` bootstraps a Debian `minbase` with `apt` and certificates.
+2. Customize hooks copy the L4T key (`/etc/apt/keyrings`), the pins and the
+   source (`/etc/apt/sources.list.d/nxd-l4t.sources`) into the rootfs and run
+   `apt-get install` of the variant package list **inside** it. The image
+   keeps the same repositories and pins, so `apt` works after the first boot.
+
+Then the scripts of `config/hooks/*.sh` run inside the rootfs (currently:
+empty `machine-id`, `systemd-firstboot` masked).
+
+Variants are a list of package lists (`config/variants/*.conf`,
+`config/packages/*.list`). Add a package by editing a list, not a script.
+
+## 3. On Fedora Asahi (native arm64)
+
+Fedora has neither `apt` nor the Debian keyrings, so everything runs in a
+Debian trixie container:
+
+```
+./nxd container spike --contents
+sudo ./nxd container rootfs --variant xfce
+```
+
+Uses `podman` (or `docker`; override with `NXD_CONTAINER_ENGINE`). The
+container is privileged because `mmdebstrap` needs mount and chroot, hence
+`sudo` for `rootfs`; the spike does not need it. As the host is arm64 no
+emulation is involved.
+
+Notes:
+
+* Asahi kernels use 16K pages. This is irrelevant for building (ext4 images
+  keep 4K blocks), it would matter only when running arm64 binaries of the
+  Tegra stack on the Mac.
+* The Mac cannot boot-test the result (Tegra X1 + Hekate): it validates the
+  package resolution, the rootfs contents and the XFCE layout (with
+  Xvfb/Xephyr).
+
+## 4. Tests
+
+```
+tests/test-lists.sh        # offline, no root
+sudo tests/integration.sh  # fake signed L4T repo, runs the spike and a rootfs
+```

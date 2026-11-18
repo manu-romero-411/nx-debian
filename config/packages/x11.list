@@ -1,0 +1,11 @@
+# X11 userland both variants need (the server itself is in l4t.list).
+
+xinit
+xauth
+x11-xserver-utils
+x11-utils
+x11-xkb-utils
+xkb-data
+xinput
+lightdm
+lightdm-gtk-greeter

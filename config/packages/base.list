@@ -1,0 +1,33 @@
+# System packages every variant gets. Debian names (trixie). Recommends are
+# not installed (see build-rootfs.sh), so everything wanted is listed here.
+
+# Init, devices, sessions
+systemd-sysv
+systemd-timesyncd
+udev
+dbus
+dbus-user-session
+libpam-systemd
+kmod
+sudo
+polkitd
+pkexec
+ca-certificates
+
+# Network and Bluetooth
+network-manager
+wpasupplicant
+iw
+rfkill
+wireless-regdb
+bluez
+
+# Audio (the per-user PulseAudio the current image already uses)
+alsa-utils
+alsa-ucm-conf
+pulseaudio
+pulseaudio-utils
+pulseaudio-module-bluetooth
+
+# Replaces the hand-made zram setup of the old build.sh
+systemd-zram-generator

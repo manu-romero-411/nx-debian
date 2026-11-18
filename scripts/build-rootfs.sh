@@ -79,11 +79,19 @@ l4t_sources_file "${NXD_ARCH}" "/etc/apt/keyrings/${KEY_NAME}" "${NXD_L4T_COMPON
     > "${STAGE}/nxd-l4t.sources"
 printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
 
-HOOKS=()
-for hook in "${NXD_CONFIG_DIR}"/hooks/*.sh; do
-    [[ -f "${hook}" ]] || continue
-    HOOKS+=("${hook}")
-done
+# add_hooks DIR: run every DIR/*.sh inside the rootfs, in name order.
+add_hooks() {
+    local hook base
+    for hook in "$1"/*.sh; do
+        [[ -f "${hook}" ]] || continue
+        base="$(basename "${hook}")"
+        CMD+=(
+            --customize-hook="copy-in ${hook} /tmp"
+            --customize-hook="chroot \"\$1\" sh /tmp/${base}"
+            --customize-hook="rm -f \"\$1/tmp/${base}\""
+        )
+    done
+}
 
 # Two phases. mmdebstrap only bootstraps Debian (minbase plus apt and the certificates
 # needed for https). The L4T repository is then added and everything is
@@ -114,17 +122,14 @@ fi
 CMD+=(
     --customize-hook="copy-in ${STAGE}/nxd-packages /tmp"
     --customize-hook='chroot "$1" apt-get update'
+)
+add_hooks "${NXD_CONFIG_DIR}/pre-hooks"
+# shellcheck disable=SC2016
+CMD+=(
     --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends \$(cat /tmp/nxd-packages)"'
     --customize-hook='rm -f "$1/tmp/nxd-packages"'
 )
-for hook in "${HOOKS[@]}"; do
-    base="$(basename "${hook}")"
-    CMD+=(
-        --customize-hook="copy-in ${hook} /tmp"
-        --customize-hook="chroot \"\$1\" sh /tmp/${base}"
-        --customize-hook="rm -f \"\$1/tmp/${base}\""
-    )
-done
+add_hooks "${NXD_CONFIG_DIR}/hooks"
 # shellcheck disable=SC2016
 CMD+=(
     --customize-hook='chroot "$1" dpkg-query -W -f "\${binary:Package}\t\${Version}\n" > "$NXD_MANIFEST"'

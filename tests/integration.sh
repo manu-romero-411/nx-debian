@@ -58,9 +58,9 @@ mkdir -m 700 "${GNUPGHOME}"
 gpg --batch --quiet --passphrase '' --quick-generate-key "nxd test <test@invalid>" rsa2048 sign never
 KEY_FPR="$(gpg --batch --with-colons --list-keys | awk -F: '$1 == "fpr" { print $10; exit }')"
 
-# mkpkg POOLDIR NAME VERSION DEPENDS [FILE]: a one-file package.
+# mkpkg POOLDIR NAME VERSION DEPENDS [FILE [PREINST]]: a one-file package.
 mkpkg() {
-    local pool="$1" name="$2" version="$3" depends="$4" file="${5:-}" tree
+    local pool="$1" name="$2" version="$3" depends="$4" file="${5:-}" preinst="${6:-}" tree
     tree="$(mktemp -d "${WORK}/pkg.XXXXXX")"
     mkdir -p "${tree}/DEBIAN"
     {
@@ -75,6 +75,10 @@ mkpkg() {
         printf '#!/bin/sh\n' > "${tree}/${file}"
         chmod 755 "${tree}/${file}"
     fi
+    if [[ -n "${preinst}" ]]; then
+        printf '#!/bin/sh\n%s\n' "${preinst}" > "${tree}/DEBIAN/preinst"
+        chmod 755 "${tree}/DEBIAN/preinst"
+    fi
     mkdir -p "${pool}"
     dpkg-deb --build "${tree}" "${pool}/${name}_${version}_amd64.deb" > /dev/null
 }
@@ -86,7 +90,9 @@ for component in jammy noble; do
     else
         core_dep="libpng16-16t64"
     fi
-    mkpkg "${REPO}/pool/${component}" nvidia-l4t-core "1.0~${component}" "${core_dep}" usr/sbin/nvpmodel
+    # Like nvidia-l4t-ccp-*: refuses to install without NVIDIA's flag file.
+    mkpkg "${REPO}/pool/${component}" nvidia-l4t-core "1.0~${component}" "${core_dep}" usr/sbin/nvpmodel \
+        'test -f /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall || { echo "Unknown Tegra platform"; exit 1; }'
     # libicu70 only exists in Ubuntu jammy: the compat suite has to provide it.
     if [[ "${component}" == "noble" ]]; then
         bsp_dep="libicu70"
@@ -185,6 +191,7 @@ if [[ -f "${TAR}" ]]; then
     MANIFEST="$(cat "${OUT}/test/manifest.txt")"
     expect "rootfs: the pinned Xorg is the one installed" "${MANIFEST}" $'xserver-xorg-core\t2:1\\.20\\.13-fake1'
     expect "rootfs: the L4T packages are installed" "${MANIFEST}" $'nvidia-l4t-core\t1\\.0~noble'
+    expect "rootfs: the installation flag is gone" "$(printf '%s\n' "${LISTING}" | grep -c 'nv-l4t-disable-boot-fw' || true)" '^0$'
     expect "rootfs: the compat package is installed" "${MANIFEST}" $'libicu70:amd64\t'
     expect "rootfs: the compat source is kept" "${LISTING}" 'etc/apt/sources\.list\.d/nxd-compat\.sources'
     expect "rootfs: the Debian side is installed" "${MANIFEST}" $'ca-certificates\t'

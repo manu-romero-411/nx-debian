@@ -64,6 +64,11 @@ The build has two phases:
 Then the scripts of `config/hooks/*.sh` run inside the rootfs (currently:
 empty `machine-id`, `systemd-firstboot` masked).
 
+Then `./nxd inspect --variant retrobox` (no root) prints a report, also saved as
+`build_output/<variant>/report.txt`: size, heaviest packages, who pulled in what
+(`--why PKG` for more), image hygiene (machine-id, build flags, apt sources),
+boot files and kernel modules, enabled services and accounts.
+
 Variants are a list of package lists (`config/variants/*.conf`,
 `config/packages/*.list`). Add a package by editing a list, not a script.
 

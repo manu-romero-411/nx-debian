@@ -103,6 +103,18 @@ check "compat off prints nothing" \
     test -z "$(NXD_COMPAT_SUITE="" render_compat_pins)$(NXD_COMPAT_SUITE="" compat_sources_file arm64)"
 check "joystick is pinned to L4T" grep -q 'xserver-xorg-input-joystick' "${NXD_CONFIG_DIR}/apt/l4t.pref"
 
+# The rootfs report, on a hand-made tarball
+mkdir -p "${tmp}/fake/var/lib/dpkg" "${tmp}/fake/etc" "${tmp}/out/xfce"
+printf 'Package: heavy\nStatus: install ok installed\nInstalled-Size: 2048\nDepends: lib (>= 1)\n\nPackage: lib\nStatus: install ok installed\nInstalled-Size: 10\n' \
+    > "${tmp}/fake/var/lib/dpkg/status"
+: > "${tmp}/fake/etc/machine-id"
+tar -C "${tmp}/fake" -cf "${tmp}/out/xfce/rootfs.tar" .
+REPORT="$("${NXD}" inspect --variant xfce --output "${tmp}/out" --why lib)"
+check "report lists the heaviest package" grep -q '2.0 MiB  heavy' <<< "${REPORT}"
+check "report explains who pulls a package in" grep -q 'lib (pulled in): heavy' <<< "${REPORT}"
+check "report sees the empty machine-id" grep -q 'machine-id empty: True' <<< "${REPORT}"
+check_not "report refuses a missing rootfs" "${NXD}" inspect --variant retrobox --output "${tmp}/out"
+
 # The mmdebstrap command
 DRY="$("${NXD}" rootfs --variant retrobox --dry-run --output "${tmp}/out")"
 check "dry run builds a minbase" grep -q -- '--variant=minbase' <<< "${DRY}"

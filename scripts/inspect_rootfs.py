@@ -10,13 +10,15 @@ import argparse
 import re
 import sys
 import tarfile
-from collections import defaultdict
+from collections import defaultdict, deque
 
 # Packages worth asking "who needs this?" about when nothing explicit does.
 DEFAULT_WHY = (
     "imagemagick", "yad", "cpp", "sudo", "python3", "v4l-utils", "libgs10",
     "systemd-timesyncd", "wpasupplicant", "network-manager", "bluez",
     "pulseaudio", "polkitd", "openbox", "lightdm", "kmod", "alsa-utils",
+    "libllvm19", "mesa-libgallium", "libgtk-3-0t64", "iso-codes",
+    "libcodec2-1.2", "libasound2-plugins",
 )
 
 # Left behind by the build; none of them may be in the image.
@@ -95,6 +97,25 @@ def reverse_dependencies(packages):
     return reverse
 
 
+def chain_to_explicit(name, reverse, explicit):
+    """Shortest chain of dependents from ``name`` up to an explicit package.
+
+    Returns the list [name, ..., explicit package], or None when nothing
+    explicit leads to it (a leftover of the bootstrap, say).
+    """
+    seen = {name}
+    queue = deque([[name]])
+    while queue:
+        chain = queue.popleft()
+        if chain[-1] in explicit:
+            return chain
+        for user in sorted(reverse.get(chain[-1], ())):
+            if user not in seen:
+                seen.add(user)
+                queue.append(chain + [user])
+    return None
+
+
 def section(title):
     """Print a section header."""
     print(f"\n## {title}\n")
@@ -123,6 +144,18 @@ def report_why(packages, explicit, names):
         asked = "asked for" if name in explicit else "pulled in"
         users = sorted(reverse.get(name, ()))
         print(f"{name} ({asked}): {', '.join(users) if users else '-'}")
+
+
+def report_chains(packages, explicit, top):
+    """For the heaviest packages nobody asked for, the chain that brought them."""
+    section(f"Heaviest {top} packages nobody asked for, and why they are here")
+    reverse = reverse_dependencies(packages)
+    sizes = {n: int(f.get("Installed-Size", "0") or 0) for n, f in packages.items()
+             if n not in explicit}
+    for name, size in sorted(sizes.items(), key=lambda item: -item[1])[:top]:
+        chain = chain_to_explicit(name, reverse, explicit)
+        via = " <- ".join(chain[1:]) if chain and len(chain) > 1 else "(nothing explicit)"
+        print(f"  {size / 1024:7.1f} MiB  {name} <- {via}")
 
 
 def report_hygiene(tar, members):
@@ -159,8 +192,9 @@ def report_boot(members):
         total = sum(m.size for n, m in members.items() if n.startswith(prefix))
         if total:
             print(f"  {total / 1048576:8.1f} MiB  {label}")
-    modules = sorted({n.split("/")[2] for n in members
-                      if n.startswith(("lib/modules/", "usr/lib/modules/")) and n.count("/") > 2})
+    modules = sorted({match.group(1) for match in
+                      (re.match(r"(?:usr/)?lib/modules/([^/]+)", n) for n in members)
+                      if match})
     print(f"  kernel versions: {', '.join(modules) if modules else 'none'}")
 
 
@@ -174,16 +208,38 @@ def report_services(members):
             enabled[f"{match.group(1)}/{match.group(2)}"].append(match.group(3))
     for target in sorted(enabled):
         print(f"{target}: {', '.join(sorted(enabled[target]))}")
+    print("\nAliases and masks in /etc/systemd/system:")
+    for name, member in sorted(members.items()):
+        if re.match(r"etc/systemd/system/[^/]+$", name) and member.issym():
+            print(f"  {name.rsplit('/', 1)[1]} -> {member.linkname}")
+
+
+def password_state(tar):
+    """Map account name -> locked / empty / set, from /etc/shadow."""
+    states = {}
+    for line in (read_member(tar, "etc/shadow") or "").splitlines():
+        parts = line.split(":")
+        if len(parts) < 2:
+            continue
+        if parts[1] == "":
+            states[parts[0]] = "EMPTY password"
+        elif parts[1][0] in "!*":
+            states[parts[0]] = "locked"
+        else:
+            states[parts[0]] = "password set"
+    return states
 
 
 def report_users(tar):
     """Accounts with a login shell or a real uid."""
     section("Accounts")
+    states = password_state(tar)
     passwd = read_member(tar, "etc/passwd") or ""
     for line in passwd.splitlines():
         parts = line.split(":")
         if len(parts) >= 7 and (int(parts[2]) >= 1000 or parts[2] == "0"):
-            print(f"  {parts[0]} uid={parts[2]} shell={parts[6]}")
+            print(f"  {parts[0]} uid={parts[2]} shell={parts[6]} "
+                  f"({states.get(parts[0], 'not in shadow')})")
 
 
 def main():
@@ -211,6 +267,7 @@ def main():
         print(f"# nxd rootfs report: {args.tarball}")
         report_sizes(args.tarball, packages, args.top)
         report_why(packages, explicit, list(DEFAULT_WHY) + args.why)
+        report_chains(packages, explicit, args.top)
         report_hygiene(tar, members)
         report_boot(members)
         report_services(members)

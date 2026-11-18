@@ -105,14 +105,25 @@ check "joystick is pinned to L4T" grep -q 'xserver-xorg-input-joystick' "${NXD_C
 
 # The rootfs report, on a hand-made tarball
 mkdir -p "${tmp}/fake/var/lib/dpkg" "${tmp}/fake/etc" "${tmp}/out/xfce"
-printf 'Package: heavy\nStatus: install ok installed\nInstalled-Size: 2048\nDepends: lib (>= 1)\n\nPackage: lib\nStatus: install ok installed\nInstalled-Size: 10\n' \
+printf 'Package: heavy\nStatus: install ok installed\nInstalled-Size: 2048\nDepends: lib (>= 1)\n\nPackage: lib\nStatus: install ok installed\nInstalled-Size: 10\n\nPackage: xserver-xorg-core\nStatus: install ok installed\nInstalled-Size: 1\nDepends: heavy\n' \
     > "${tmp}/fake/var/lib/dpkg/status"
+mkdir -p "${tmp}/fake/usr/lib/modules/4.9.140-l4t"
+# shellcheck disable=SC2016
+printf 'root:!:1:0:99999:7:::\nmanu:%s:1:0:99999:7:::\n' '$6$x' > "${tmp}/fake/etc/shadow"
+printf 'root:x:0:0:root:/root:/bin/bash\nmanu:x:1000:1000::/home/manu:/bin/bash\n' > "${tmp}/fake/etc/passwd"
 : > "${tmp}/fake/etc/machine-id"
 tar -C "${tmp}/fake" -cf "${tmp}/out/xfce/rootfs.tar" .
 REPORT="$("${NXD}" inspect --variant xfce --output "${tmp}/out" --why lib)"
 check "report lists the heaviest package" grep -q '2.0 MiB  heavy' <<< "${REPORT}"
 check "report explains who pulls a package in" grep -q 'lib (pulled in): heavy' <<< "${REPORT}"
 check "report sees the empty machine-id" grep -q 'machine-id empty: True' <<< "${REPORT}"
+check "report names the chain that brought a package in" grep -q 'lib <- heavy <- xserver-xorg-core' <<< "${REPORT}"
+check "report reads the kernel version" grep -q 'kernel versions: 4.9.140-l4t' <<< "${REPORT}"
+check "report shows the password state" grep -q 'root uid=0 .*(locked)' <<< "${REPORT}"
+check "report sees a set password" grep -q 'manu uid=1000 .*(password set)' <<< "${REPORT}"
+chmod 555 "${tmp}/out/xfce"
+check "report survives an unwritable output dir" "${NXD}" inspect --variant xfce --output "${tmp}/out"
+chmod 755 "${tmp}/out/xfce"
 check_not "report refuses a missing rootfs" "${NXD}" inspect --variant retrobox --output "${tmp}/out"
 
 # The mmdebstrap command
@@ -128,6 +139,15 @@ check "L4T source file has the key and the component" \
 check "L4T source file honours the component" \
     grep -q 'Components: jammy' <(l4t_sources_file arm64 /etc/apt/keyrings/k.asc jammy)
 check "dry run runs the hooks" grep -q '10-machine-id.sh' <<< "${DRY}"
+check "retrobox does not ship docs or kernel headers" grep -q 'dpkg.cfg.d' <<< "${DRY}"
+check "dpkg excludes list the headers" grep -q 'path-exclude=/usr/src/linux-headers-\*' <(dpkg_excludes_file retrobox)
+check "dpkg excludes are not expanded as globs" test "$(dpkg_excludes_file retrobox | wc -l)" -le 8
+check "dpkg excludes keep the copyright files" grep -q 'path-include=/usr/share/doc/\*/copyright' <(dpkg_excludes_file retrobox)
+check "xfce has no dpkg excludes" test -z "$(dpkg_excludes_file xfce)"
+check "a user is staged by --user" grep -q 'nxd-user' <("${NXD}" rootfs --variant xfce --user manu --no-password --dry-run --output "${tmp}/out")
+check_not "a bad login name is refused" "${NXD}" rootfs --variant xfce --user 'Bad Name' --no-password --dry-run --output "${tmp}/out"
+check_not "--no-password needs --user" "${NXD}" rootfs --variant xfce --no-password --dry-run --output "${tmp}/out"
+check "--user takes the password from NXD_PASSWORD" env NXD_PASSWORD=x "${NXD}" rootfs --variant xfce --user manu --dry-run --output "${tmp}/out"
 check_not "unknown variant is refused" "${NXD}" rootfs --variant nope --dry-run --output "${tmp}/out"
 check_not "unknown command is refused" "${NXD}" frobnicate
 

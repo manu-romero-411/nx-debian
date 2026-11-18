@@ -31,7 +31,14 @@ if ! "${ENGINE}" image inspect "${IMAGE}" > /dev/null 2>&1; then
     "${ENGINE}" build -t "${IMAGE}" -f "${NXD_ROOT}/docker/Containerfile" "${NXD_ROOT}/docker"
 fi
 
-exec "${ENGINE}" run --rm --privileged --security-opt label=disable \
+# A terminal (for the password prompt of --user) only when there is one.
+TTY=()
+if [[ -t 0 && -t 1 ]]; then
+    TTY=(-it)
+fi
+
+exec "${ENGINE}" run --rm --privileged --security-opt label=disable "${TTY[@]}" \
     -v "${NXD_ROOT}:/nxd" -w /nxd \
     -e NXD_SUITE -e NXD_ARCH -e NXD_MIRROR -e NXD_L4T_COMPONENT -e NXD_OUTPUT_DIR \
+    -e NXD_PASSWORD \
     "${IMAGE}" ./nxd "$@"

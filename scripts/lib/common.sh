@@ -149,3 +149,36 @@ Components: ${NXD_COMPONENTS}
 Architectures: $1
 EOF
 }
+
+# variant_setting VARIANT NAME: the value of NXD_NAME set by the variant's conf
+# file, empty when it does not set it.
+variant_setting() {
+    local file="${NXD_CONFIG_DIR}/variants/$1.conf"
+    [[ -f "${file}" ]] || die "unknown variant: $1"
+    (
+        # shellcheck source=/dev/null
+        . "${file}"
+        printf '%s' "${!2:-}"
+    )
+}
+
+# dpkg_excludes_file VARIANT: the dpkg.cfg.d file that keeps the variant's
+# NXD_PATH_EXCLUDES out of the image (docs, man pages, kernel headers...).
+# Nothing is printed when the variant excludes nothing.
+dpkg_excludes_file() {
+    local excludes includes pattern
+    local -a patterns
+    excludes="$(variant_setting "$1" NXD_PATH_EXCLUDES)"
+    includes="$(variant_setting "$1" NXD_PATH_INCLUDES)"
+    [[ -n "${excludes}" ]] || return 0
+    printf '# Written by nxd: paths this variant does not ship.\n'
+    # read -a splits on spaces without expanding the globs of the patterns.
+    read -r -a patterns <<< "${excludes}"
+    for pattern in "${patterns[@]}"; do
+        printf 'path-exclude=%s\n' "${pattern}"
+    done
+    read -r -a patterns <<< "${includes}"
+    for pattern in "${patterns[@]}"; do
+        printf 'path-include=%s\n' "${pattern}"
+    done
+}

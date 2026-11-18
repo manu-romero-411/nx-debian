@@ -16,6 +16,9 @@ load_config
 VARIANT="xfce"
 FORMAT="tar"
 DRY_RUN=0
+USER_NAME=""
+USER_HASH=""
+NO_PASSWORD=0
 
 usage() {
     cat << EOF
@@ -25,6 +28,10 @@ Usage: build-rootfs.sh [options]
   --output DIR      output directory (default: ${NXD_OUTPUT_DIR})
   --format tar|dir  tarball or plain directory (default: ${FORMAT})
   --component NAME  L4T component (default: ${NXD_L4T_COMPONENT})
+  --user NAME       create this user (uid 1000) in the image; the password comes
+                    from --password-hash, from \$NXD_PASSWORD or from a prompt
+  --password-hash H crypt(3) hash of the password (openssl passwd -6)
+  --no-password     with --user: leave the account without a password
   --dry-run         print the mmdebstrap command and stop
   -h, --help        this text
 
@@ -38,6 +45,9 @@ while [[ $# -gt 0 ]]; do
         --output) NXD_OUTPUT_DIR="${2:?--output needs a value}"; shift 2 ;;
         --format) FORMAT="${2:?--format needs a value}"; shift 2 ;;
         --component) NXD_L4T_COMPONENT="${2:?--component needs a value}"; shift 2 ;;
+        --user) USER_NAME="${2:?--user needs a value}"; shift 2 ;;
+        --password-hash) USER_HASH="${2:?--password-hash needs a value}"; shift 2 ;;
+        --no-password) NO_PASSWORD=1; shift ;;
         --dry-run) DRY_RUN=1; shift ;;
         -h | --help) usage; exit 0 ;;
         *) usage >&2; die "unknown option: $1" ;;
@@ -48,6 +58,29 @@ case "${FORMAT}" in
     tar | dir) ;;
     *) die "--format must be tar or dir" ;;
 esac
+
+if [[ -n "${USER_NAME}" ]]; then
+    [[ "${USER_NAME}" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] ||
+        die "--user: '${USER_NAME}' is not a valid login name"
+    if [[ -z "${USER_HASH}" && "${NO_PASSWORD}" -eq 0 ]]; then
+        if [[ -z "${NXD_PASSWORD:-}" && "${DRY_RUN}" -eq 0 ]]; then
+            [[ -t 0 ]] || die "--user needs a password: set NXD_PASSWORD, pass --password-hash or --no-password"
+            read -rsp "Password for ${USER_NAME}: " NXD_PASSWORD
+            printf '\n'
+            read -rsp "Again: " again
+            printf '\n'
+            [[ "${NXD_PASSWORD}" == "${again}" ]] || die "the passwords differ"
+        fi
+        if [[ "${DRY_RUN}" -eq 1 ]]; then
+            USER_HASH="(hash)"
+        else
+            need_cmd openssl "install openssl"
+            USER_HASH="$(printf '%s' "${NXD_PASSWORD}" | openssl passwd -6 -stdin)"
+        fi
+    fi
+elif [[ -n "${USER_HASH}" || "${NO_PASSWORD}" -eq 1 ]]; then
+    die "--password-hash and --no-password need --user"
+fi
 
 verify_key "${NXD_L4T_KEY}" "${NXD_L4T_KEY_FPR}"
 mapfile -t PACKAGES < <(variant_packages "${VARIANT}")
@@ -78,6 +111,10 @@ compat_sources_file "${NXD_ARCH}" > "${STAGE}/nxd-compat.sources"
 l4t_sources_file "${NXD_ARCH}" "/etc/apt/keyrings/${KEY_NAME}" "${NXD_L4T_COMPONENT}" \
     > "${STAGE}/nxd-l4t.sources"
 printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
+dpkg_excludes_file "${VARIANT}" > "${STAGE}/nxd-excludes"
+if [[ -n "${USER_NAME}" ]]; then
+    (umask 077; printf '%s\n%s\n' "${USER_NAME}" "${USER_HASH}" > "${STAGE}/nxd-user")
+fi
 
 # add_hooks DIR: run every DIR/*.sh inside the rootfs, in name order.
 add_hooks() {
@@ -118,6 +155,15 @@ CMD=(
 if [[ -s "${STAGE}/nxd-compat.sources" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-compat.sources /etc/apt/sources.list.d")
 fi
+if [[ -s "${STAGE}/nxd-excludes" ]]; then
+    # The bootstrap (apt and the essential set) goes in before any hook can
+    # write a dpkg config file, so it gets the excludes as options; the file
+    # stays in the image for what is installed later with apt.
+    while IFS= read -r line; do
+        [[ "${line}" == path-* ]] && CMD+=("--dpkgopt=${line}")
+    done < "${STAGE}/nxd-excludes"
+    CMD+=(--customize-hook="copy-in ${STAGE}/nxd-excludes /etc/dpkg/dpkg.cfg.d")
+fi
 # shellcheck disable=SC2016
 CMD+=(
     --customize-hook="copy-in ${STAGE}/nxd-packages /tmp"
@@ -129,6 +175,9 @@ CMD+=(
     --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends \$(cat /tmp/nxd-packages)"'
     --customize-hook='rm -f "$1/tmp/nxd-packages"'
 )
+if [[ -s "${STAGE}/nxd-user" ]]; then
+    CMD+=(--customize-hook="copy-in ${STAGE}/nxd-user /tmp")
+fi
 add_hooks "${NXD_CONFIG_DIR}/hooks"
 # shellcheck disable=SC2016
 CMD+=(
@@ -154,6 +203,12 @@ status=0
 "${CMD[@]}" > >(tee "${BUILD_LOG}") 2>&1 || status=$?
 wait
 rm -rf "${STAGE}"
+# Built as root (sudo, or a container): hand the output back to whoever owns
+# the directory it lives in, so it can be read and written without sudo.
+if [[ "${EUID}" -eq 0 ]]; then
+    owner="$(stat -c '%u:%g' "$(dirname "${NXD_OUTPUT_DIR}")")"
+    [[ "${owner}" == "0:0" ]] || chown -R "${owner}" "${NXD_OUTPUT_DIR}"
+fi
 if [[ "${status}" -ne 0 ]]; then
     warn "last lines of the log:"
     tail -n 25 "${BUILD_LOG}" >&2

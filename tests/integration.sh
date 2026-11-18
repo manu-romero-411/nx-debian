@@ -123,7 +123,7 @@ cp "${WORK}/test-L4T.asc" "${CONFIG}/keys/test-L4T.asc"
 printf 'ca-certificates\n' > "${CONFIG}/packages/base.list"
 printf 'nvidia-l4t-core\nswitch-bsp\nxserver-xorg-core\n' > "${CONFIG}/packages/l4t.list"
 printf '# nothing\n' > "${CONFIG}/packages/x11.list"
-printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\n' > "${CONFIG}/variants/test.conf"
+printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\nNXD_PATH_EXCLUDES="/usr/share/doc/* /usr/share/man/*"\nNXD_PATH_INCLUDES="/usr/share/doc/*/copyright"\n' > "${CONFIG}/variants/test.conf"
 
 export NXD_CONFIG_DIR="${CONFIG}"
 export NXD_L4T_KEY="${CONFIG}/keys/test-L4T.asc"
@@ -175,7 +175,7 @@ trap 'kill "${HTTP_PID}" 2> /dev/null || true; rm -rf "${WORK}"' EXIT
 sleep 1
 export NXD_L4T_URL="http://127.0.0.1:${PORT}/"
 OUT="${WORK}/out"
-"${NXD}" rootfs --variant test --component noble --output "${OUT}" > "${WORK}/rootfs.out" 2>&1 || {
+NXD_PASSWORD='s3cret' "${NXD}" rootfs --variant test --component noble --user manu --output "${OUT}" > "${WORK}/rootfs.out" 2>&1 || {
     tail -n 30 "${WORK}/rootfs.out"
     bad "the rootfs was built"
 }
@@ -199,6 +199,20 @@ if [[ -f "${TAR}" ]]; then
     expect "rootfs: the compat source is kept" "${LISTING}" 'etc/apt/sources\.list\.d/nxd-compat\.sources'
     expect "rootfs: the Debian side is installed" "${MANIFEST}" $'ca-certificates\t'
     expect "rootfs: dpkg knows the packages (manifest from dpkg-query)" "${MANIFEST}" $'switch-bsp\t'
+    expect "rootfs: the user has uid 1000" "$(tar -xOf "${TAR}" ./etc/passwd)" '^manu:x:1000:1000:'
+    expect "rootfs: the user has a home" "${LISTING}" 'home/manu/\.bashrc'
+    # shellcheck disable=SC2016
+    expect "rootfs: the password is hashed" "$(tar -xOf "${TAR}" ./etc/shadow)" '^manu:\$6\$'
+    expect "rootfs: the plain password is nowhere" \
+        "$(tar -xOf "${TAR}" ./etc/shadow | grep -c 's3cret' || true)" '^0$'
+    expect "rootfs: no nxd-user file left" \
+        "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-user' || true)" '^0$'
+    expect "rootfs: the dpkg excludes are in the image" "${LISTING}" 'etc/dpkg/dpkg\.cfg\.d/nxd-excludes'
+    expect "rootfs: package docs are not shipped" \
+        "$(printf '%s\n' "${LISTING}" | grep -E '^-.* \./usr/share/doc/[^/]+/.+' | grep -vc '/copyright' || true)" '^0$'
+    expect "rootfs: the copyright files are kept" "${LISTING}" 'usr/share/doc/[^/]+/copyright'
+    expect "rootfs: the output is not left to root only" \
+        "$(stat -c '%u' "${TAR}")" "^$(stat -c '%u' "${WORK}")\$"
 else
     bad "rootfs: the tarball exists"
 fi

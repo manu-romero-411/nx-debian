@@ -102,3 +102,30 @@ Notes:
 tests/test-lists.sh        # offline, no root
 sudo tests/integration.sh  # fake signed L4T repo, runs the spike and a rootfs
 ```
+
+## The first user
+
+`nxd rootfs --user NAME` creates the first account (uid/gid 1000) in the image.
+The password is read, in this order, from `--password-hash HASH` (a crypt(3)
+hash, for example `openssl passwd -6`), from `$NXD_PASSWORD`, or from a prompt;
+`--no-password` leaves the account without one. Only the hash reaches the
+image: it travels in a mode-600 file that `config/hooks/20-user.sh` consumes
+and deletes. The user joins `sudo`, `audio`, `video`, `input`, `render`,
+`plugdev`, `netdev`, `bluetooth` and `dialout`, whichever of them exist.
+
+Without `--user` the image has no user and root is locked; the first-boot
+setup is meant to create it.
+
+## Leaving things out of a variant
+
+A variant can set `NXD_PATH_EXCLUDES` (and `NXD_PATH_INCLUDES` for the
+exceptions) in its `config/variants/*.conf`. They become dpkg `path-exclude` /
+`path-include` lines, applied from the bootstrap on and kept in
+`/etc/dpkg/dpkg.cfg.d/nxd-excludes`. Retrobox leaves out the kernel headers,
+man pages, info pages and package docs (copyright files stay).
+
+## Ownership of the output
+
+When the build runs as root (`sudo`, or the container), the output directory is
+handed back to the owner of its parent, so `nxd inspect` can write its report
+without `sudo`.

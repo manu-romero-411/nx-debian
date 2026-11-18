@@ -46,5 +46,10 @@ PACKAGES="$(mktemp)"
 trap 'rm -f "${PACKAGES}"' EXIT
 variant_packages "${VARIANT}" > "${PACKAGES}"
 
+REPORT="${OUTPUT}/${VARIANT}/report.txt"
+if ! : > "${REPORT}" 2> /dev/null; then
+    warn "cannot write ${REPORT} (owned by root? try: sudo chown -R \"\$USER\" ${OUTPUT}); printing only"
+    REPORT=/dev/null
+fi
 python3 -I "${SCRIPT_DIR}/inspect_rootfs.py" "${TARBALL}" --packages "${PACKAGES}" \
-    "${EXTRA[@]}" | tee "${OUTPUT}/${VARIANT}/report.txt"
+    "${EXTRA[@]}" | tee "${REPORT}"

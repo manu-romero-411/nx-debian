@@ -99,7 +99,9 @@ for component in jammy noble; do
     else
         bsp_dep=""
     fi
-    mkpkg "${REPO}/pool/${component}" switch-bsp "1.0~${component}" "${bsp_dep}"
+    # Like switch-bsp: wants to mount the boot partition unless told otherwise.
+    mkpkg "${REPO}/pool/${component}" switch-bsp "1.0~${component}" "${bsp_dep}" "" \
+        'test -f /opt/switchroot/image_prep || { echo "Mounting boot disk"; exit 32; }'
     mkpkg "${REPO}/pool/${component}" xserver-xorg-core "2:1.20.13-fake1" ""
     mkdir -p "${REPO}/dists/l4t/${component}/binary-amd64"
     (cd "${REPO}" && dpkg-scanpackages --arch amd64 "pool/${component}" \
@@ -191,7 +193,8 @@ if [[ -f "${TAR}" ]]; then
     MANIFEST="$(cat "${OUT}/test/manifest.txt")"
     expect "rootfs: the pinned Xorg is the one installed" "${MANIFEST}" $'xserver-xorg-core\t2:1\\.20\\.13-fake1'
     expect "rootfs: the L4T packages are installed" "${MANIFEST}" $'nvidia-l4t-core\t1\\.0~noble'
-    expect "rootfs: the installation flag is gone" "$(printf '%s\n' "${LISTING}" | grep -c 'nv-l4t-disable-boot-fw' || true)" '^0$'
+    expect "rootfs: the installation flags are gone" \
+        "$(printf '%s\n' "${LISTING}" | grep -c 'nv-l4t-disable-boot-fw\|switchroot/image_prep' || true)" '^0$'
     expect "rootfs: the compat package is installed" "${MANIFEST}" $'libicu70:amd64\t'
     expect "rootfs: the compat source is kept" "${LISTING}" 'etc/apt/sources\.list\.d/nxd-compat\.sources'
     expect "rootfs: the Debian side is installed" "${MANIFEST}" $'ca-certificates\t'

@@ -5,5 +5,7 @@ set -eu
 
 rm -f /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall
 rmdir /opt/nvidia/l4t-packages /opt/nvidia 2> /dev/null || true
+# switch-bsp's postinst removes its own flag; this is only a safety net.
+rm -f /opt/switchroot/image_prep
 # Left in place when a package put something in it (switch-bsp does).
 rmdir /etc/apport/blacklist.d /etc/apport 2> /dev/null || true

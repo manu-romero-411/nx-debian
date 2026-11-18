@@ -141,6 +141,8 @@ check "L4T source file honours the component" \
 check "dry run runs the hooks" grep -q '10-machine-id.sh' <<< "${DRY}"
 check "retrobox does not ship docs or kernel headers" grep -q 'dpkg.cfg.d' <<< "${DRY}"
 check "dpkg excludes list the headers" grep -q 'path-exclude=/usr/src/linux-headers-\*' <(dpkg_excludes_file retrobox)
+check "retrobox masks the apt timers" grep -q 'apt-daily.timer' <(variant_setting retrobox NXD_MASK_UNITS)
+check "retrobox keeps NetworkManager" test -z "$(variant_setting retrobox NXD_MASK_UNITS | grep -i 'networkmanager\|bluetooth\|pulse' || true)"
 check "dpkg excludes are not expanded as globs" test "$(dpkg_excludes_file retrobox | wc -l)" -le 8
 check "dpkg excludes keep the copyright files" grep -q 'path-include=/usr/share/doc/\*/copyright' <(dpkg_excludes_file retrobox)
 check "xfce has no dpkg excludes" test -z "$(dpkg_excludes_file xfce)"

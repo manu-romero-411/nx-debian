@@ -123,7 +123,7 @@ cp "${WORK}/test-L4T.asc" "${CONFIG}/keys/test-L4T.asc"
 printf 'ca-certificates\n' > "${CONFIG}/packages/base.list"
 printf 'nvidia-l4t-core\nswitch-bsp\nxserver-xorg-core\n' > "${CONFIG}/packages/l4t.list"
 printf '# nothing\n' > "${CONFIG}/packages/x11.list"
-printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\nNXD_PATH_EXCLUDES="/usr/share/doc/* /usr/share/man/*"\nNXD_PATH_INCLUDES="/usr/share/doc/*/copyright"\n' > "${CONFIG}/variants/test.conf"
+printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\nNXD_PATH_EXCLUDES="/usr/share/doc/* /usr/share/man/*"\nNXD_PATH_INCLUDES="/usr/share/doc/*/copyright"\nNXD_MASK_UNITS="apt-daily.timer fstrim.timer"\n' > "${CONFIG}/variants/test.conf"
 
 export NXD_CONFIG_DIR="${CONFIG}"
 export NXD_L4T_KEY="${CONFIG}/keys/test-L4T.asc"
@@ -210,6 +210,9 @@ if [[ -f "${TAR}" ]]; then
     expect "rootfs: the dpkg excludes are in the image" "${LISTING}" 'etc/dpkg/dpkg\.cfg\.d/nxd-excludes'
     expect "rootfs: package docs are not shipped" \
         "$(printf '%s\n' "${LISTING}" | grep -E '^-.* \./usr/share/doc/[^/]+/.+' | grep -vc '/copyright' || true)" '^0$'
+    expect "rootfs: masked units point at /dev/null" "${LISTING}" 'etc/systemd/system/apt-daily\.timer -> /dev/null'
+    expect "rootfs: the mask list is consumed" \
+        "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-mask' || true)" '^0$'
     expect "rootfs: the copyright files are kept" "${LISTING}" 'usr/share/doc/[^/]+/copyright'
     expect "rootfs: the output is not left to root only" \
         "$(stat -c '%u' "${TAR}")" "^$(stat -c '%u' "${WORK}")\$"

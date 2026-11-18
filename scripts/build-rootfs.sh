@@ -112,6 +112,8 @@ l4t_sources_file "${NXD_ARCH}" "/etc/apt/keyrings/${KEY_NAME}" "${NXD_L4T_COMPON
     > "${STAGE}/nxd-l4t.sources"
 printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
 dpkg_excludes_file "${VARIANT}" > "${STAGE}/nxd-excludes"
+# One unit name per line, for config/hooks/30-services.sh.
+variant_setting "${VARIANT}" NXD_MASK_UNITS | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-mask"
 if [[ -n "${USER_NAME}" ]]; then
     (umask 077; printf '%s\n%s\n' "${USER_NAME}" "${USER_HASH}" > "${STAGE}/nxd-user")
 fi
@@ -175,6 +177,9 @@ CMD+=(
     --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends \$(cat /tmp/nxd-packages)"'
     --customize-hook='rm -f "$1/tmp/nxd-packages"'
 )
+if [[ -s "${STAGE}/nxd-mask" ]]; then
+    CMD+=(--customize-hook="copy-in ${STAGE}/nxd-mask /tmp")
+fi
 if [[ -s "${STAGE}/nxd-user" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-user /tmp")
 fi

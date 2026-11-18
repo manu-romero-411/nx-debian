@@ -129,3 +129,10 @@ man pages, info pages and package docs (copyright files stay).
 When the build runs as root (`sudo`, or the container), the output directory is
 handed back to the owner of its parent, so `nxd inspect` can write its report
 without `sudo`.
+
+## Masking units
+
+`NXD_MASK_UNITS` in a variant conf lists units to mask in the image
+(`config/hooks/30-services.sh`). Retrobox masks the apt-daily timers and
+services; NetworkManager, bluez and the audio daemons are left alone because
+Retrobox drives them.

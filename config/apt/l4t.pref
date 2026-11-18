@@ -3,7 +3,7 @@
 
 # The Tegra r32 driver stops at Xorg 1.20 (video ABI 24); Debian's server is
 # newer, so these must come from the L4T repository whatever Debian offers.
-Package: xserver-xorg-core xserver-xorg-input-libinput xserver-xorg-video-fbdev xserver-common
+Package: xserver-xorg-core xserver-xorg-input-libinput xserver-xorg-input-joystick xserver-xorg-video-fbdev xserver-common
 Pin: origin "@L4T_HOST@"
 Pin-Priority: 1001
 

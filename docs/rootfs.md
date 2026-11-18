@@ -31,6 +31,12 @@ uses the Ubuntu release as component). The result is `spike-report.md`:
   `nvidia_drv.so`, ucm2, udev rules, ...), to know what no longer has to live
   in this repository.
 
+Libraries that Debian dropped but L4T packages still need (today: `libpcre3`,
+required by `nvidia-l4t-multimedia`) come from an otherwise disabled older
+suite: `NXD_COMPAT_SUITE` / `NXD_COMPAT_PACKAGES` in `config/nxd.conf`. Only the
+listed packages can be installed from it (pin 100, everything else -1). Set
+`NXD_COMPAT_SUITE=""` to turn it off.
+
 Pick the component that resolves with pins and set `NXD_L4T_COMPONENT` in
 `config/nxd.conf` (or pass `--component` to `nxd rootfs`).
 

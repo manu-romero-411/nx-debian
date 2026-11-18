@@ -116,17 +116,26 @@ make_env() {
             "${NXD_ARCH}" "${KEYRING}" "${NXD_MIRROR}" "${NXD_SUITE}" "${NXD_COMPONENTS}"
         if [[ -n "${component}" ]]; then
             l4t_source_line "${NXD_ARCH}" "${NXD_L4T_KEY}" "${component}"
+            if [[ -n "${NXD_COMPAT_SUITE}" ]]; then
+                printf 'deb [arch=%s signed-by=%s] %s %s %s\n' \
+                    "${NXD_ARCH}" "${KEYRING}" "${NXD_MIRROR}" "${NXD_COMPAT_SUITE}" "${NXD_COMPONENTS}"
+            fi
         fi
     } > "${dir}/sources.list"
+    mkdir -p "${dir}/empty"
     : > "${dir}/preferences"
+    if [[ -n "${component}" ]]; then
+        render_compat_pins >> "${dir}/preferences"
+        printf '\n' >> "${dir}/preferences"
+    fi
     if [[ "${pins}" == "pin" ]]; then
-        render_pins "${L4T_HOST}" > "${dir}/preferences"
+        render_pins "${L4T_HOST}" >> "${dir}/preferences"
     fi
     APT_OPTS=(
         -o "Dir::Etc::sourcelist=${dir}/sources.list"
-        -o "Dir::Etc::sourceparts=-"
+        -o "Dir::Etc::sourceparts=${dir}/empty"
         -o "Dir::Etc::preferences=${dir}/preferences"
-        -o "Dir::Etc::preferencesparts=-"
+        -o "Dir::Etc::preferencesparts=${dir}/empty"
         -o "Dir::State=${dir}"
         -o "Dir::State::lists=${dir}/lists"
         -o "Dir::State::status=${dir}/status"
@@ -156,7 +165,7 @@ candidate_source() {
         /^  Candidate:/ { cand = $2; next }
         /^     [^ ]/ { v = $1; prio = $2; next }
         /^ \*\*\* / { v = $2; prio = $3; next }
-        /^        [0-9]/ && v == cand && !done { printf "%s  %s  %s %s\n", cand, prio, $2, $3; done = 1 }
+        /^        [ ]?[-0-9]/ && v == cand && !done { printf "%s  %s  %s %s\n", cand, prio, $2, $3; done = 1 }
         END { if (cand == "" || cand == "(none)") print "(none)" }
     '
 }
@@ -262,7 +271,15 @@ for component in ${COMPONENTS}; do
             emit "Where the L4T packages come from (version, priority, source):"
             emit ""
             fence
-            for pkg in "${L4T_PKGS[@]}"; do
+            for pkg in "${L4T_PKGS[@]}" ${NXD_COMPAT_PACKAGES}; do
+                printf '%-30s %s\n' "${pkg}" "$(candidate_source "${pkg}")" >> "${REPORT}"
+            done
+            fence
+            emit ""
+            emit "The packages that change the plan, with this repository:"
+            emit ""
+            fence
+            for pkg in "${EXTRAS[@]}"; do
                 printf '%-30s %s\n' "${pkg}" "$(candidate_source "${pkg}")" >> "${REPORT}"
             done
             fence
@@ -290,7 +307,7 @@ if [[ "${CONTENTS}" -eq 1 ]]; then
         fence
         for pattern in 'usr/sbin/nvpmodel$' 'nvpmodel.*\.conf$' 'polkit-1/actions/' \
             'usr/lib/xorg/Xorg$' 'nvidia_drv\.so$' 'bootstack/' 'modules\.tar' \
-            'ucm2/' 'udev/rules\.d/' 'xorg\.conf\.d/' 'lib/systemd/system/.*\.service$'; do
+            'ucm2/' 'udev/rules\.d/' 'xorg\.conf\.d/' 'systemd/system/.*\.service$' 'opt/switchroot/'; do
             printf '%s\n' "--- ${pattern}" >> "${REPORT}"
             for deb in "${WORKDIR}"/debs/*.deb; do
                 [[ -f "${deb}" ]] || continue

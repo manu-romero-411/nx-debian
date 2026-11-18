@@ -22,4 +22,5 @@ switch-l4t-configs
 # Xorg 1.20, pinned to this repository
 xserver-xorg-core
 xserver-xorg-input-libinput
+xserver-xorg-input-joystick
 xserver-xorg-video-fbdev

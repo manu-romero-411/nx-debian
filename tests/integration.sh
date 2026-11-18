@@ -87,7 +87,13 @@ for component in jammy noble; do
         core_dep="libpng16-16t64"
     fi
     mkpkg "${REPO}/pool/${component}" nvidia-l4t-core "1.0~${component}" "${core_dep}" usr/sbin/nvpmodel
-    mkpkg "${REPO}/pool/${component}" switch-bsp "1.0~${component}" ""
+    # libicu70 only exists in Ubuntu jammy: the compat suite has to provide it.
+    if [[ "${component}" == "noble" ]]; then
+        bsp_dep="libicu70"
+    else
+        bsp_dep=""
+    fi
+    mkpkg "${REPO}/pool/${component}" switch-bsp "1.0~${component}" "${bsp_dep}"
     mkpkg "${REPO}/pool/${component}" xserver-xorg-core "2:1.20.13-fake1" ""
     mkdir -p "${REPO}/dists/l4t/${component}/binary-amd64"
     (cd "${REPO}" && dpkg-scanpackages --arch amd64 "pool/${component}" \
@@ -119,6 +125,9 @@ export NXD_ARCH=amd64
 export NXD_SUITE=noble
 export NXD_MIRROR="${MIRROR}"
 export NXD_COMPONENTS="main universe"
+export NXD_COMPAT_SUITE=jammy
+export NXD_COMPAT_PACKAGES=libicu70
+export NXD_BOOTSTRAP_PACKAGES="apt ca-certificates ubuntu-keyring"
 
 # --- the spike -----------------------------------------------------------------
 REPORT="${WORK}/report.md"
@@ -144,6 +153,8 @@ expect "spike: without the pin the suite's Xorg wins" "$(section l4t-noble-nopin
 expect "spike: with the pin the L4T Xorg wins" "$(section l4t-noble-pin)" \
     'xserver-xorg-core +2:1\.20\.13-fake1 +1001 '
 expect "spike: --contents finds nvpmodel" "$(cat "${REPORT}")" 'nvidia-l4t-core: .*/usr/sbin/nvpmodel'
+expect "spike: the compat suite provides the dropped library" "$(section l4t-noble-pin)" \
+    'libicu70 +[0-9][^ ]* +100 .*jammy'
 expect "spike: the extras table is there" "$(cat "${REPORT}")" 'xfce4-volumed-pulse'
 
 # --- the rootfs -------------------------------------------------------------------
@@ -174,6 +185,8 @@ if [[ -f "${TAR}" ]]; then
     MANIFEST="$(cat "${OUT}/test/manifest.txt")"
     expect "rootfs: the pinned Xorg is the one installed" "${MANIFEST}" $'xserver-xorg-core\t2:1\\.20\\.13-fake1'
     expect "rootfs: the L4T packages are installed" "${MANIFEST}" $'nvidia-l4t-core\t1\\.0~noble'
+    expect "rootfs: the compat package is installed" "${MANIFEST}" $'libicu70:amd64\t'
+    expect "rootfs: the compat source is kept" "${LISTING}" 'etc/apt/sources\.list\.d/nxd-compat\.sources'
     expect "rootfs: the Debian side is installed" "${MANIFEST}" $'ca-certificates\t'
     expect "rootfs: dpkg knows the packages (manifest from dpkg-query)" "${MANIFEST}" $'switch-bsp\t'
 else

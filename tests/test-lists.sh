@@ -92,6 +92,17 @@ check "pins name the L4T host" \
 check "file: URLs pin the empty origin" \
     grep -q 'Pin: origin ""' <(render_pins "$(url_host file:///tmp/repo)")
 
+# The compat suite
+check "compat pins allow the listed packages" \
+    grep -q -A2 '^Package: libpcre3$' <(render_compat_pins)
+check "compat pins never pick anything else" \
+    grep -q 'Pin-Priority: -1' <(render_compat_pins)
+check "compat source file names the suite" \
+    grep -q 'Suites: bookworm' <(compat_sources_file arm64)
+check "compat off prints nothing" \
+    test -z "$(NXD_COMPAT_SUITE="" render_compat_pins)$(NXD_COMPAT_SUITE="" compat_sources_file arm64)"
+check "joystick is pinned to L4T" grep -q 'xserver-xorg-input-joystick' "${NXD_CONFIG_DIR}/apt/l4t.pref"
+
 # The mmdebstrap command
 DRY="$("${NXD}" rootfs --variant retrobox --dry-run --output "${tmp}/out")"
 check "dry run builds a minbase" grep -q -- '--variant=minbase' <<< "${DRY}"

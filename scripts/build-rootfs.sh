@@ -69,7 +69,12 @@ KEY_NAME="$(basename "${NXD_L4T_KEY}")"
 rm -rf "${STAGE}"
 mkdir -p "${STAGE}"
 cp "${NXD_L4T_KEY}" "${STAGE}/${KEY_NAME}"
-render_pins "$(url_host "${NXD_L4T_URL}")" > "${STAGE}/10-nxd-l4t.pref"
+{
+    render_compat_pins
+    printf '\n'
+    render_pins "$(url_host "${NXD_L4T_URL}")"
+} > "${STAGE}/10-nxd-l4t.pref"
+compat_sources_file "${NXD_ARCH}" > "${STAGE}/nxd-compat.sources"
 l4t_sources_file "${NXD_ARCH}" "/etc/apt/keyrings/${KEY_NAME}" "${NXD_L4T_COMPONENT}" \
     > "${STAGE}/nxd-l4t.sources"
 printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
@@ -96,12 +101,17 @@ CMD=(
     --architectures="${NXD_ARCH}"
     --components="${NXD_COMPONENTS}"
     --aptopt='APT::Install-Recommends "false"'
-    --include=apt
-    --include=ca-certificates
+    --include="${NXD_BOOTSTRAP_PACKAGES// /,}"
     --customize-hook='mkdir -p "$1/etc/apt/keyrings" "$1/etc/apt/preferences.d" "$1/etc/apt/sources.list.d"'
     --customize-hook="copy-in ${STAGE}/${KEY_NAME} /etc/apt/keyrings"
     --customize-hook="copy-in ${STAGE}/10-nxd-l4t.pref /etc/apt/preferences.d"
     --customize-hook="copy-in ${STAGE}/nxd-l4t.sources /etc/apt/sources.list.d"
+)
+if [[ -s "${STAGE}/nxd-compat.sources" ]]; then
+    CMD+=(--customize-hook="copy-in ${STAGE}/nxd-compat.sources /etc/apt/sources.list.d")
+fi
+# shellcheck disable=SC2016
+CMD+=(
     --customize-hook="copy-in ${STAGE}/nxd-packages /tmp"
     --customize-hook='chroot "$1" apt-get update'
     --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends \$(cat /tmp/nxd-packages)"'

@@ -124,3 +124,28 @@ Architectures: $1
 Signed-By: $2
 EOF
 }
+
+# render_compat_pins: pins of the compat suite. The listed packages may be
+# installed from it, everything else in it never is. Prints nothing when the
+# compat suite is off.
+render_compat_pins() {
+    [[ -n "${NXD_COMPAT_SUITE}" ]] || return 0
+    if [[ -n "${NXD_COMPAT_PACKAGES}" ]]; then
+        printf 'Package: %s\nPin: release n=%s\nPin-Priority: 100\n\n' \
+            "${NXD_COMPAT_PACKAGES}" "${NXD_COMPAT_SUITE}"
+    fi
+    printf 'Package: *\nPin: release n=%s\nPin-Priority: -1\n' "${NXD_COMPAT_SUITE}"
+}
+
+# compat_sources_file ARCH: the compat suite as a deb822 file (verified with
+# the archive keyring installed in the rootfs).
+compat_sources_file() {
+    [[ -n "${NXD_COMPAT_SUITE}" ]] || return 0
+    cat << EOF
+Types: deb
+URIs: ${NXD_MIRROR}
+Suites: ${NXD_COMPAT_SUITE}
+Components: ${NXD_COMPONENTS}
+Architectures: $1
+EOF
+}

@@ -42,6 +42,7 @@ for file in bl31.bin bl33.bin initramfs uImage nx-plat.dtimg bootlogo_ubuntu.bmp
 done
 printf 'setenv bootargs "root=/dev/mmcblk0p2 systemd.legacy_systemd_cgroup_controller=1 quiet"\n' > "${tmp}/boot.txt"
 mkimage -A arm64 -T script -C none -n boot.scr -d "${tmp}/boot.txt" "${bootstack}/boot.scr" > /dev/null
+printf 'LABEL=SWR-DEB / ext4 noatime 0 1\n' > "${tree}/etc/fstab"
 : > "${tree}/usr/bin/sudo"
 chmod 4755 "${tree}/usr/bin/sudo"
 : > "${tree}/home/manu/file"
@@ -70,6 +71,13 @@ check "boot.scr got the extra argument" \
     grep -q 'legacy_systemd_cgroup_controller=1 net.ifnames=0' \
     <(unzip -p "${INSTALLER}" switchroot/debian/boot.scr | tail -c +73)
 
+# Another boot id: label and fstab follow it.
+NXD_BOOT_ID=SWR-OTHER "${NXD}" image --variant fake --output "${OUT}" --no-hekate --size 40M > /dev/null 2>&1
+unzip -q -o "${INSTALLER}" -d "${tmp}/o"
+cat "${tmp}/o"/switchroot/install/l4t.* > "${tmp}/other.img"
+check "the label follows the boot id" grep -q 'Filesystem volume name: *SWR-OTHER' <(dumpe2fs -h "${tmp}/other.img" 2> /dev/null)
+"${NXD}" image --variant fake --output "${OUT}" --no-hekate --size 40M > /dev/null 2>&1
+
 # Put the parts together again and look inside.
 mkdir "${tmp}/x"
 unzip -q "${INSTALLER}" -d "${tmp}/x"
@@ -79,6 +87,8 @@ check "the owner of the user files is kept" grep -q 'User: *1000 *Group: *1000' 
 check "setuid is kept" grep -q 'Mode: *0*4755' <(debugfs -R 'stat /usr/bin/sudo' "${tmp}/joined.img" 2> /dev/null)
 check "root is owned by root" grep -q 'User: *0 *Group: *0' <(debugfs -R 'stat /' "${tmp}/joined.img" 2> /dev/null)
 
+check "fstab follows the boot id" grep -q 'LABEL=SWR-OTHER' \
+    <(debugfs -R 'cat /etc/fstab' "${tmp}/other.img" 2> /dev/null)
 check "the checksums list the parts and the zip" test "$(wc -l < "${OUT}/fake/SHA256SUMS")" -ge 3
 check "the zip checksum is right" bash -c "cd '${OUT}/fake' && grep installer.zip SHA256SUMS | sha256sum -c -"
 check "the work directory is gone" test ! -d "${OUT}/fake/image-work"

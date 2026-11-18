@@ -87,6 +87,12 @@ log "unpacking ${TARBALL}..."
 tar -C "${TREE}" --numeric-owner --same-permissions \
     --xattrs --xattrs-include='security.capability' -xf "${TARBALL}"
 
+# The initramfs finds the root by the label that is the ini's id (rootlabel=),
+# and fstab asks for the same label: keep them equal whatever NXD_BOOT_ID is.
+if [[ -f "${TREE}/etc/fstab" ]]; then
+    sed -i "s|^LABEL=[^[:space:]]*|LABEL=${NXD_BOOT_ID}|" "${TREE}/etc/fstab"
+fi
+
 # --- the boot files ---------------------------------------------------------
 BOOTSTACK="${TREE}/opt/switchroot/bootstack"
 [[ -d "${BOOTSTACK}" ]] || die "the rootfs has no /opt/switchroot/bootstack: is switch-bsp installed?"

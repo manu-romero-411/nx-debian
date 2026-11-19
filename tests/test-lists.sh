@@ -12,6 +12,9 @@ NXD="${NXD_ROOT}/nxd"
 . "${NXD_ROOT}/scripts/lib/common.sh"
 load_config
 
+# Nothing here may wait for a person at a terminal.
+exec < /dev/null
+
 PASS=0
 FAIL=0
 
@@ -165,12 +168,60 @@ check_not "a bad login name is refused" "${NXD}" rootfs --variant xfce --user 'B
 check_not "--no-password needs a user" "${NXD}" rootfs --variant xfce --no-user --no-password --dry-run --output "${tmp}/out"
 check "retrobox dry run needs no prompt for its user" "${NXD}" rootfs --variant retrobox --dry-run --output "${tmp}/out" < /dev/null
 check_not "an empty --releases-dir is refused" "${NXD}" rootfs --variant retrobox --dry-run --releases-dir "${tmp}" --output "${tmp}/out"
+check "retrobox has no gamepad-as-mouse packages" test -z "$(grep -E 'joystick' <<< "${RETROBOX}" || true)"
+check "xfce has the gamepad-as-mouse packages" has_line "${XFCE}" "switch-joystick-mouse"
+check "xfce has the joystick driver" has_line "${XFCE}" "xserver-xorg-input-joystick"
+check "retrobox drops the joystick Xorg config whatever package brings it" \
+    grep -q 'path-exclude=/usr/share/X11/xorg.conf.d/\*joystick\*.conf' <(dpkg_excludes_file retrobox)
+check "retrobox keeps its data in /retrobox" grep -qx 'data_dir = /retrobox' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+check "retrobox preloads the theme, the bezels and the shaders" \
+    test "$(variant_setting retrobox NXD_PRELOAD)" = "theme bezels shaders"
+check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
+check "lightdm starts X without asking logind" \
+    grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"
+# shellcheck disable=SC2016
+check "that option is in the [LightDM] section" \
+    awk '/^\[/{section=$0} /^logind-check-graphical=false/{found=(section=="[LightDM]")} END{exit !found}' \
+    "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"
+check "the console has killall and chvt" bash -c "grep -qx psmisc '${NXD_ROOT}/config/packages/base.list' && grep -qx kbd '${NXD_ROOT}/config/packages/base.list'"
+"${NXD}" rootfs --variant retrobox --dry-run --output "${tmp}/out1" > /dev/null 2>&1 || true
+check "the preload list is staged for retrobox" grep -qx shaders "${tmp}/out1/retrobox/stage/nxd-preload"
+"${NXD}" rootfs --variant retrobox --no-preload --dry-run --output "${tmp}/out2" > /dev/null 2>&1 || true
+check "--no-preload stages nothing" test ! -s "${tmp}/out2/retrobox/stage/nxd-preload"
+check "xfce has nothing to preload" test -z "$(variant_setting xfce NXD_PRELOAD)"
 check "--no-releases is accepted" "${NXD}" rootfs --variant retrobox --no-releases --dry-run --output "${tmp}/out" < /dev/null
 check "--no-user is accepted" "${NXD}" rootfs --variant retrobox --no-user --no-releases --dry-run --output "${tmp}/out" < /dev/null
 check "--user takes the password from NXD_PASSWORD" env NXD_PASSWORD=x "${NXD}" rootfs --variant xfce --user manu --dry-run --output "${tmp}/out"
 check_not "unknown variant is refused" "${NXD}" rootfs --variant nope --dry-run --output "${tmp}/out"
 check "build has a help text" grep -q "Usage: sudo nxd build" <("${NXD}" build --help)
 check_not "unknown command is refused" "${NXD}" frobnicate
+
+
+# The desktop build asks for the user and the password at a terminal. The dry
+# run writes the answer into the stage, which is what is read back here.
+ask() {
+    python3 -I - "$@" << 'PY'
+import os, pty, sys, time
+nxd, out, answers = sys.argv[1], sys.argv[2], sys.argv[3:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execv(nxd, [nxd, "rootfs", "--variant", "xfce", "--dry-run", "--output", out])
+for answer in answers:
+    time.sleep(1.0)
+    os.write(fd, answer.encode() + b"\n")
+try:
+    while os.read(fd, 4096):
+        pass
+except OSError:
+    pass
+_, status = os.waitpid(pid, 0)
+sys.exit(os.waitstatus_to_exitcode(status))
+PY
+}
+check "at a terminal the desktop build asks for the user name" bash -c "$(declare -f ask); ask '${NXD}' '${tmp}/ask1' bob pw pw && [[ \"\$(sed -n 1p '${tmp}/ask1/xfce/stage/nxd-user')\" == bob ]]"
+check "Enter keeps the default user" bash -c "$(declare -f ask); ask '${NXD}' '${tmp}/ask2' '' '' && [[ \"\$(sed -n 1p '${tmp}/ask2/xfce/stage/nxd-user')\" == switch ]]"
+check_not "different passwords are refused" bash -c "$(declare -f ask); ask '${NXD}' '${tmp}/ask3' bob one two"
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [[ "${FAIL}" -eq 0 ]]

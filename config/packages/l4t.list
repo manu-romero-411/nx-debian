@@ -15,12 +15,10 @@ nvidia-l4t-x11
 switch-alsa-ucm2
 switch-bsp
 switch-dock-handler
-switch-joystick-mouse
 switch-touch-rules
 switch-l4t-configs
 
 # Xorg 1.20, pinned to this repository
 xserver-xorg-core
 xserver-xorg-input-libinput
-xserver-xorg-input-joystick
 xserver-xorg-video-fbdev

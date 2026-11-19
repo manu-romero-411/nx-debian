@@ -34,3 +34,7 @@ pulseaudio-module-bluetooth
 
 # Replaces the hand-made zram setup of the old build.sh
 systemd-zram-generator
+
+# Console tools for diagnosing on the device (killall, chvt)
+psmisc
+kbd

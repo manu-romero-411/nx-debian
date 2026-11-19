@@ -21,6 +21,7 @@ USER_HASH=""
 NO_PASSWORD=0
 NO_USER=0
 NO_RELEASES=0
+NO_PRELOAD=0
 RELEASES_DIR=""
 
 usage() {
@@ -38,6 +39,8 @@ Usage: build-rootfs.sh [options]
   --no-user         no user, even when the variant has a default one
   --no-releases     skip the release packages the variant installs (offline)
   --releases-dir D  use the .deb files in D instead of downloading the releases
+  --no-preload      do not put in the image the content the variant downloads
+                    at its first start (themes, bezels, shaders: big, online)
   --dry-run         print the mmdebstrap command and stop
   -h, --help        this text
 
@@ -57,6 +60,7 @@ while [[ $# -gt 0 ]]; do
         --no-user) NO_USER=1; shift ;;
         --no-releases) NO_RELEASES=1; shift ;;
         --releases-dir) RELEASES_DIR="${2:?--releases-dir needs a value}"; shift 2 ;;
+        --no-preload) NO_PRELOAD=1; shift ;;
         --dry-run) DRY_RUN=1; shift ;;
         -h | --help) usage; exit 0 ;;
         *) usage >&2; die "unknown option: $1" ;;
@@ -72,9 +76,28 @@ esac
 # --user replaces it, --no-user drops it, $NXD_PASSWORD overrides its password.
 if [[ -z "${USER_NAME}" && "${NO_USER}" -eq 0 ]]; then
     USER_NAME="$(variant_setting "${VARIANT}" NXD_DEFAULT_USER)"
+    PASSWORD_GIVEN="${NXD_PASSWORD:-}"
     if [[ -n "${USER_NAME}" && -z "${USER_HASH}" ]]; then
         NXD_PASSWORD="${NXD_PASSWORD:-$(variant_setting "${VARIANT}" NXD_DEFAULT_PASSWORD)}"
         [[ -n "${NXD_PASSWORD}" ]] || NO_PASSWORD=1
+    fi
+    # A variant for people (the desktop) lets the one who builds choose the
+    # account when there is a terminal to ask at; Enter keeps the default.
+    # The CI has none, and gets the default.
+    if [[ -n "${USER_NAME}" && -z "${USER_HASH}" && -t 0 && "$(variant_setting "${VARIANT}" NXD_PROMPT_USER)" == 1 ]]; then
+        read -rp "User name [${USER_NAME}]: " answer
+        USER_NAME="${answer:-${USER_NAME}}"
+        if [[ -z "${PASSWORD_GIVEN}" ]]; then
+            read -rsp "Password for ${USER_NAME} [Enter for the default]: " answer
+            printf '\n'
+            if [[ -n "${answer}" ]]; then
+                read -rsp "Again: " again
+                printf '\n'
+                [[ "${answer}" == "${again}" ]] || die "the passwords differ"
+                NXD_PASSWORD="${answer}"
+                NO_PASSWORD=0
+            fi
+        fi
     fi
 fi
 if [[ -n "${USER_NAME}" ]]; then
@@ -153,6 +176,11 @@ if [[ -n "${RELEASE_LIST}" && "${NO_RELEASES}" -eq 0 ]]; then
     elif [[ "${DRY_RUN}" -eq 0 ]]; then
         "${SCRIPT_DIR}/fetch-releases.sh" "${RELEASE_LIST}" "${STAGE}/nxd-debs"
     fi
+fi
+# What the variant downloads at its first start, done here instead.
+PRELOAD="$(variant_setting "${VARIANT}" NXD_PRELOAD)"
+if [[ -n "${PRELOAD}" && "${NO_PRELOAD}" -eq 0 ]]; then
+    printf '%s\n' "${PRELOAD}" | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-preload"
 fi
 if [[ -n "${USER_NAME}" ]]; then
     (umask 077; printf '%s\n%s\n%s\n' "${USER_NAME}" "${USER_HASH}" \
@@ -243,7 +271,13 @@ fi
 if [[ -s "${STAGE}/nxd-user" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-user /tmp")
 fi
+if [[ -s "${STAGE}/nxd-preload" ]]; then
+    CMD+=(--customize-hook="copy-in ${STAGE}/nxd-preload /tmp")
+fi
+# The hooks of every variant, then the ones of this variant only
+# (config/hooks/<variant>/), which run once the user and the services are set.
 add_hooks "${NXD_CONFIG_DIR}/hooks"
+add_hooks "${NXD_CONFIG_DIR}/hooks/${VARIANT}"
 # shellcheck disable=SC2016
 CMD+=(
     --customize-hook='chroot "$1" dpkg-query -W -f "\${binary:Package}\t\${Version}\n" > "$NXD_MANIFEST"'

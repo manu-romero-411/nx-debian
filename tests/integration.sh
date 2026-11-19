@@ -133,6 +133,12 @@ printf 'Package: fake-release\nVersion: 1.0\nArchitecture: all\nMaintainer: t <t
 printf 'hello\n' > "${WORK}/release-pkg/opt/fake/hello"
 dpkg-deb --build "${WORK}/release-pkg" "${WORK}/releases/fake-release_1.0_all.deb" > /dev/null
 
+# A hook of this variant only (config/hooks/<variant>/), and one of another
+# variant that must not run.
+mkdir -p "${CONFIG}/hooks/test" "${CONFIG}/hooks/other"
+printf '#!/bin/sh\ntouch /nxd-variant-hook\n' > "${CONFIG}/hooks/test/10-marker.sh"
+printf '#!/bin/sh\ntouch /nxd-other-hook\n' > "${CONFIG}/hooks/other/10-marker.sh"
+
 export NXD_CONFIG_DIR="${CONFIG}"
 export NXD_L4T_KEY="${CONFIG}/keys/test-L4T.asc"
 export NXD_L4T_KEY_FPR="${KEY_FPR}"
@@ -226,6 +232,11 @@ if [[ -f "${TAR}" ]]; then
     expect "rootfs: the release package files are there" "${LISTING}" 'opt/fake/hello'
     expect "rootfs: no release debs left behind" \
         "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-debs' || true)" '^0$'
+    expect "rootfs: the hook of the variant ran" "${LISTING}" ' \./nxd-variant-hook$'
+    expect "rootfs: the hook of another variant did not" \
+        "$(printf '%s\n' "${LISTING}" | grep -c 'nxd-other-hook' || true)" '^0$'
+    expect "rootfs: lightdm is told not to wait for logind" \
+        "$(tar -xOf "${TAR}" ./etc/lightdm/lightdm.conf.d/10-nxd-seat.conf)" '^logind-check-graphical=false$'
     expect "rootfs: fstab mounts root by label" "$(tar -xOf "${TAR}" ./etc/fstab)" '^LABEL=SWR-DEB +/ +ext4'
     expect "rootfs: lightdm logs the user in" \
         "$(tar -xOf "${TAR}" ./etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf)" '^autologin-user=manu$'

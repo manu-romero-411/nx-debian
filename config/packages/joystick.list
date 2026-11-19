@@ -1,0 +1,5 @@
+# The gamepad as a mouse and keyboard in X (the Capture button toggles it):
+# for the desktop. The Retrobox image leaves these out: there the pad is only
+# ever a gamepad, and the overlay does the key mapping.
+switch-joystick-mouse
+xserver-xorg-input-joystick

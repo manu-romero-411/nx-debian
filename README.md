@@ -88,10 +88,12 @@ A complete GNU/Linux distribution based on **Debian 13 (Trixie)** for the Ninten
 
 | Variant | Session | User | Password |
 | :--- | :--- | :--- | :--- |
-| **`xfce`** | XFCE4 desktop | `switch` | `switch` |
+| **`xfce`** | XFCE4 desktop | `switch` | `switch` (a build at a terminal asks for the user name and the password) |
 | **`retrobox`** | Openbox starting [Retrobox](https://github.com/RetroboxProject) | `retrobox` | `retrobox` |
 
-Both log the user in automatically, and the hostname is `nintendo-switch`. The
+Both log the user in automatically, and the hostname is `nintendo-switch`. In
+`retrobox`, Retrobox keeps its data in `/retrobox` and the gamepad is never a
+mouse. The
 account can `sudo`, `root` has no password, and `ssh` is installed but
 disabled (`sudo systemctl enable --now ssh` turns it on): change the password
 before you do.

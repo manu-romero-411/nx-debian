@@ -32,3 +32,19 @@ Reopen this decision when any of these happens:
 Things to check on the hardware before relying on this: that the cmdline flag
 really removes the wait, and the real cgroup mode
 (`stat -fc %T /sys/fs/cgroup/`, `tmpfs` means v1).
+
+## The images' own changes live in this repository
+
+Status: decided.
+
+The changes the images need (configuration files, hooks, scripts, the pieces of
+the desktop that were in the `switchroot-xfce` package) are kept in this
+repository (`config/overlay/`, `config/hooks/`, `config/variants/`; see
+[rootfs.md](rootfs.md#patches-live-in-this-repository)), not in a separate
+repository nor in a package of their own. One place to change, one commit for
+a change and the test that covers it, and the CI builds exactly what is
+committed.
+
+Reopen it if something here is wanted outside the images, for example the
+desktop pieces installed on an existing Switchroot system: then that part
+becomes a package built from this repository.

@@ -191,7 +191,10 @@ without sudo.
 ## Default user and hostname
 
 A variant may fix its user with `NXD_DEFAULT_USER` and `NXD_DEFAULT_PASSWORD`
-(an empty password means a passwordless account). `retrobox` ships the user
+(an empty password means a passwordless account). With `NXD_PROMPT_USER=1`
+(the desktop, `xfce`) a build at a terminal asks for the user name and the
+password instead, and Enter keeps the defaults (`switch` / `switch`); one
+without a terminal, like the CI, takes the defaults without asking. `retrobox` ships the user
 `retrobox` with the password `retrobox`, so `nxd rootfs --variant retrobox`
 asks nothing. `--user`/`--password-hash`/`--no-password` and `$NXD_PASSWORD`
 override it, and `--no-user` builds without any account.
@@ -282,3 +285,55 @@ the GitHub API calls (the Hekate download and the Retrobox packages).
 
 Adding a variant is adding `config/variants/NAME.conf`: both the matrix of the
 workflow and `nxd build` pick it up.
+
+## Patches live in this repository
+
+What the images need beyond what the packages bring is kept here, never in
+another repository, and is applied by the build:
+
+- `config/overlay/common/` and `config/overlay/<variant>/`: files copied into
+  the image as they are (`/etc/hostname`, the Openbox autostart, the lightdm
+  and Retrobox configuration...);
+- `config/hooks/*.sh`: scripts run inside the image for every variant, in name
+  order; `config/hooks/<variant>/*.sh` run after those, for that variant only;
+- `config/packages/*.list`, `config/variants/*.conf`: what is installed, what
+  is left out (`NXD_PATH_EXCLUDES`), which units are masked or disabled.
+
+A hook that needs something decided at build time gets it as a file in
+`/tmp` that the hook deletes (`nxd-user`, `nxd-mask`, `nxd-preload`...).
+
+## lightdm and the Switch's seat
+
+lightdm 1.32 (Debian 13) starts X only on a seat that logind marks graphical,
+and `seat0` is not on the Switch: the service stays active with no X server
+and the screen is black (`loginctl show-seat seat0 -p CanGraphical` says
+`no`; `systemctl status lightdm` shows no process but lightdm itself).
+`config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf` sets
+`logind-check-graphical=false`, in the `[LightDM]` section: in `[Seat:*]` the
+option is ignored. If the screen is still black after that, the logs are
+`/var/log/lightdm/lightdm.log` and `x-0.log`.
+
+## The Retrobox image: /retrobox, preloaded content, a gamepad that is a gamepad
+
+- **Data directory.** `config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini`
+  sets `data_dir = /retrobox`: ROMs, saves, BIOS, themes, bezels and shaders
+  live there. `config/hooks/retrobox/10-retrobox-data.sh` creates it owned by
+  the user of the image and the group of that user (`retrobox:retrobox` by
+  default). The configuration (`~/.config/retrobox`) and the state stay in the
+  home of the user.
+- **Content in the image.** Retrobox downloads its default theme
+  (es-theme-iconic), the RetroBat bezels and its shaders the first time it
+  starts. The hook runs `retrobox --download` for the names in `NXD_PRELOAD` as
+  the user, while the image is built, and records the packages as offered, so
+  the first start has nothing left to fetch. They are the latest commit of
+  their GitHub repositories at build time. `nxd rootfs --no-preload` (or
+  `nxd build -- --no-preload`) skips it, for a quick build or without network:
+  Retrobox then downloads them at its first start, as it always did. The
+  bezels count in the size of the image and of the installer: look at the size
+  `nxd build` prints (a release asset cannot reach 2 GiB).
+- **No gamepad-as-mouse.** The mouse mode of the pad is the
+  `switch-joystick-mouse` package and the `xserver-xorg-input-joystick` driver: they
+  are in the `joystick` package list, which only the desktop uses. In the
+  Retrobox image the pad is only a gamepad (the overlay does the key mapping),
+  and the Xorg configuration that attaches the joystick driver is not
+  installed even if some package brings it (`NXD_PATH_EXCLUDES`).

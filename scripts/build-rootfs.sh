@@ -135,6 +135,11 @@ variant_setting "${VARIANT}" NXD_MASK_UNITS | tr -s '[:space:]' '\n' | sed '/^$/
 variant_setting "${VARIANT}" NXD_DISABLE_UNITS | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-disable"
 
 # The packages of the variant that come from GitHub releases, not from apt.
+# Before anything is downloaded: no point in fetching packages for a build
+# that cannot run.
+if [[ "${DRY_RUN}" -eq 0 ]]; then
+    need_cmd mmdebstrap "apt install mmdebstrap, or run it in a container: sudo ./nxd container build"
+fi
 RELEASE_LIST="$(variant_setting "${VARIANT}" NXD_RELEASE_LIST)"
 HAVE_DEBS=0
 if [[ -n "${RELEASE_LIST}" && "${NO_RELEASES}" -eq 0 ]]; then
@@ -254,7 +259,6 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     exit 0
 fi
 
-need_cmd mmdebstrap "apt install mmdebstrap (or use: nxd container rootfs)"
 rm -rf "${TARGET}"
 mkdir -p "${OUT_DIR}"
 log "building ${VARIANT}: ${#PACKAGES[@]} packages, ${NXD_SUITE}/${NXD_ARCH} + L4T ${NXD_L4T_COMPONENT}"

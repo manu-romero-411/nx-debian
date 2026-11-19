@@ -154,7 +154,9 @@ It takes `rootfs.tar` and writes `<output>/<variant>/installer.zip` plus
 - the kernel (`uImage`), `initramfs`, `nx-plat.dtimg`, `bl31.bin`, `bl33.bin`
   and `boot.scr` come from the `switch-bsp` package inside the rootfs: no
   kernel is built here. `boot.scr` gets `NXD_KERNEL_CMDLINE_EXTRA`
-  (default `net.ifnames=0`, which keeps `wlan0`) after the cgroup flag;
+  (default `net.ifnames=0`, which keeps `wlan0`, and
+  `SYSTEMD_CGROUP_ENABLE_LEGACY_FORCE=1`, without which systemd 257 waits 30 s
+  at every boot on the cgroup v1 of the 4.9 kernel) after the cgroup flag;
 - `config/boot/hekate.ini` becomes `bootloader/ini/debian.ini` (name, id and
   title from `NXD_BOOT_NAME`, `NXD_BOOT_ID`, `NXD_BOOT_TITLE`);
 - the boot logo and icon are `assets/bootlogo.bmp` and `assets/icon.bmp` when

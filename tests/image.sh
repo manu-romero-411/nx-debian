@@ -68,7 +68,7 @@ INI="$(unzip -p "${INSTALLER}" bootloader/ini/debian.ini)"
 check "the ini names the boot directory" grep -q 'boot_prefixes=/switchroot/debian/' <<< "${INI}"
 check "the ini carries the id" grep -q '^id=SWR-DEB' <<< "${INI}"
 check "boot.scr got the extra argument" \
-    grep -q 'legacy_systemd_cgroup_controller=1 net.ifnames=0' \
+    grep -q 'legacy_systemd_cgroup_controller=1 net.ifnames=0 SYSTEMD_CGROUP_ENABLE_LEGACY_FORCE=1' \
     <(unzip -p "${INSTALLER}" switchroot/debian/boot.scr | tail -c +73)
 
 # Another boot id: label and fstab follow it.

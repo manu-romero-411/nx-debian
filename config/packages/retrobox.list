@@ -1,6 +1,13 @@
-# The minimal variant Retrobox runs on. Only the window manager and the
-# session glue are listed here: retrobox-core, retrobox-emulationstation,
-# retrobox-overlay and retrobox-mangohud are installed from their own
-# releases, and bring their dependencies with them.
+# What the Retrobox variant adds to the base: the window manager and what the
+# session needs. retrobox-core, retrobox-emulationstation, retrobox-mangohud
+# and retrobox-overlay come from their own releases (config/releases) and bring
+# their dependencies with them; recommended packages are not installed, so the
+# ones Retrobox needs to look right are listed here.
 
 openbox
+xterm
+
+# Fonts for EmulationStation and its menus, and the keep-the-screen-on hook
+fontconfig
+fonts-dejavu-core
+python3-jeepney

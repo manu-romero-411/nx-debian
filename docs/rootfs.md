@@ -102,6 +102,7 @@ Notes:
 tests/test-lists.sh        # offline, no root
 sudo tests/integration.sh  # fake signed L4T repo, runs the spike and a rootfs
 sudo tests/image.sh        # nxd image on a hand-made rootfs
+tests/releases.sh          # fetch-releases.sh against a fake GitHub API on localhost
 ```
 
 ## The first user
@@ -173,14 +174,58 @@ filesystem is mounted by label, not by partition number.
 
 ## Autologin
 
-When `--user` is given and the variant sets `NXD_AUTOLOGIN_SESSION`, the user
+When a user is created and the variant sets `NXD_AUTOLOGIN_SESSION`, the user
 hook writes `/etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf`: lightdm logs
-that user straight into the session (`xfce` for both variants, the one that
-`xfce4-session` ships). `config/packages/xfce-core.list` is the session core
-both variants share (session, window manager, panel, desktop, settings,
-terminal), so an application can run on the bare session and bring the panel
-and the desktop up when it ends. Change the variable to `openbox` for a plain
-Openbox session.
+that user straight into the session. `xfce` starts the XFCE session
+(`xfce4-session`), `openbox` a plain Openbox one. The hook warns when the
+session file is missing from `/usr/share/xsessions`.
 
 The first user is also put in `adm` and `systemd-journal`, to read the logs
 without sudo.
+
+## Default user and hostname
+
+A variant may fix its user with `NXD_DEFAULT_USER` and `NXD_DEFAULT_PASSWORD`
+(an empty password means a passwordless account). `retrobox` ships the user
+`retrobox` with the password `retrobox`, so `nxd rootfs --variant retrobox`
+asks nothing. `--user`/`--password-hash`/`--no-password` and `$NXD_PASSWORD`
+override it, and `--no-user` builds without any account.
+
+Because that password is public, `retrobox` keeps `ssh.service` and
+`ssh.socket` disabled (`NXD_DISABLE_UNITS`: the links are removed, the
+packages stay, so `systemctl enable --now ssh` is all it takes). Masked units
+(`NXD_MASK_UNITS`) are different: they point to `/dev/null` and cannot be
+started at all.
+
+The hostname of every variant is `nintendo-switch`
+(`config/overlay/common/etc/hostname` and `hosts`).
+
+## Packages from GitHub releases
+
+Some components are not in any apt repository. A variant lists them in
+`config/releases/<NXD_RELEASE_LIST>.list`, one `owner/repo` per line (`#`
+comments allowed), and `scripts/fetch-releases.sh` downloads them before the
+build:
+
+- the latest release is used, or the newest pre-release when a repository has
+  no release;
+- per repository it picks the `.deb` for `NXD_ARCH` (`arm64`), else the one
+  for `all`; one tagged for this Debian (`NXD_RELEASE_TAG_RE`, by default
+  `debian13` or `trixie`) wins over a generic one, other distributions' are
+  ignored, `-dbgsym` packages are never taken;
+- the release must have a `SHA256SUMS` asset, and every `.deb` is checked
+  against it; a release without one, or a mismatch, stops the build;
+- `$GITHUB_TOKEN`, if set, is sent to the API (it is forwarded into the
+  container) to avoid the anonymous rate limit.
+
+They are installed with `apt-get install --no-install-recommends` after the
+main package list, so their dependencies come from Debian. `--releases-dir D`
+uses the `.deb` files in `D` instead (offline builds, tests), and
+`--no-releases` skips them.
+
+`retrobox` installs `retrobox-core`, `retrobox-mangohud`,
+`retrobox-emulationstation` and `retrobox-overlay`. Openbox starts Retrobox
+from `/etc/skel/.config/openbox/autostart` (`retrobox &`), which the user
+account copies at creation; `/etc/xdg/openbox/autostart` is a dpkg conffile
+and is left alone. Their Recommends are not installed; add the ones you want
+(for example the PySide6 settings window) to `config/packages/retrobox.list`.

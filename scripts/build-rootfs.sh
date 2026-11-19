@@ -19,6 +19,9 @@ DRY_RUN=0
 USER_NAME=""
 USER_HASH=""
 NO_PASSWORD=0
+NO_USER=0
+NO_RELEASES=0
+RELEASES_DIR=""
 
 usage() {
     cat << EOF
@@ -32,6 +35,9 @@ Usage: build-rootfs.sh [options]
                     from --password-hash, from \$NXD_PASSWORD or from a prompt
   --password-hash H crypt(3) hash of the password (openssl passwd -6)
   --no-password     with --user: leave the account without a password
+  --no-user         no user, even when the variant has a default one
+  --no-releases     skip the release packages the variant installs (offline)
+  --releases-dir D  use the .deb files in D instead of downloading the releases
   --dry-run         print the mmdebstrap command and stop
   -h, --help        this text
 
@@ -48,6 +54,9 @@ while [[ $# -gt 0 ]]; do
         --user) USER_NAME="${2:?--user needs a value}"; shift 2 ;;
         --password-hash) USER_HASH="${2:?--password-hash needs a value}"; shift 2 ;;
         --no-password) NO_PASSWORD=1; shift ;;
+        --no-user) NO_USER=1; shift ;;
+        --no-releases) NO_RELEASES=1; shift ;;
+        --releases-dir) RELEASES_DIR="${2:?--releases-dir needs a value}"; shift 2 ;;
         --dry-run) DRY_RUN=1; shift ;;
         -h | --help) usage; exit 0 ;;
         *) usage >&2; die "unknown option: $1" ;;
@@ -59,6 +68,15 @@ case "${FORMAT}" in
     *) die "--format must be tar or dir" ;;
 esac
 
+# A variant can ship a default user (a public account of a console image):
+# --user replaces it, --no-user drops it, $NXD_PASSWORD overrides its password.
+if [[ -z "${USER_NAME}" && "${NO_USER}" -eq 0 ]]; then
+    USER_NAME="$(variant_setting "${VARIANT}" NXD_DEFAULT_USER)"
+    if [[ -n "${USER_NAME}" && -z "${USER_HASH}" ]]; then
+        NXD_PASSWORD="${NXD_PASSWORD:-$(variant_setting "${VARIANT}" NXD_DEFAULT_PASSWORD)}"
+        [[ -n "${NXD_PASSWORD}" ]] || NO_PASSWORD=1
+    fi
+fi
 if [[ -n "${USER_NAME}" ]]; then
     [[ "${USER_NAME}" =~ ^[a-z_][a-z0-9_-]{0,30}$ ]] ||
         die "--user: '${USER_NAME}' is not a valid login name"
@@ -114,6 +132,23 @@ printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
 dpkg_excludes_file "${VARIANT}" > "${STAGE}/nxd-excludes"
 # One unit name per line, for config/hooks/30-services.sh.
 variant_setting "${VARIANT}" NXD_MASK_UNITS | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-mask"
+variant_setting "${VARIANT}" NXD_DISABLE_UNITS | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-disable"
+
+# The packages of the variant that come from GitHub releases, not from apt.
+RELEASE_LIST="$(variant_setting "${VARIANT}" NXD_RELEASE_LIST)"
+HAVE_DEBS=0
+if [[ -n "${RELEASE_LIST}" && "${NO_RELEASES}" -eq 0 ]]; then
+    HAVE_DEBS=1
+    if [[ -n "${RELEASES_DIR}" ]]; then
+        [[ -d "${RELEASES_DIR}" ]] || die "no such directory: ${RELEASES_DIR}"
+        compgen -G "${RELEASES_DIR}/*.deb" > /dev/null || die "no .deb files in ${RELEASES_DIR}"
+        mkdir -p "${STAGE}/nxd-debs"
+        cp "${RELEASES_DIR}"/*.deb "${STAGE}/nxd-debs/"
+        chmod 644 "${STAGE}/nxd-debs"/*.deb
+    elif [[ "${DRY_RUN}" -eq 0 ]]; then
+        "${SCRIPT_DIR}/fetch-releases.sh" "${RELEASE_LIST}" "${STAGE}/nxd-debs"
+    fi
+fi
 if [[ -n "${USER_NAME}" ]]; then
     (umask 077; printf '%s\n%s\n%s\n' "${USER_NAME}" "${USER_HASH}" \
         "$(variant_setting "${VARIANT}" NXD_AUTOLOGIN_SESSION)" > "${STAGE}/nxd-user")
@@ -186,8 +221,19 @@ for overlay in "${NXD_CONFIG_DIR}/overlay/common" "${NXD_CONFIG_DIR}/overlay/${V
         [[ -e "${entry}" ]] && CMD+=(--customize-hook="copy-in ${entry} /")
     done
 done
+if [[ "${HAVE_DEBS}" -eq 1 ]]; then
+    # shellcheck disable=SC2016
+    CMD+=(
+        --customize-hook="copy-in ${STAGE}/nxd-debs /tmp"
+        --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends /tmp/nxd-debs/*.deb"'
+        --customize-hook='rm -rf "$1/tmp/nxd-debs"'
+    )
+fi
 if [[ -s "${STAGE}/nxd-mask" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-mask /tmp")
+fi
+if [[ -s "${STAGE}/nxd-disable" ]]; then
+    CMD+=(--customize-hook="copy-in ${STAGE}/nxd-disable /tmp")
 fi
 if [[ -s "${STAGE}/nxd-user" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-user /tmp")

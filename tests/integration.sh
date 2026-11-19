@@ -126,7 +126,12 @@ printf '# nothing\n' > "${CONFIG}/packages/x11.list"
 # Stands for lightdm: all the user hook looks for is /etc/lightdm.
 mkdir -p "${CONFIG}/overlay/test/etc/lightdm"
 : > "${CONFIG}/overlay/test/etc/lightdm/.keep"
-printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\nNXD_PATH_EXCLUDES="/usr/share/doc/* /usr/share/man/*"\nNXD_PATH_INCLUDES="/usr/share/doc/*/copyright"\nNXD_MASK_UNITS="apt-daily.timer fstrim.timer"\nNXD_AUTOLOGIN_SESSION="xfce"\n' > "${CONFIG}/variants/test.conf"
+printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\nNXD_PATH_EXCLUDES="/usr/share/doc/* /usr/share/man/*"\nNXD_PATH_INCLUDES="/usr/share/doc/*/copyright"\nNXD_MASK_UNITS="apt-daily.timer fstrim.timer"\nNXD_AUTOLOGIN_SESSION="xfce"\nNXD_RELEASE_LIST="test"\n' > "${CONFIG}/variants/test.conf"
+# A release package, as --releases-dir hands it over (no network needed).
+mkdir -p "${WORK}/release-pkg/DEBIAN" "${WORK}/release-pkg/opt/fake" "${WORK}/releases"
+printf 'Package: fake-release\nVersion: 1.0\nArchitecture: all\nMaintainer: t <t@invalid>\nDescription: t\n' > "${WORK}/release-pkg/DEBIAN/control"
+printf 'hello\n' > "${WORK}/release-pkg/opt/fake/hello"
+dpkg-deb --build "${WORK}/release-pkg" "${WORK}/releases/fake-release_1.0_all.deb" > /dev/null
 
 export NXD_CONFIG_DIR="${CONFIG}"
 export NXD_L4T_KEY="${CONFIG}/keys/test-L4T.asc"
@@ -178,7 +183,7 @@ trap 'kill "${HTTP_PID}" 2> /dev/null || true; rm -rf "${WORK}"' EXIT
 sleep 1
 export NXD_L4T_URL="http://127.0.0.1:${PORT}/"
 OUT="${WORK}/out"
-NXD_PASSWORD='s3cret' "${NXD}" rootfs --variant test --component noble --user manu --output "${OUT}" > "${WORK}/rootfs.out" 2>&1 || {
+NXD_PASSWORD='s3cret' "${NXD}" rootfs --variant test --component noble --user manu --releases-dir "${WORK}/releases" --output "${OUT}" > "${WORK}/rootfs.out" 2>&1 || {
     tail -n 30 "${WORK}/rootfs.out"
     bad "the rootfs was built"
 }
@@ -216,7 +221,11 @@ if [[ -f "${TAR}" ]]; then
     expect "rootfs: masked units point at /dev/null" "${LISTING}" 'etc/systemd/system/apt-daily\.timer -> /dev/null'
     expect "rootfs: the mask list is consumed" \
         "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-mask' || true)" '^0$'
-    expect "rootfs: the hostname survives the build" "$(tar -xOf "${TAR}" ./etc/hostname)" '^debian-switch$'
+    expect "rootfs: the hostname survives the build" "$(tar -xOf "${TAR}" ./etc/hostname)" '^nintendo-switch$'
+    expect "rootfs: the release package is installed" "${MANIFEST}" $'fake-release\t'
+    expect "rootfs: the release package files are there" "${LISTING}" 'opt/fake/hello'
+    expect "rootfs: no release debs left behind" \
+        "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-debs' || true)" '^0$'
     expect "rootfs: fstab mounts root by label" "$(tar -xOf "${TAR}" ./etc/fstab)" '^LABEL=SWR-DEB +/ +ext4'
     expect "rootfs: lightdm logs the user in" \
         "$(tar -xOf "${TAR}" ./etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf)" '^autologin-user=manu$'

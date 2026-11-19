@@ -2,10 +2,11 @@ FROM debian:trixie
 
 # What the steps need: apt (already there), mmdebstrap, gnupg for the key
 # check, the archive keyring and the image tools (mke2fs, mkimage, zip).
+# jq reads the GitHub API for the release packages.
 # qemu-user-static is only used when the host is not arm64.
 RUN apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         ca-certificates debian-archive-keyring gnupg mmdebstrap \
         qemu-user-static binfmt-support \
-        e2fsprogs u-boot-tools zip unzip curl \
+        e2fsprogs u-boot-tools zip unzip curl jq \
     && rm -rf /var/lib/apt/lists/*

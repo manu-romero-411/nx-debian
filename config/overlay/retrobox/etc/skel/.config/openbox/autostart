@@ -1,0 +1,4 @@
+# Run by openbox-session at login (the account is logged in by lightdm).
+# Retrobox runs in the background: if it ends, Openbox stays up, with xterm in
+# its right-click menu.
+retrobox &

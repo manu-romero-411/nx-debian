@@ -1,11 +1,18 @@
 # Switchroot Debian 13 (Trixie) for Nintendo Switch
 
-[![Build & Publish Switchroot Release](https://github.com/CarlosGamer98YT/Debian-4-Switch/actions/workflows/release.yml/badge.svg)](https://github.com/CarlosGamer98YT/Debian-4-Switch/actions/workflows/release.yml)
+[![Build images](https://github.com/manu-romero-411/nx-debian/actions/workflows/build.yml/badge.svg)](https://github.com/manu-romero-411/nx-debian/actions/workflows/build.yml)
+[![CI](https://github.com/manu-romero-411/nx-debian/actions/workflows/ci.yml/badge.svg)](https://github.com/manu-romero-411/nx-debian/actions/workflows/ci.yml)
 [![Debian Version](https://img.shields.io/badge/Debian-13%20(Trixie)-crimson.svg)](https://www.debian.org/)
 [![Kernel](https://img.shields.io/badge/Kernel-4.9.140--l4t%2B-blue.svg)](https://developer.nvidia.com/embedded/linux-tegra)
 [![Architecture](https://img.shields.io/badge/Arch-arm64%20%2F%20aarch64-green.svg)](https://wiki.debian.org/Arm64Port)
 
 A complete GNU/Linux distribution based on **Debian 13 (Trixie)** for the Nintendo Switch (V1, V2, Lite, and OLED models). Engineered with native hardware acceleration, modern BlueZ support, instantaneous display rotation, power management, battery health protection, and streamlined Hekate Nyx installer packaging.
+
+> **Status.** The images are built by `nxd` (see [Building](#building-from-source)),
+> which installs everything with apt from Debian and the L4T repository. The
+> feature list below describes the desktop image; the parts of it that the old
+> build script did by hand and `nxd` has not ported yet are tracked in
+> [docs/legacy-inventory.md](docs/legacy-inventory.md).
 
 ---
 
@@ -64,7 +71,7 @@ A complete GNU/Linux distribution based on **Debian 13 (Trixie)** for the Ninten
 4. Tap **Next Step** and proceed to format the SD card.
 
 ### 2. Copying Installer Files
-1. Download the latest **`switch-debian-13-trixie-xfce4-installer-hekate.zip`** from the [Releases](https://github.com/carlos/switch-debian-trixie/releases) page.
+1. Download the installer of the variant you want (`switch-debian-13-trixie-xfce-installer-hekate.zip` or `switch-debian-13-trixie-retrobox-installer-hekate.zip`) from the [Releases](https://github.com/manu-romero-411/nx-debian/releases) page, and check it against `SHA256SUMS`.
 2. Extract the archive directly onto the root of your MicroSD card's FAT32 partition.
    - The directory tree should contain `bootloader/`, `switchroot/debian/`, and `switchroot/install/l4t.00`, `l4t.01`.
 
@@ -77,12 +84,17 @@ A complete GNU/Linux distribution based on **Debian 13 (Trixie)** for the Ninten
 
 ---
 
-## Default System Credentials
+## Variants and default credentials
 
-| User | Password | Sudo Privileges | Notes |
-| :--- | :--- | :---: | :--- |
-| **`switch`** | `switch` | Yes (passwordless `sudo`) | Default user account |
-| **`root`** | *Locked / Disabled* | Direct login disabled | Use `sudo -i` or `sudo <command>` |
+| Variant | Session | User | Password |
+| :--- | :--- | :--- | :--- |
+| **`xfce`** | XFCE4 desktop | `switch` | `switch` |
+| **`retrobox`** | Openbox starting [Retrobox](https://github.com/RetroboxProject) | `retrobox` | `retrobox` |
+
+Both log the user in automatically, and the hostname is `nintendo-switch`. The
+account can `sudo`, `root` has no password, and `ssh` is installed but
+disabled (`sudo systemctl enable --now ssh` turns it on): change the password
+before you do.
 
 ---
 
@@ -130,31 +142,33 @@ This is caused by an attached Joy-Con that is physically broken, has damaged int
 
 ## Building from Source
 
-### Prerequisites (Debian/Ubuntu Host)
-Run the automated prerequisite installer:
+Everything goes through `nxd` (`./nxd --help`). The build is done by Debian's
+`mmdebstrap`, so any host works, including a non-arm64 one (qemu) or one that
+is not Debian: `nxd container` runs the same steps in a Debian trixie
+container.
+
 ```bash
-sudo ./autoinstall_prerequisites.sh
+./nxd variants                       # what can be built
+sudo ./nxd build --variant retrobox  # rootfs + installer, native
+sudo ./nxd container build           # the same, every variant, in a container
 ```
 
-Or install required dependencies manually:
-```bash
-sudo apt-get update && sudo apt-get install -y \
-  debootstrap qemu-user-static binfmt-support \
-  build-essential gcc-aarch64-linux-gnu g++-aarch64-linux-gnu \
-  u-boot-tools libssl-dev bc bison flex zip e2fsprogs imagemagick
-```
+The installers end up in `dist/`: `switch-debian-13-trixie-<variant>-installer-hekate.zip`,
+the package list of each one and a `SHA256SUMS`. Unzip an installer on the root
+of the SD card and flash it from Hekate as described above.
 
-### 1. Build RootFS and Boot Assets
-```bash
-sudo ./build.sh
-```
-This builds the kernel, generates device tree images (`nx-plat.dtimg`), compiles `uImage`, bootstraps Debian 13 (Trixie), configures XFCE4, and places artifacts into `build_output/`.
+The steps can also be run apart: `nxd rootfs`, `nxd inspect` (what is in the
+rootfs and why) and `nxd image`. [docs/rootfs.md](docs/rootfs.md) documents
+them, the variants, the release packages and the tests;
+[docs/decisions.md](docs/decisions.md) records why the image runs the 4.9
+kernel of `switch-bsp`.
 
-### 2. Create the Split Hekate Installer
-```bash
-./pack_l4t_installer.sh
-```
-This converts `build_output/rootfs` into an ext4 image (`SWR-DEB`), splits it into 4 MiB-aligned chunks (`l4t.00` and `l4t.01`), and archives everything into `switch-debian-13-trixie-xfce4-installer-hekate.zip`.
+### Continuous integration
+
+`.github/workflows/ci.yml` runs the linters and the tests on every push.
+`.github/workflows/build.yml` builds the images on a native arm64 runner when
+it is started by hand (Actions → *Build images* → *Run workflow*) or when a
+`v*` tag is pushed, and can publish them as a GitHub release.
 
 ---
 

@@ -14,6 +14,7 @@ Usage: nxd COMMAND [options]
   spike [options]         does Debian + the L4T repository resolve? (apt, no root)
   rootfs [options]        build the root filesystem of a variant
   image [options]         turn a rootfs into the SD card installer for Hekate (root)
+  build [options]         rootfs + report + image of one or every variant, files to publish (root)
   inspect [options]       report what is inside a built rootfs (no root)
   container COMMAND ...   run any of these in a Debian trixie container
   variants                list the variants
@@ -30,6 +31,7 @@ case "${command}" in
     spike) exec "${NXD_ROOT}/scripts/spike-l4t.sh" "$@" ;;
     rootfs) exec "${NXD_ROOT}/scripts/build-rootfs.sh" "$@" ;;
     image) exec "${NXD_ROOT}/scripts/build-image.sh" "$@" ;;
+    build) exec "${NXD_ROOT}/scripts/build-variants.sh" "$@" ;;
     inspect) exec "${NXD_ROOT}/scripts/inspect-rootfs.sh" "$@" ;;
     container) exec "${NXD_ROOT}/scripts/in-container.sh" "$@" ;;
     variants)

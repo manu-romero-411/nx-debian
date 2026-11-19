@@ -1,12 +1,9 @@
-# ========================================================
-# Switchroot Debian 13 (Trixie) - Git Ignore
-# ========================================================
-
-# Build Outputs & Generated Images
+# Build outputs (nxd rootfs / image / build) and download caches
 /build_output/
-/switchroot_install/
-/switchroot_installer_stage/
-/work/
+/downloads/
+/dist/
+
+# Images and archives, whatever tool made them
 *.img
 *.iso
 *.raw
@@ -15,42 +12,17 @@
 *.tar.*
 *.zip
 *.7z
-*.core
 
-# Download Caches, Disk Images & Upstream Dumps
-/downloads/*
-!/downloads/switch-assets/
-!/downloads/switch-assets/**
-/theofficialgman-*/
-
-# Tools build dependencies & extracted packages
-/tools/*.deb
-/tools/usr/
-/tools/cross-bin/
-/tools/etc/
-/tools/gcc/
-/tools/hekate_src/
-
-# Kernel source trees & build objects (patches kept in patches/)
-/kernel/
-
-# Debug and Diagnostic Logs
-logs_*.txt
-debug_*.txt
-journalctl*.txt
-lightdm*.txt
+# Logs and reports
 *.log
-/log_debug/
 
-# Python Cache & Virtual Environments
+# Python
 __pycache__/
 *.py[cod]
-*$py.class
 .venv/
 venv/
-env/
 
-# Editor & System Files
+# Editors and systems
 .DS_Store
 Thumbs.db
 *.swp

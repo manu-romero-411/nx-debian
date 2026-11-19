@@ -62,6 +62,8 @@ check "retrobox installs the retrobox releases" test "$(variant_setting retrobox
 check "the retrobox release list names the four components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/config/releases/retrobox.list")" -eq 4
 check "retrobox starts retrobox with Openbox" grep -qx 'retrobox &' "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/autostart"
 check "retrobox keeps ssh off" grep -q 'ssh.service' <(variant_setting retrobox NXD_DISABLE_UNITS)
+check "xfce has a default user" test "$(variant_setting xfce NXD_DEFAULT_USER)" = "switch"
+check "xfce keeps ssh off" grep -q 'ssh.service' <(variant_setting xfce NXD_DISABLE_UNITS)
 check "xfce has no release list" test -z "$(variant_setting xfce NXD_RELEASE_LIST)"
 check "the hostname is nintendo-switch" grep -qx 'nintendo-switch' "${NXD_ROOT}/config/overlay/common/etc/hostname"
 check "ssh is in every variant" has_line "${RETROBOX}" "openssh-server"
@@ -160,13 +162,14 @@ check "dpkg excludes keep the copyright files" grep -q 'path-include=/usr/share/
 check "xfce has no dpkg excludes" test -z "$(dpkg_excludes_file xfce)"
 check "a user is staged by --user" grep -q 'nxd-user' <("${NXD}" rootfs --variant xfce --user manu --no-password --dry-run --output "${tmp}/out")
 check_not "a bad login name is refused" "${NXD}" rootfs --variant xfce --user 'Bad Name' --no-password --dry-run --output "${tmp}/out"
-check_not "--no-password needs --user" "${NXD}" rootfs --variant xfce --no-password --dry-run --output "${tmp}/out"
+check_not "--no-password needs a user" "${NXD}" rootfs --variant xfce --no-user --no-password --dry-run --output "${tmp}/out"
 check "retrobox dry run needs no prompt for its user" "${NXD}" rootfs --variant retrobox --dry-run --output "${tmp}/out" < /dev/null
 check_not "an empty --releases-dir is refused" "${NXD}" rootfs --variant retrobox --dry-run --releases-dir "${tmp}" --output "${tmp}/out"
 check "--no-releases is accepted" "${NXD}" rootfs --variant retrobox --no-releases --dry-run --output "${tmp}/out" < /dev/null
 check "--no-user is accepted" "${NXD}" rootfs --variant retrobox --no-user --no-releases --dry-run --output "${tmp}/out" < /dev/null
 check "--user takes the password from NXD_PASSWORD" env NXD_PASSWORD=x "${NXD}" rootfs --variant xfce --user manu --dry-run --output "${tmp}/out"
 check_not "unknown variant is refused" "${NXD}" rootfs --variant nope --dry-run --output "${tmp}/out"
+check "build has a help text" grep -q "Usage: sudo nxd build" <("${NXD}" build --help)
 check_not "unknown command is refused" "${NXD}" frobnicate
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"

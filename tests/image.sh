@@ -93,6 +93,25 @@ check "the checksums list the parts and the zip" test "$(wc -l < "${OUT}/fake/SH
 check "the zip checksum is right" bash -c "cd '${OUT}/fake' && grep installer.zip SHA256SUMS | sha256sum -c -"
 check "the work directory is gone" test ! -d "${OUT}/fake/image-work"
 
+# nxd build: the files to publish, from the rootfs that is already there.
+CONFIG="${tmp}/config"
+cp -r "${NXD_ROOT}/config" "${CONFIG}"
+printf 'NXD_VARIANT_DESCRIPTION="fake"\nNXD_VARIANT_LISTS="base"\n' > "${CONFIG}/variants/fake.conf"
+DIST="${tmp}/dist"
+NXD_CONFIG_DIR="${CONFIG}" NXD_DIST_PREFIX=test-prefix "${NXD}" build --variant fake --skip-rootfs --no-hekate \
+    --size 40M --output "${OUT}" --dist "${DIST}" --clean > "${tmp}/build.log" 2>&1 ||
+    { cat "${tmp}/build.log"; bad "nxd build ran"; }
+check "build names the installer after the prefix and the variant" test -f "${DIST}/test-prefix-fake-installer-hekate.zip"
+check "build gives the installer the same content" cmp -s "${DIST}/test-prefix-fake-installer-hekate.zip" "${OUT}/fake/installer.zip"
+check "build writes one SHA256SUMS of the lot" bash -c "cd '${DIST}' && sha256sum -c SHA256SUMS"
+check "build does not checksum its own list" test "$(grep -c SHA256SUMS "${DIST}/SHA256SUMS" || true)" -eq 0
+check "--clean removes the rootfs.tar" test ! -f "${OUT}/fake/rootfs.tar"
+check_not "build refuses a variant that does not exist" \
+    env NXD_CONFIG_DIR="${CONFIG}" "${NXD}" build --variant nope --skip-rootfs --output "${OUT}" --dist "${DIST}"
+check_not "--skip-rootfs without a rootfs is refused" \
+    env NXD_CONFIG_DIR="${CONFIG}" "${NXD}" build --variant fake --skip-rootfs --output "${OUT}" --dist "${DIST}"
+tar -C "${tree}" --numeric-owner -cf "${OUT}/fake/rootfs.tar" .
+
 # Failures that must be reported, not built around
 printf 'setenv bootargs "root=/dev/mmcblk0p2 quiet"\n' > "${tmp}/boot.txt"
 mkimage -A arm64 -T script -C none -n boot.scr -d "${tmp}/boot.txt" "${bootstack}/boot.scr" > /dev/null
@@ -102,6 +121,12 @@ check_not "a boot.scr without the anchor is refused" \
 check "an empty extra command line skips the anchor" \
     env NXD_KERNEL_CMDLINE_EXTRA= "${NXD}" image --variant fake --output "${OUT}" --no-hekate --size 40M
 check_not "an image too small is refused" "${NXD}" image --variant fake --output "${OUT}" --no-hekate --size 8M
+check_not "--require-hekate fails when Hekate cannot be fetched" \
+    env NXD_KERNEL_CMDLINE_EXTRA= NXD_GITHUB_API=http://127.0.0.1:9 NXD_DOWNLOADS_DIR="${tmp}/empty-downloads" \
+    "${NXD}" image --variant fake --output "${OUT}" --require-hekate --size 40M
+check "without --require-hekate it only warns" \
+    env NXD_KERNEL_CMDLINE_EXTRA= NXD_GITHUB_API=http://127.0.0.1:9 NXD_DOWNLOADS_DIR="${tmp}/empty-downloads" \
+    "${NXD}" image --variant fake --output "${OUT}" --size 40M
 check_not "a missing rootfs is refused" "${NXD}" image --variant nope --output "${OUT}" --no-hekate
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"

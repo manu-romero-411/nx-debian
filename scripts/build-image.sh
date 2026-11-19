@@ -17,6 +17,7 @@ OUTPUT="${NXD_OUTPUT_DIR}"
 SIZE="${NXD_IMAGE_SIZE}"
 HEKATE_ZIP=""
 NO_HEKATE=0
+REQUIRE_HEKATE=0
 KEEP_STAGE=0
 # Files Hekate asks for in the boot directory; all come from switch-bsp.
 BOOT_FILES=(bl31.bin bl33.bin initramfs uImage nx-plat.dtimg)
@@ -31,6 +32,7 @@ Usage: sudo nxd image [options]
   --hekate ZIP     Hekate release to put on the card (default: download the
                    latest one, cached in ${NXD_DOWNLOADS_DIR})
   --no-hekate      do not add Hekate (the card already has it)
+  --require-hekate fail instead of warning when Hekate cannot be downloaded
   --keep-stage     keep the unpacked tree and the staging directory
   -h, --help       this text
 
@@ -47,6 +49,7 @@ while [[ $# -gt 0 ]]; do
         --size) SIZE="${2:?missing value}"; shift 2 ;;
         --hekate) HEKATE_ZIP="${2:?missing value}"; shift 2 ;;
         --no-hekate) NO_HEKATE=1; shift ;;
+        --require-hekate) REQUIRE_HEKATE=1; shift ;;
         --keep-stage) KEEP_STAGE=1; shift ;;
         -h | --help) usage; exit 0 ;;
         *) die "unknown option: $1" ;;
@@ -141,6 +144,10 @@ log "creating the ${SIZE} ext4 image (label ${NXD_BOOT_ID})..."
 mke2fs -q -t ext4 -d "${TREE}" -L "${NXD_BOOT_ID}" -b 4096 \
     -O extents,uninit_bg,dir_index -E root_owner=0:0 "${IMG}" "${SIZE}" ||
     die "mke2fs failed: the rootfs probably does not fit in ${SIZE} (try --size)"
+# The image holds the tree now: free its disk before the parts are written.
+if [[ "${KEEP_STAGE}" -eq 0 ]]; then
+    rm -rf "${TREE}"
+fi
 e2fsck -fn "${IMG}" > "${WORK}/e2fsck.log" 2>&1 || {
     cat "${WORK}/e2fsck.log" >&2
     die "the filesystem image is not clean"
@@ -155,7 +162,12 @@ fetch_hekate() {
     local cache="${NXD_DOWNLOADS_DIR}/hekate_release.zip" url
     if [[ ! -f "${cache}" ]]; then
         need_cmd curl "install curl"
-        url="$(curl -fsSL https://api.github.com/repos/CTCaer/hekate/releases/latest |
+        # A token (the CI has one) lifts the rate limit of anonymous requests.
+        local auth=()
+        if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+            auth=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+        fi
+        url="$(curl -fsSL "${auth[@]}" "${NXD_GITHUB_API}/repos/CTCaer/hekate/releases/latest" |
             grep 'browser_download_url.*hekate_ctcaer.*\.zip' | head -n 1 | cut -d '"' -f 4)" || true
         [[ -n "${url}" ]] || return 1
         mkdir -p "${NXD_DOWNLOADS_DIR}"
@@ -167,6 +179,7 @@ fetch_hekate() {
 if [[ "${NO_HEKATE}" -eq 0 ]]; then
     if [[ -z "${HEKATE_ZIP}" ]]; then
         HEKATE_ZIP="$(fetch_hekate)" || {
+            [[ "${REQUIRE_HEKATE}" -eq 0 ]] || die "could not download Hekate (use --hekate ZIP)"
             warn "could not download Hekate: the installer will not contain it (use --hekate ZIP)"
             HEKATE_ZIP=""
         }

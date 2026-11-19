@@ -1,0 +1,120 @@
+name: Build images
+
+# Builds the installers of the variants on a native arm64 runner, with the same
+# command anyone can run by hand (nxd container build). Started by hand
+# (Actions -> Build images -> Run workflow) or by pushing a v* tag. A release
+# is made from a tag, or when "publish" is ticked in a manual run.
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: Variant to build ("all", or one of nxd variants)
+        default: all
+        required: true
+        type: string
+      publish:
+        description: Publish a GitHub release (the next version tag is made)
+        default: false
+        type: boolean
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  variants:
+    name: Variants to build
+    runs-on: ubuntu-24.04
+    outputs:
+      list: ${{ steps.pick.outputs.list }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pick the variants
+        id: pick
+        env:
+          WANTED: ${{ inputs.variant || 'all' }}
+        run: |
+          all="$(./nxd variants | awk '{print $1}')"
+          if [[ "${WANTED}" == "all" ]]; then
+            picked="${all}"
+          else
+            grep -qx -- "${WANTED}" <<< "${all}" || { echo "unknown variant: ${WANTED}" >&2; exit 1; }
+            picked="${WANTED}"
+          fi
+          echo "list=$(jq -R . <<< "${picked}" | jq -sc .)" >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build ${{ matrix.variant }}
+    runs-on: ubuntu-24.04-arm
+    needs: variants
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: ${{ fromJSON(needs.variants.outputs.list) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Disk space before
+        run: df -h /
+      - name: Build the installer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NXD_CONTAINER_ENGINE: docker
+          VARIANT: ${{ matrix.variant }}
+        run: sudo -E ./nxd container build --variant "${VARIANT}" --require-hekate --clean --dist dist
+      - name: Disk space after
+        if: always()
+        run: df -h /
+      - uses: actions/upload-artifact@v4
+        with:
+          name: image-${{ matrix.variant }}
+          path: dist/
+          if-no-files-found: error
+          compression-level: 0 # the installers are zips already
+          retention-days: 14
+
+  release:
+    name: Publish the release
+    runs-on: ubuntu-24.04
+    needs: build
+    if: github.event_name == 'push' || inputs.publish
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-*
+          merge-multiple: true
+          path: dist
+      - name: One SHA256SUMS for everything
+        run: |
+          cd dist
+          rm -f SHA256SUMS
+          find . -maxdepth 1 -type f -printf '%f\n' | sort | xargs sha256sum > SHA256SUMS
+          sha256sum -c SHA256SUMS
+      - name: Make the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "${EVENT}" == "push" ]]; then
+            tag="$(python3 scripts/next_version.py --tag "${REF_NAME}" --notes notes.md)"
+          else
+            tag="$(python3 scripts/next_version.py --notes notes.md)"
+          fi
+          gh release create "${tag}" dist/* \
+            --target "${GITHUB_SHA}" \
+            --title "Debian 13 Trixie for the Switch ${tag}" \
+            --notes-file notes.md

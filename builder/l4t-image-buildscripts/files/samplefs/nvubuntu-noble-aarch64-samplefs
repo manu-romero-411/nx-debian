@@ -1,4 +1,0 @@
-DISTRO="ubuntu"
-VERSION="noble"
-EABI="aarch64"
-BASE_URL="https://cdimage.ubuntu.com/ubuntu-base/noble/daily/current/noble-base-arm64.tar.gz"

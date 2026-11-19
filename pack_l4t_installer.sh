@@ -1,1 +1,0 @@
-tools/pack_l4t_installer.sh

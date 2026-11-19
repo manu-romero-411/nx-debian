@@ -1,0 +1,53 @@
+name: CI
+
+# Linters and tests: no image is built here (build.yml does that).
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint and unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends shellcheck pylint jq
+      - name: shellcheck
+        run: shellcheck -x -S style nxd scripts/*.sh scripts/lib/*.sh config/hooks/*.sh config/pre-hooks/*.sh tests/*.sh
+      - name: pylint
+        run: pylint scripts/*.py
+      - name: Lists, variants and dry runs
+        run: tests/test-lists.sh
+      - name: Release packages (fake GitHub API)
+        run: tests/releases.sh
+      - name: Versions
+        run: tests/version.sh
+
+  integration:
+    name: Rootfs and image tests
+    runs-on: ubuntu-24.04
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mmdebstrap dpkg-dev apt-utils gnupg debian-archive-keyring ubuntu-keyring \
+            e2fsprogs u-boot-tools zip unzip jq curl python3-minimal
+      - name: Rootfs from a fake signed L4T repository
+        run: sudo tests/integration.sh
+      - name: Installer image
+        run: sudo tests/image.sh

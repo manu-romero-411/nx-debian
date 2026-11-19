@@ -1,7 +1,8 @@
 # nxd: viability spike and rootfs skeleton
 
-`nxd` is the entry point of the new, apt-based build. The legacy `build.sh`
-keeps working untouched; nothing here replaces it yet.
+`nxd` is the entry point of the apt-based build. It replaced the old
+`build.sh`, which is kept in the git history (see
+[legacy-inventory.md](legacy-inventory.md)).
 
 ## 1. The spike: does Debian + the L4T repository resolve?
 
@@ -103,7 +104,11 @@ tests/test-lists.sh        # offline, no root
 sudo tests/integration.sh  # fake signed L4T repo, runs the spike and a rootfs
 sudo tests/image.sh        # nxd image on a hand-made rootfs
 tests/releases.sh          # fetch-releases.sh against a fake GitHub API on localhost
+tests/version.sh           # scripts/next_version.py in a scratch git repository
 ```
+
+`.github/workflows/ci.yml` runs all of them (and shellcheck and pylint) on every
+push and pull request.
 
 ## The first user
 
@@ -229,3 +234,51 @@ from `/etc/skel/.config/openbox/autostart` (`retrobox &`), which the user
 account copies at creation; `/etc/xdg/openbox/autostart` is a dpkg conffile
 and is left alone. Their Recommends are not installed; add the ones you want
 (for example the PySide6 settings window) to `config/packages/retrobox.list`.
+
+## Building the installers (`nxd build`)
+
+```
+sudo ./nxd build                          # every variant, here
+sudo ./nxd build --variant retrobox       # one of them
+sudo ./nxd container build --clean        # the same, in a container
+sudo ./nxd build --skip-rootfs            # only re-image the rootfs.tar that is there
+sudo ./nxd build --variant xfce -- --user manu   # options after -- go to nxd rootfs
+```
+
+For each variant it runs `nxd rootfs`, `nxd inspect` (a failure there is only a
+warning) and `nxd image`, then puts in `dist/` (`--dist`, `$NXD_DIST_DIR`):
+
+- `switch-debian-13-trixie-<variant>-installer-hekate.zip` (the prefix is
+  `$NXD_DIST_PREFIX`),
+- `...-<variant>-packages.txt`, the package list of the image,
+- `...-<variant>-report.txt`, the `nxd inspect` report,
+- one `SHA256SUMS` of the lot.
+
+`--clean` deletes each `rootfs.tar` once its installer is made, which matters on
+a small disk; `--require-hekate` fails instead of warning when Hekate cannot be
+downloaded; `--size`, `--hekate` and `--no-hekate` are those of `nxd image`.
+It warns when an installer reaches 2 GiB, which GitHub does not take as a
+release asset.
+
+## Continuous integration and releases
+
+`.github/workflows/build.yml` is the same command on a native arm64 runner
+(`ubuntu-24.04-arm`, so no qemu), one job per variant, in the same container
+anyone can use. It starts:
+
+- by hand, from Actions, *Build images*, *Run workflow*: `variant` is `all` or
+  the name of one; ticking `publish` makes a release;
+- when a tag `v*` is pushed: it builds everything and publishes a release for
+  that tag.
+
+The installers are kept as workflow artifacts for 14 days whether or not a
+release is made. A release is made only if every variant built: one
+`SHA256SUMS` is computed for all the files, the tag comes from
+`scripts/next_version.py` (the scheme of the old release script: `v1.0.0`,
+`v1.0.1`, ... `v1.0.10`, `v1.1.0`, ...) or is the pushed one, and the notes are
+the commits since the previous release. Nothing else is needed: the
+workflow's own `GITHUB_TOKEN` creates the release and lifts the rate limit of
+the GitHub API calls (the Hekate download and the Retrobox packages).
+
+Adding a variant is adding `config/variants/NAME.conf`: both the matrix of the
+workflow and `nxd build` pick it up.

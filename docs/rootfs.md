@@ -168,3 +168,17 @@ Unzip the installer at the root of the SD card, boot Hekate and flash the
 `/etc/fstab`, `/etc/hostname` and `/etc/hosts` come from
 `config/overlay/common`; `config/overlay/<variant>` adds to it. The root
 filesystem is mounted by label, not by partition number.
+
+## Autologin
+
+When `--user` is given and the variant sets `NXD_AUTOLOGIN_SESSION`, the user
+hook writes `/etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf`: lightdm logs
+that user straight into the session (`xfce` for both variants, the one that
+`xfce4-session` ships). `config/packages/xfce-core.list` is the session core
+both variants share (session, window manager, panel, desktop, settings,
+terminal), so an application can run on the bare session and bring the panel
+and the desktop up when it ends. Change the variable to `openbox` for a plain
+Openbox session.
+
+The first user is also put in `adm` and `systemd-journal`, to read the logs
+without sudo.

@@ -1,0 +1,14 @@
+# The XFCE session both variants start from: the session manager, the window
+# manager, and the pieces a partial session leaves for later (panel, desktop).
+# Retrobox can run on the session alone and bring the panel and the desktop up
+# when it exits.
+
+xfce4-session
+xfwm4
+xfce4-panel
+xfdesktop4
+xfce4-settings
+xfce4-terminal
+lxpolkit
+gvfs
+adwaita-icon-theme

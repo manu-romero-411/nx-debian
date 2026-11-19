@@ -14,6 +14,9 @@ polkitd
 pkexec
 ca-certificates
 
+# Remote access (also makes nvfb generate the host keys on the first boot)
+openssh-server
+
 # Network and Bluetooth
 network-manager
 wpasupplicant

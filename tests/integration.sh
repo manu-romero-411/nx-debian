@@ -123,7 +123,10 @@ cp "${WORK}/test-L4T.asc" "${CONFIG}/keys/test-L4T.asc"
 printf 'ca-certificates\n' > "${CONFIG}/packages/base.list"
 printf 'nvidia-l4t-core\nswitch-bsp\nxserver-xorg-core\n' > "${CONFIG}/packages/l4t.list"
 printf '# nothing\n' > "${CONFIG}/packages/x11.list"
-printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\nNXD_PATH_EXCLUDES="/usr/share/doc/* /usr/share/man/*"\nNXD_PATH_INCLUDES="/usr/share/doc/*/copyright"\nNXD_MASK_UNITS="apt-daily.timer fstrim.timer"\n' > "${CONFIG}/variants/test.conf"
+# Stands for lightdm: all the user hook looks for is /etc/lightdm.
+mkdir -p "${CONFIG}/overlay/test/etc/lightdm"
+: > "${CONFIG}/overlay/test/etc/lightdm/.keep"
+printf 'NXD_VARIANT_DESCRIPTION="test"\nNXD_VARIANT_LISTS="base l4t x11"\nNXD_PATH_EXCLUDES="/usr/share/doc/* /usr/share/man/*"\nNXD_PATH_INCLUDES="/usr/share/doc/*/copyright"\nNXD_MASK_UNITS="apt-daily.timer fstrim.timer"\nNXD_AUTOLOGIN_SESSION="xfce"\n' > "${CONFIG}/variants/test.conf"
 
 export NXD_CONFIG_DIR="${CONFIG}"
 export NXD_L4T_KEY="${CONFIG}/keys/test-L4T.asc"
@@ -215,6 +218,9 @@ if [[ -f "${TAR}" ]]; then
         "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-mask' || true)" '^0$'
     expect "rootfs: the hostname survives the build" "$(tar -xOf "${TAR}" ./etc/hostname)" '^debian-switch$'
     expect "rootfs: fstab mounts root by label" "$(tar -xOf "${TAR}" ./etc/fstab)" '^LABEL=SWR-DEB +/ +ext4'
+    expect "rootfs: lightdm logs the user in" \
+        "$(tar -xOf "${TAR}" ./etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf)" '^autologin-user=manu$'
+    expect "rootfs: the user is in adm" "$(tar -xOf "${TAR}" ./etc/group)" '^adm:.*manu'
     expect "rootfs: the copyright files are kept" "${LISTING}" 'usr/share/doc/[^/]+/copyright'
     expect "rootfs: the output is not left to root only" \
         "$(stat -c '%u' "${TAR}")" "^$(stat -c '%u' "${WORK}")\$"

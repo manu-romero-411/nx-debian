@@ -115,7 +115,8 @@ dpkg_excludes_file "${VARIANT}" > "${STAGE}/nxd-excludes"
 # One unit name per line, for config/hooks/30-services.sh.
 variant_setting "${VARIANT}" NXD_MASK_UNITS | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-mask"
 if [[ -n "${USER_NAME}" ]]; then
-    (umask 077; printf '%s\n%s\n' "${USER_NAME}" "${USER_HASH}" > "${STAGE}/nxd-user")
+    (umask 077; printf '%s\n%s\n%s\n' "${USER_NAME}" "${USER_HASH}" \
+        "$(variant_setting "${VARIANT}" NXD_AUTOLOGIN_SESSION)" > "${STAGE}/nxd-user")
 fi
 
 # add_hooks DIR: run every DIR/*.sh inside the rootfs, in name order.

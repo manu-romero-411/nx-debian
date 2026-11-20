@@ -374,6 +374,33 @@ option is ignored. If the screen is still black after that, the logs are
     screen at the first start.
   - Expect the installer to grow by roughly 0.3 GiB compressed; `nxd build`
     prints the size and warns from 2000 MiB.
+- **A console, with the Nintendo layout.** The drop-in
+  `etc/retrobox/retrobox.ini.d/50-nxd.ini` sets `[core] console_mode = true`:
+  EmulationStation cannot be quit (QUIT opens the restart / suspend / shut down
+  menu, with no "quit EmulationStation"), nor closed with Alt+F4. The skeleton
+  of the user (`etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg`)
+  sets `InvertButtons`, EmulationStation's "Switch confirm & cancel buttons":
+  the east button confirms and the south one goes back, as on Nintendo pads,
+  in EmulationStation, RetroArch's menus and the setup screen alike. Both are
+  defaults: the first is a system layer that a user's `retrobox.ini` overrides,
+  the second is only copied when the account is created, so a user who changes
+  it keeps their choice.
+- **Default pad, keyboard, volume and power buttons.**
+  - `es_input.cfg` in the same skeleton folder has the Switch Lite pad
+    (`Nintendo Switch Lite Gamepad`, Home as `hotkey`) and a keyboard. The
+    keyboard entry matters: the volume and power buttons reach X as keys, and
+    EmulationStation opens its keyboard setup when it sees keys of a keyboard
+    that has no configuration.
+  - The skeleton's Openbox `rc.xml` takes those keys before EmulationStation
+    does: volume up / down / mute run `/usr/local/bin/nxd-volume` (steps of 5 %
+    of the default PulseAudio output, `pactl`), and the power key is only
+    grabbed.
+  - `etc/systemd/logind.conf.d/10-nxd-power.conf`: a tap on the power button
+    suspends (standby), a long press powers off. Standby depends on the kernel
+    and drivers of the Switch (4.9 L4T) and has not been verified on a device;
+    the suspend / resume hook of the old `build.sh` (mute audio, resync the
+    backlight) is not ported yet.
+  - Joy-Cons have no default mapping yet.
 - **No gamepad-as-mouse.** The mouse mode of the pad is the
   `switch-joystick-mouse` package and the `xserver-xorg-input-joystick` driver: they
   are in the `joystick` package list, which only the desktop uses. In the

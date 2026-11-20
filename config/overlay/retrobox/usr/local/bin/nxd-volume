@@ -1,0 +1,32 @@
+#!/bin/sh
+# nxd-volume up|down|mute: the volume buttons of the console. Steps of 5 % of
+# the default output, never above 100 %.
+set -eu
+
+step=5
+sink='@DEFAULT_SINK@'
+
+percent() {
+    pactl get-sink-volume "${sink}" | grep -o '[0-9]*%' | head -n 1 | tr -d '%'
+}
+
+case "${1:-}" in
+    up)
+        new=$(($(percent) + step))
+        [ "${new}" -le 100 ] || new=100
+        pactl set-sink-mute "${sink}" 0
+        pactl set-sink-volume "${sink}" "${new}%"
+        ;;
+    down)
+        new=$(($(percent) - step))
+        [ "${new}" -ge 0 ] || new=0
+        pactl set-sink-volume "${sink}" "${new}%"
+        ;;
+    mute)
+        pactl set-sink-mute "${sink}" toggle
+        ;;
+    *)
+        echo "usage: nxd-volume up|down|mute" >&2
+        exit 2
+        ;;
+esac

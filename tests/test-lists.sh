@@ -177,6 +177,27 @@ check "retrobox keeps its data in /retrobox" grep -qx 'data_dir = /retrobox' \
     "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 check "retrobox preloads the theme, the bezels and the shaders" \
     test "$(variant_setting retrobox NXD_PRELOAD)" = "theme bezels shaders"
+check "retrobox runs in console mode" grep -qx 'console_mode = true' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+# shellcheck disable=SC2016
+check "console_mode is in the [core] section" \
+    awk '/^\[/{section=$0} /^console_mode = true/{found=(section=="[core]")} END{exit !found}' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+check "the data dir is still in [paths]" bash -c "awk '/^\\[/{s=\$0} /^data_dir = \\/retrobox/{f=(s==\"[paths]\")} END{exit !f}' '${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini'"
+check "retrobox confirms with the east button, as Nintendo pads do" grep -q 'name="InvertButtons" value="true"' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg"
+ESIN="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_input.cfg"
+check "retrobox ships a configured keyboard, so ES never asks for one" grep -q 'deviceName="Keyboard" deviceGUID="-1"' "${ESIN}"
+check "retrobox ships the Switch Lite pad with Home as the hotkey" \
+    grep -q 'deviceGUID="06004c277e05000023f1000000000000"' "${ESIN}"
+check "the pad has its hotkey" grep -q 'name="hotkey" type="button" id="11"' "${ESIN}"
+OBRC="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/rc.xml"
+for key in XF86AudioRaiseVolume XF86AudioLowerVolume XF86AudioMute XF86PowerOff; do
+    check "Openbox takes ${key}" grep -q "keybind key=\"${key}\"" "${OBRC}"
+done
+check "the volume script is executable" test -x "${NXD_ROOT}/config/overlay/retrobox/usr/local/bin/nxd-volume"
+check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/systemd/logind.conf.d/10-nxd-power.conf"
 check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "lightdm starts X without asking logind" \
     grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"

@@ -1,0 +1,14 @@
+[Unit]
+Description=Mount the FAT32 partition of the SD card in /sdcard
+Documentation=file:///usr/local/sbin/nxd-sdcard
+After=local-fs.target
+Before=display-manager.service lightdm.service graphical.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/nxd-sdcard
+ExecStop=/usr/local/sbin/nxd-sdcard --umount
+
+[Install]
+WantedBy=multi-user.target

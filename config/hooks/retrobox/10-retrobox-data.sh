@@ -2,35 +2,22 @@
 # Runs inside the rootfs, for the retrobox variant only, once the user exists
 # and the Retrobox packages are installed.
 #
-# Creates /retrobox, the data directory of Retrobox (config/overlay/retrobox
-# points data_dir there, and the configuration and the logs go there too),
-# owned by the user of the image and its group. Then
-# puts in it what Retrobox would download on its first start (the names are in
-# /tmp/nxd-preload: theme, bezels, shaders), and records that it was offered,
-# so the first start has nothing left to fetch.
+# Puts in the home of the user what Retrobox would download on its first start
+# (the names are in /tmp/nxd-preload: theme, bezels, shaders), and records that
+# it was offered, so the first start has nothing left to fetch. ROMs, BIOS and
+# saves are not here: they are in the SD card (nxd-sdcard).
 set -eu
 
-data=/retrobox
 list=/tmp/nxd-preload
 
 name="$(getent passwd 1000 | cut -d: -f1 || true)"
-mkdir -p "${data}"
 if [ -z "${name}" ]; then
-    echo "10-retrobox-data: warning: no user with uid 1000 (--no-user?): ${data} stays root's" >&2
+    echo "10-retrobox-data: warning: no user with uid 1000 (--no-user?): nothing preloaded" >&2
     rm -f "${list}"
     exit 0
 fi
 group="$(id -gn "${name}")"
 home="$(getent passwd "${name}" | cut -d: -f6)"
-chown "${name}:${group}" "${data}"
-chmod 755 "${data}"
-# The logs are in the state directory; /retrobox/logs is a link to them.
-mkdir -p "${data}/state/logs"
-ln -sfn state/logs "${data}/logs"
-# All of /retrobox (the overlay put files in it as root) belongs to the user
-# before Retrobox runs as the user: it writes its state and its configuration
-# there while it downloads.
-chown -hR "${name}:${group}" "${data}"
 
 if [ -s "${list}" ]; then
     # Retrobox's own downloader, as the user it is for: the files end up with
@@ -40,13 +27,11 @@ if [ -s "${list}" ]; then
     # starts EmulationStation.
     # shellcheck disable=SC2046 # the names are words, one per line
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
-        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}/state" \
         python3 -m retrobox.startup.downloads $(cat "${list}")
     # "once" packages (bezels, shaders) are offered at the first start unless
     # they are recorded as offered: pending() records them.
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
-        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}/state" \
         python3 -c 'from retrobox.startup.downloads import pending; pending()'
 fi
 rm -f "${list}"
-chown -R "${name}:${group}" "${data}" "${home}"
+chown -R "${name}:${group}" "${home}"

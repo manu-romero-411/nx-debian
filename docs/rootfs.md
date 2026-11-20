@@ -324,25 +324,34 @@ and the screen is black (`loginctl show-seat seat0 -p CanGraphical` says
 option is ignored. If the screen is still black after that, the logs are
 `/var/log/lightdm/lightdm.log` and `x-0.log`.
 
-## The Retrobox image: /retrobox, preloaded content, a gamepad that is a gamepad
+## The Retrobox image: ROMs on the SD card, preloaded content, a gamepad that is a gamepad
 
-- **Data directory.** `config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini`
-  sets `data_dir = /retrobox`: ROMs, saves, BIOS, themes, bezels and shaders
-  live there. `config/hooks/retrobox/10-retrobox-data.sh` creates it owned by
-  the user of the image and the group of that user (`retrobox:retrobox` by
-  default).
-- **Configuration and logs in `/retrobox`.** The configuration is
-  `/retrobox/config` (not `~/.config/retrobox`) and the logs are
-  `/retrobox/state/logs` (not `~/.local/state/retrobox/logs`; `/retrobox/logs`
-  is a link to it, made by `10-retrobox-data.sh`). `state_dir = /retrobox/state`
-  in the same drop-in moves the state, which is also where the record of the
-  installs and of what was offered (`store/`, `downloads-offered`) goes. The configuration cannot be set there: `retrobox.ini`
-  lives in it, so Retrobox only takes it from `RETROBOX_CONFIGDIR`. The overlay
-  sets `RETROBOX_CONFIGDIR` and `RETROBOX_STATEDIR` for the user services
-  (`etc/environment.d`), the X session (`etc/X11/Xsession.d`) and login shells
-  such as ssh (`etc/profile.d`); the overlay and its input daemon read only
-  those variables, not the ini. The build hooks pass them too. The user's home
-  keeps only what is not Retrobox's (Openbox, the shell...).
+- **ROMs, BIOS and saves on the SD card.** `nxd-sdcard.service`
+  (`config/overlay/retrobox/etc/systemd/system`, script in `usr/local/sbin`)
+  mounts the FAT32 partition of the card in `/sdcard`, writable for the user of
+  the image, before the session starts, and creates `/sdcard/retrobox/{roms,bios,saves}`.
+  `retrobox.ini.d/50-nxd.ini` points `roms_dir`, `saves_dir` and `bios_dir`
+  there, so the files are the ones hekate, Android and the PC see too.
+  - **Which partition.** Not a name or a number (they change from one card to the
+    next): a `vfat` partition of the disk the system booted from. With several,
+    the one with hekate's folders (`bootloader`, `switch`, `atmosphere`) wins, else
+    the biggest. `/etc/nxd/sdcard.conf` can name it instead
+    (`SDCARD_DEVICE=LABEL=...`, `UUID=...`, `PARTUUID=...` or `/dev/...`).
+    `tests/sdcard.sh` checks the choice with the output of `lsblk` of several layouts.
+  - **If there is none** (or it does not mount), `/sdcard` stays a folder of the
+    root filesystem and the files go there: Retrobox keeps working, but the files
+    are not on the card. The journal says so (`journalctl -u nxd-sdcard`).
+  - **Mount options:** `uid`/`gid` of the user, `umask=0022`, `flush` (writes go
+    out early: the card is taken out and the console turned off without
+    asking), `noatime`, `nosuid`, `nodev`, `quiet`. `fsck.vfat -a` runs first
+    (`dosfstools`) to clean up what a power cut left.
+  - **FAT32 limits:** no file of 4 GiB or more (some GameCube, Wii and PS2 images:
+    use a compressed format, `.rvz`, `.chd`...), no symbolic links, no Unix permissions,
+    names that differ only in case are the same. Retrobox's configuration, state, themes,
+    bezels, shaders and emulators stay in the home of the user (ext4), where
+    Retrobox puts them by default, so only what is big and the user brings is on the card.
+  - Flashing a new image replaces the root partition and keeps the card's FAT32
+    partition: the ROMs, BIOS and saves survive, the rest (home) does not.
 - **Content in the image.** Retrobox downloads its default theme
   (es-theme-iconic), the RetroBat bezels and its shaders the first time it
   starts. The hook runs Retrobox's downloader
@@ -358,7 +367,7 @@ option is ignored. If the screen is still black after that, the logs are
 - **RetroArch in the image.** `NXD_EMULATORS="retroarch"` makes
   `config/hooks/retrobox/20-retrobox-emulators.sh` run Retrobox's own installer
   (`/opt/retrobox/tools/emulators/retroarch.sh -i`) as the user of the image,
-  into `/retrobox/emulators`. On aarch64 that is the libretro buildbot's
+  into `~/.local/share/retrobox/emulators`. On aarch64 that is the libretro buildbot's
   `retroarch` binary, its assets (about 240 MiB compressed: assets, cheats,
   database, slang shaders, overlays...) and the base cores
   (`retrobox.cores.BASE_CORES`, 25 cores, 39 MiB compressed); flycast is built
@@ -391,8 +400,7 @@ option is ignored. If the screen is still black after that, the logs are
   `etc/retrobox/retrobox.ini.d/50-nxd.ini` sets `[core] console_mode = true`:
   EmulationStation cannot be quit (QUIT opens the restart / suspend / shut down
   menu, with no "quit EmulationStation"), nor closed with Alt+F4. The default
-  `/retrobox/config/frontend/.emulationstation/es_settings.cfg` (the overlay's
-  `retrobox/config/...`)
+  `~/.config/retrobox/frontend/.emulationstation/es_settings.cfg` (the skeleton's)
   sets `InvertButtons`, EmulationStation's "Switch confirm & cancel buttons":
   the east button confirms and the south one goes back, as on Nintendo pads,
   in EmulationStation, RetroArch's menus and the setup screen alike. Both are

@@ -92,8 +92,8 @@ A complete GNU/Linux distribution based on **Debian 13 (Trixie)** for the Ninten
 | **`retrobox`** | Openbox starting [Retrobox](https://github.com/RetroboxProject) | `retrobox` | `retrobox` |
 
 Both log the user in automatically, and the hostname is `nintendo-switch`. In
-`retrobox`, Retrobox keeps its data in `/retrobox` and the gamepad is never a
-mouse. The
+`retrobox`, the ROMs, BIOS and saves are in the SD card's FAT32 partition
+(`/sdcard/retrobox`, mounted at boot) and the gamepad is never a mouse. The
 account can `sudo` and `root` has no password. `ssh` is on in `retrobox` and
 installed but disabled in `xfce` (`sudo systemctl enable --now ssh` turns it
 on): change the password before the console joins a network you do not trust.

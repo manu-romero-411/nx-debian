@@ -2,7 +2,7 @@
 # Runs inside the rootfs, for the retrobox variant only, after 10-retrobox-data.sh.
 #
 # Installs the emulators named in /tmp/nxd-emulators (NXD_EMULATORS) with their
-# own installers, as the user of the image, into /retrobox/emulators: the
+# own installers, as the user of the image, into ~/.local/share/retrobox/emulators: the
 # installers are Retrobox's (/opt/retrobox/tools/emulators/NAME.sh -i). They
 # use apt through sudo, which the image has no use for, so what they would
 # install is installed here first: the libraries RetroArch needs are in
@@ -12,7 +12,6 @@ set -eu
 
 list=/tmp/nxd-emulators
 emulators=/opt/retrobox/tools/emulators
-data=/retrobox
 tools="build-essential git cmake unzip curl 7zip"
 
 [ -s "${list}" ] || { rm -f "${list}"; exit 0; }
@@ -31,6 +30,7 @@ if [ ! -d "${emulators}" ]; then
 fi
 group="$(id -gn "${name}")"
 home="$(getent passwd "${name}" | cut -d: -f6)"
+data="${home}/.local/share/retrobox"
 
 # RetroArch's installer has the buildbot's binary for aarch64 only in newer
 # releases of retrobox-core: an older one would build it from source here, for
@@ -100,15 +100,12 @@ for emulator in ${names}; do
     chmod -R a+rX "${glinc}"
 done
 
-mkdir -p "${data}"
-chown "${name}:${group}" "${data}"
 for emulator in ${names}; do
     echo "20-retrobox-emulators: installing ${emulator}"
     # RETROARCH_CFLAGS only matters if a source build is ever used: generic
     # ARMv8 tuned for the Switch's Cortex-A57, never -march=native, whose
     # result depends on the machine that builds the image
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
-        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}/state" \
         RETROARCH_CFLAGS="-O3 -march=armv8-a -mtune=cortex-a57 -pipe" \
         CPATH="${glinc:+${glinc}/root/usr/include}" \
         "${emulators}/${emulator}.sh" -i
@@ -126,4 +123,4 @@ apt-get clean
 [ "${lists_before}" -gt 0 ] || rm -rf /var/lib/apt/lists/*
 rm -f "${packages_before}" "${packages_after}" "${list}"
 rm -rf "${data}/emulators/_src"
-chown -R "${name}:${group}" "${data}" "${home}"
+chown -R "${name}:${group}" "${home}"

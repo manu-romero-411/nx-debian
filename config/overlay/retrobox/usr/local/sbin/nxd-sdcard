@@ -1,0 +1,148 @@
+#!/bin/sh
+# nxd-sdcard: mount the FAT32 partition of the SD card in /sdcard, writable for
+# the user of the image, and create Retrobox's folders (roms, bios, saves) in it.
+#
+#   nxd-sdcard                  find the partition and mount it
+#   nxd-sdcard --umount         unmount it
+#   nxd-sdcard --pick DISK FILE print the partition chosen among the ones in
+#                               FILE (the output of `lsblk -brnP`), for the tests
+#
+# The partition is not looked for by label or number (they differ from one
+# card to the next): it is a FAT32 partition of the disk the system booted from,
+# the Switch's SD card. If there are several, the one with hekate's folders
+# (bootloader, switch, atmosphere) wins, else the biggest. /etc/nxd/sdcard.conf
+# can name it: SDCARD_DEVICE=LABEL=..., UUID=..., PARTUUID=... or /dev/...
+# Without a FAT32 partition, /sdcard stays a plain folder of the root filesystem,
+# so Retrobox still has a place for its files.
+set -eu
+
+mountpoint=/sdcard
+conf=/etc/nxd/sdcard.conf
+folders="roms bios saves"
+
+log() {
+    echo "nxd-sdcard: $*" >&2
+}
+
+# field LINE KEY: the value of KEY in a line of `lsblk -P`
+field() {
+    printf ' %s\n' "$1" | sed -nE "s/.*[[:space:]]$2=\"([^\"]*)\".*/\\1/p"
+}
+
+# candidates DISK: the FAT32 partitions of DISK (any disk if empty), biggest
+# first, from the output of `lsblk -brnP -o NAME,PKNAME,FSTYPE,SIZE` on stdin
+candidates() {
+    disk="$1"
+    while IFS= read -r line; do
+        [ -z "${disk}" ] || [ "$(field "${line}" PKNAME)" = "${disk}" ] || continue
+        [ "$(field "${line}" FSTYPE)" = vfat ] || continue
+        printf '%s %s\n' "$(field "${line}" SIZE)" "$(field "${line}" NAME)"
+    done | sort -rn | cut -d' ' -f2
+}
+
+# has_markers DEVICE: does it hold hekate's folders?
+has_markers() {
+    probe="$(mktemp -d)"
+    found=1
+    if mount -t vfat -o ro,noatime "$1" "${probe}" 2> /dev/null; then
+        for marker in bootloader switch atmosphere; do
+            [ ! -d "${probe}/${marker}" ] || found=0
+        done
+        umount "${probe}"
+    fi
+    rmdir "${probe}"
+    return "${found}"
+}
+
+# choose DISK: the name of the partition to mount, from lsblk's output on stdin
+choose() {
+    list="$(candidates "$1")"
+    [ -n "${list}" ] || return 1
+    if [ "$(printf '%s\n' "${list}" | wc -l)" -gt 1 ] && [ -z "${NXD_SDCARD_NO_PROBE:-}" ]; then
+        # shellcheck disable=SC2086 # the names are words
+        for name in ${list}; do
+            if has_markers "/dev/${name}"; then
+                printf '%s\n' "${name}"
+                return 0
+            fi
+        done
+    fi
+    printf '%s\n' "${list}" | head -n 1
+}
+
+# root_disk: the disk the root filesystem is on
+root_disk() {
+    source="$(findmnt -no SOURCE / 2> /dev/null || true)"
+    [ -b "${source}" ] || source="$(findfs LABEL=SWR-DEB 2> /dev/null || true)"
+    [ -b "${source}" ] || return 0
+    lsblk -no PKNAME "$(readlink -f "${source}")" 2> /dev/null | head -n 1
+}
+
+# make_folders: create them, owned by the user (on a FAT32 partition the mount
+# options do it)
+make_folders() {
+    for folder in ${folders}; do
+        install -d -o "${uid}" -g "${gid}" "${mountpoint}/retrobox/${folder}"
+    done
+}
+
+case "${1:-}" in
+    --pick)
+        choose "$2" < "$3"
+        exit
+        ;;
+    --umount)
+        if findmnt -n "${mountpoint}" > /dev/null 2>&1; then
+            sync
+            umount "${mountpoint}"
+        fi
+        exit 0
+        ;;
+    "") ;;
+    *)
+        echo "usage: nxd-sdcard [--umount]" >&2
+        exit 2
+        ;;
+esac
+
+uid=1000
+gid="$(getent passwd 1000 | cut -d: -f4 || true)"
+gid="${gid:-1000}"
+mkdir -p "${mountpoint}"
+if findmnt -n "${mountpoint}" > /dev/null 2>&1; then
+    log "${mountpoint} is already mounted"
+    exit 0
+fi
+
+device=""
+if [ -r "${conf}" ]; then
+    # shellcheck source=/dev/null
+    . "${conf}"
+fi
+if [ -n "${SDCARD_DEVICE:-}" ]; then
+    case "${SDCARD_DEVICE}" in
+        /dev/*) device="${SDCARD_DEVICE}" ;;
+        *) device="$(findfs "${SDCARD_DEVICE}" 2> /dev/null || true)" ;;
+    esac
+    [ -b "${device}" ] || { log "${SDCARD_DEVICE} (${conf}) is not a device"; device=""; }
+else
+    disk="$(root_disk)"
+    [ -n "${disk}" ] || log "cannot tell which disk the system is on: looking at every disk"
+    name="$(lsblk -brnP -o NAME,PKNAME,FSTYPE,SIZE | choose "${disk}" || true)"
+    [ -z "${name}" ] || device="/dev/${name}"
+fi
+
+if [ -n "${device}" ]; then
+    # what a power cut leaves; a failure here is not one of the mount
+    if command -v fsck.vfat > /dev/null 2>&1; then
+        fsck.vfat -a "${device}" > /dev/null 2>&1 || log "fsck.vfat -a ${device} did not end clean"
+    fi
+    if mount -t vfat -o "rw,noatime,nosuid,nodev,flush,uid=${uid},gid=${gid},umask=0022,iocharset=utf8,shortname=mixed,errors=remount-ro,quiet" "${device}" "${mountpoint}"; then
+        log "${device} is in ${mountpoint}"
+    else
+        log "cannot mount ${device}: ${mountpoint} stays in the root filesystem"
+    fi
+else
+    log "no FAT32 partition: ${mountpoint} stays in the root filesystem"
+fi
+make_folders

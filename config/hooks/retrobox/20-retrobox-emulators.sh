@@ -33,18 +33,24 @@ group="$(id -gn "${name}")"
 home="$(getent passwd "${name}" | cut -d: -f6)"
 
 # RetroArch's installer has the buildbot's binary for aarch64 only in newer
-# releases of retrobox-core: older ones would build it from source here.
+# releases of retrobox-core: an older one would build it from source here, for
+# the CPU that builds the image. It is left out then (Retrobox offers to
+# install it at the first start), and the build says so.
 arch="$(uname -m)"
+todo=""
 for emulator in ${names}; do
     script="${emulators}/${emulator}.sh"
     [ -x "${script}" ] || { echo "20-retrobox-emulators: no installer for ${emulator}" >&2; exit 1; }
     if [ "${emulator}" = retroarch ] && [ "${arch}" = aarch64 ] \
         && ! "${script}" -l | tr ' ' '\n' | grep -qx archive; then
-        echo "20-retrobox-emulators: this retrobox-core cannot install the RetroArch binary on aarch64" >&2
-        echo "20-retrobox-emulators: publish a release newer than v0.7.1 (commit 80d4cc0 or later)" >&2
-        exit 1
+        echo "20-retrobox-emulators: warning: this retrobox-core cannot install the RetroArch binary on aarch64: RetroArch is NOT in the image" >&2
+        echo "20-retrobox-emulators: warning: build with --prereleases, or wait for a release newer than v0.7.1" >&2
+        continue
     fi
+    todo="${todo} ${emulator}"
 done
+names="${todo}"
+[ -n "${names}" ] || { rm -f "${list}"; exit 0; }
 
 # What the build tools bring is whatever dpkg lists after and not before.
 packages_before="$(mktemp)"

@@ -215,8 +215,14 @@ Some components are not in any apt repository. A variant lists them in
 comments allowed), and `scripts/fetch-releases.sh` downloads them before the
 build:
 
-- the latest release is used, or the newest pre-release when a repository has
-  no release;
+- the latest release that GitHub does not mark as a pre-release is used, and a
+  repository that has none stops the build. `--prereleases` (`nxd rootfs`,
+  `nxd build`, `nxd container build`, `NXD_PRERELEASES=1`, the `prereleases`
+  input of the build workflow) takes the newest release of each repository,
+  pre-release or not, never a draft: Retrobox keeps adding features, and its
+  releases lag behind until it is finished. The fetch log says which ones are
+  pre-releases, and the workflow marks the GitHub release it publishes as a
+  pre-release when it was built that way;
 - per repository it picks the `.deb` for `NXD_ARCH` (`arm64`), else the one
   for `all`; one tagged for this Debian (`NXD_RELEASE_TAG_RE`, by default
   `debian13` or `trixie`) wins over a generic one, other distributions' are
@@ -348,10 +354,12 @@ option is ignored. If the screen is still black after that, the logs are
     `config/packages/retrobox.list`, and the hook installs the build tools
     (`build-essential git cmake unzip curl 7zip`) for the build and purges
     them, with everything they brought, once the emulators are installed.
-  - It needs a retrobox-core release that has the binary install for aarch64
-    (the commit after `v0.7.1`): with an older one the hook stops and says so,
-    instead of compiling RetroArch for the CPU that builds the image
-    (`-march=native`) and crashing on the Switch.
+  - It needs a retrobox-core that has the binary install for aarch64 (the
+    commit after `v0.7.1`, which is a pre-release: build with `--prereleases`
+    until a release has it). With an older one the hook warns that RetroArch
+    is not in the image and goes on, instead of compiling it for the CPU that
+    builds the image (`-march=native`) and crashing on the Switch; Retrobox
+    offers to install it at the first start.
   - It needs network and makes the build slower (the flycast compile).
     `nxd rootfs --no-preload` (and `nxd build -- --no-preload`) skips it with
     the rest of the preload; RetroArch is then installed from Retrobox's setup

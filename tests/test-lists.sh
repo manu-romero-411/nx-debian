@@ -203,6 +203,11 @@ check "--no-releases is accepted" "${NXD}" rootfs --variant retrobox --no-releas
 check "--no-user is accepted" "${NXD}" rootfs --variant retrobox --no-user --no-releases --dry-run --output "${tmp}/out" < /dev/null
 check "--user takes the password from NXD_PASSWORD" env NXD_PASSWORD=x "${NXD}" rootfs --variant xfce --user manu --dry-run --output "${tmp}/out"
 check_not "unknown variant is refused" "${NXD}" rootfs --variant nope --dry-run --output "${tmp}/out"
+check "--prereleases is accepted by rootfs" "${NXD}" rootfs --variant retrobox --prereleases --dry-run --output "${tmp}/out" < /dev/null
+check "rootfs documents --prereleases" grep -q -- '--prereleases' <("${NXD}" rootfs --help)
+check "build documents --prereleases" grep -q -- '--prereleases' <("${NXD}" build --help)
+check "the container forwards NXD_PRERELEASES" grep -q 'NXD_PRERELEASES' "${NXD_ROOT}/scripts/in-container.sh"
+check "the workflow has a prereleases input" grep -q 'prereleases:' "${NXD_ROOT}/.github/workflows/build.yml"
 check "build has a help text" grep -q "Usage: sudo nxd build" <("${NXD}" build --help)
 check_not "unknown command is refused" "${NXD}" frobnicate
 

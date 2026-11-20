@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test of fetch-releases.sh against a fake GitHub API served over http on
-# localhost: asset choice, checksum verification, pre-release fallback.
+# localhost: asset choice, checksum verification, pre-releases only on request.
 set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,15 +79,19 @@ release() {
     if [[ "${pre}" == "false" ]]; then
         cp "${SITE}/repos/${repo}/releases/${tag}.json" "${SITE}/repos/${repo}/releases/latest"
     fi
-    # The list endpoint (the server drops the query string, so the
-    # directory index stands for it), for the pre-release fallback.
-    jq -s '.' "${SITE}/repos/${repo}/releases/${tag}.json" > "${SITE}/repos/${repo}/releases/index.html"
+    # The list endpoint, newest first (the server drops the query string, so
+    # the directory index stands for it), for --prereleases.
+    local -a files
+    mapfile -t files < <(find "${SITE}/repos/${repo}/releases" -name '*.json' | sort -rV)
+    jq -s '.' "${files[@]}" > "${SITE}/repos/${repo}/releases/index.html"
 }
 
 release Org/core v1.0 false core_1.0_all.deb core-dbgsym_1.0_all.deb
 release Org/es v2.0 false es_2.0_arm64.deb es_2.0_amd64.deb es_2.0_debian13_arm64.deb es_2.0_ubuntu24.04_arm64.deb es_2.0_fedora.rpm
 release Org/generic v1.0 false generic_1.0_arm64.deb generic_1.0_ubuntu24.04_arm64.deb
 release Org/pre v0.1.1 true pre_0.1.1_all.deb
+release Org/both v1.0 false both_1.0_all.deb
+release Org/both v1.1 true both_1.1_all.deb
 release Org/nosums v1.0 false nosums nosums_1.0_all.deb
 release Org/noarch v1.0 false noarch_1.0_amd64.deb
 
@@ -124,8 +128,18 @@ fetch > /dev/null 2>&1 || true
 check "a generic package is used when none is tagged" have generic_1.0_arm64.deb
 check "a package of another distro is not used" test ! -f "${tmp}/out/generic_1.0_ubuntu24.04_arm64.deb"
 
+fetch_pre() { rm -rf "${tmp}/out"; "${FETCH}" --prereleases t "${tmp}/out"; }
 list "Org/pre"
-check "a pre-release is used when there is no other" bash -c "$(declare -f fetch have); FETCH='${FETCH}'; tmp='${tmp}'; fetch && have pre_0.1.1_all.deb"
+check_not "a repository with only a pre-release is refused by default" fetch
+check "...and used with --prereleases" bash -c "$(declare -f fetch_pre have); FETCH='${FETCH}'; tmp='${tmp}'; fetch_pre && have pre_0.1.1_all.deb"
+check "NXD_PRERELEASES=1 does the same as the flag" bash -c "$(declare -f fetch have); FETCH='${FETCH}'; tmp='${tmp}'; NXD_PRERELEASES=1 fetch && have pre_0.1.1_all.deb"
+list "Org/both"
+fetch > /dev/null 2>&1 || true
+check "by default the release is used, not the newer pre-release" have both_1.0_all.deb
+check "...and the pre-release is not mixed in" test ! -f "${tmp}/out/both_1.1_all.deb"
+fetch_pre > /dev/null 2>&1 || true
+check "--prereleases takes the newest, the pre-release" have both_1.1_all.deb
+check "...instead of the release" test ! -f "${tmp}/out/both_1.0_all.deb"
 
 list "Org/nosums"
 check_not "a release without checksums is refused" fetch

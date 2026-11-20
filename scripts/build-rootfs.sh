@@ -22,6 +22,7 @@ NO_PASSWORD=0
 NO_USER=0
 NO_RELEASES=0
 NO_PRELOAD=0
+PRERELEASES=0
 RELEASES_DIR=""
 
 usage() {
@@ -39,6 +40,8 @@ Usage: build-rootfs.sh [options]
   --no-user         no user, even when the variant has a default one
   --no-releases     skip the release packages the variant installs (offline)
   --releases-dir D  use the .deb files in D instead of downloading the releases
+  --prereleases     use the newest release of each package even if it is a
+                    pre-release (by default, only releases that are not)
   --no-preload      do not put in the image what the variant downloads or
                     installs at its first start (themes, bezels, shaders and
                     the emulators: big, slow, online)
@@ -61,6 +64,7 @@ while [[ $# -gt 0 ]]; do
         --no-user) NO_USER=1; shift ;;
         --no-releases) NO_RELEASES=1; shift ;;
         --releases-dir) RELEASES_DIR="${2:?--releases-dir needs a value}"; shift 2 ;;
+        --prereleases) PRERELEASES=1; shift ;;
         --no-preload) NO_PRELOAD=1; shift ;;
         --dry-run) DRY_RUN=1; shift ;;
         -h | --help) usage; exit 0 ;;
@@ -175,7 +179,9 @@ if [[ -n "${RELEASE_LIST}" && "${NO_RELEASES}" -eq 0 ]]; then
         cp "${RELEASES_DIR}"/*.deb "${STAGE}/nxd-debs/"
         chmod 644 "${STAGE}/nxd-debs"/*.deb
     elif [[ "${DRY_RUN}" -eq 0 ]]; then
-        "${SCRIPT_DIR}/fetch-releases.sh" "${RELEASE_LIST}" "${STAGE}/nxd-debs"
+        FETCH_ARGS=()
+        [[ "${PRERELEASES}" -eq 0 ]] || FETCH_ARGS+=(--prereleases)
+        "${SCRIPT_DIR}/fetch-releases.sh" "${FETCH_ARGS[@]}" "${RELEASE_LIST}" "${STAGE}/nxd-debs"
     fi
 fi
 # What the variant downloads at its first start, done here instead.

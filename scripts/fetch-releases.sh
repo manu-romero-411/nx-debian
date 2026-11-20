@@ -5,7 +5,12 @@
 # retroboxproject.github.io: a package built for this CPU and Debian release,
 # else a generic one for the CPU, else an architecture-independent one.
 #
-#   fetch-releases.sh NAME DEST_DIR
+#   fetch-releases.sh [--prereleases] NAME DEST_DIR
+#
+# Only the releases GitHub does not mark as pre-releases are used, unless
+# --prereleases (or NXD_PRERELEASES=1) asks for the newest release of each
+# repository, a pre-release or not: Retrobox keeps adding features, and its
+# releases lag behind them until it is finished.
 #
 # $GITHUB_TOKEN, when set, avoids the API rate limit. $NXD_GITHUB_API points
 # the script at another API (the tests use a local one).
@@ -17,8 +22,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/lib/common.sh"
 load_config
 
-LIST_NAME="${1:?usage: fetch-releases.sh NAME DEST_DIR}"
-DEST="${2:?usage: fetch-releases.sh NAME DEST_DIR}"
+PRERELEASES="${NXD_PRERELEASES:-0}"
+if [[ "${1:-}" == "--prereleases" ]]; then
+    PRERELEASES=1
+    shift
+fi
+LIST_NAME="${1:?usage: fetch-releases.sh [--prereleases] NAME DEST_DIR}"
+DEST="${2:?usage: fetch-releases.sh [--prereleases] NAME DEST_DIR}"
 LIST="${NXD_CONFIG_DIR}/releases/${LIST_NAME}.list"
 [[ -f "${LIST}" ]] || die "no release list: ${LIST}"
 need_cmd curl "install curl"
@@ -94,11 +104,18 @@ while IFS= read -r repo; do
     repo="${repo%%#*}"
     repo="${repo//[[:space:]]/}"
     [[ -n "${repo}" ]] || continue
-    json="$(api_get "${API}/repos/${repo}/releases/latest" 2> /dev/null ||
-        api_get "${API}/repos/${repo}/releases?per_page=1" | jq '.[0]')" ||
-        die "cannot read the latest release of ${repo} (rate limited? set GITHUB_TOKEN)"
+    if [[ "${PRERELEASES}" == "1" ]]; then
+        # the newest published release, pre-release or not (never a draft)
+        json="$(api_get "${API}/repos/${repo}/releases?per_page=30" | jq '[.[] | select(.draft != true)][0]')" ||
+            die "cannot read the releases of ${repo} (rate limited? set GITHUB_TOKEN)"
+    else
+        # GitHub's "latest" is the newest release that is not a pre-release
+        json="$(api_get "${API}/repos/${repo}/releases/latest" 2> /dev/null)" ||
+            die "${repo} has no release that is not a pre-release (or it cannot be read: rate limited? set GITHUB_TOKEN); --prereleases allows pre-releases"
+    fi
     tag="$(jq -r '.tag_name // empty' <<< "${json}")"
     [[ -n "${tag}" ]] || die "${repo} has no release"
+    kind="$(jq -r 'if .prerelease then " (pre-release)" else "" end' <<< "${json}")"
     mapfile -t names < <(jq -r '.assets[].name' <<< "${json}")
     mapfile -t chosen < <(printf '%s\n' "${names[@]}" | select_assets) || true
     if ((${#chosen[@]} == 0)); then
@@ -110,7 +127,7 @@ while IFS= read -r repo; do
     sums="${DEST}/${repo##*/}.sha256sums"
     curl -fsSL -o "${sums}" "$(jq -r --arg n "${sums_name}" '.assets[] | select(.name == $n) | .browser_download_url' <<< "${json}")"
     for name in "${chosen[@]}"; do
-        log "${repo} ${tag}: ${name}"
+        log "${repo} ${tag}${kind}: ${name}"
         curl -fsSL -o "${DEST}/${name}" \
             "$(jq -r --arg n "${name}" '.assets[] | select(.name == $n) | .browser_download_url' <<< "${json}")"
         verify "${DEST}/${name}" "${sums}"

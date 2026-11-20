@@ -41,5 +41,5 @@ fi
 exec "${ENGINE}" run --rm --privileged --security-opt label=disable "${TTY[@]}" \
     -v "${NXD_ROOT}:/nxd" -w /nxd \
     -e NXD_SUITE -e NXD_ARCH -e NXD_MIRROR -e NXD_L4T_COMPONENT -e NXD_OUTPUT_DIR \
-    -e NXD_PASSWORD -e NXD_IMAGE_SIZE -e NXD_BOOT_NAME -e NXD_BOOT_ID -e NXD_DIST_DIR -e NXD_DIST_PREFIX -e GITHUB_TOKEN \
+    -e NXD_PASSWORD -e NXD_IMAGE_SIZE -e NXD_BOOT_NAME -e NXD_BOOT_ID -e NXD_DIST_DIR -e NXD_DIST_PREFIX -e NXD_PRERELEASES -e GITHUB_TOKEN \
     "${IMAGE}" ./nxd "$@"

@@ -35,6 +35,8 @@ Usage: sudo nxd build [options] [-- ROOTFS_OPTIONS]
   --no-hekate      do not put Hekate in the installers
   --require-hekate fail when Hekate cannot be downloaded (the CI uses it)
   --skip-rootfs    reuse the rootfs.tar already in --output (only re-image)
+  --prereleases    use the newest release of the Retrobox packages even if it
+                   is a pre-release (by default, only releases that are not)
   --clean          delete each rootfs.tar once its installer is made (disk)
   -h, --help       this text
 
@@ -61,8 +63,9 @@ while [[ $# -gt 0 ]]; do
         --require-hekate) IMAGE_ARGS+=(--require-hekate); shift ;;
         --skip-rootfs) SKIP_ROOTFS=1; shift ;;
         --clean) CLEAN=1; shift ;;
+        --prereleases) ROOTFS_ARGS+=(--prereleases); shift ;;
         -h | --help) usage; exit 0 ;;
-        --) shift; ROOTFS_ARGS=("$@"); break ;;
+        --) shift; ROOTFS_ARGS+=("$@"); break ;;
         *) usage >&2; die "unknown option: $1" ;;
     esac
 done

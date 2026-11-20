@@ -155,6 +155,11 @@ sudo ./nxd build --variant retrobox  # rootfs + installer, native
 sudo ./nxd container build           # the same, every variant, in a container
 ```
 
+The Retrobox packages come from their GitHub releases, and only from those
+that are not pre-releases; `--prereleases` (for example
+`sudo ./nxd container build --variant retrobox --prereleases`) takes the newest
+of each, which is what you want while Retrobox is still gaining features.
+
 The installers end up in `dist/`: `switch-debian-13-trixie-<variant>-installer-hekate.zip`,
 the package list of each one and a `SHA256SUMS`. Unzip an installer on the root
 of the SD card and flash it from Hekate as described above.
@@ -170,7 +175,9 @@ kernel of `switch-bsp`.
 `.github/workflows/ci.yml` runs the linters and the tests on every push.
 `.github/workflows/build.yml` builds the images on a native arm64 runner when
 it is started by hand (Actions → *Build images* → *Run workflow*) or when a
-`v*` tag is pushed, and can publish them as a GitHub release.
+`v*` tag is pushed, and can publish them as a GitHub release; its
+*prereleases* input builds with the pre-releases of the Retrobox packages and
+marks the release it publishes as a pre-release.
 
 ---
 

@@ -1,0 +1,7 @@
+# GitHub repositories whose releases bring the Retrobox packages, in install
+# order: the image installs them at build time (scripts/fetch-releases.sh),
+# nxd-update updates the installed ones.
+RetroboxProject/retrobox-core
+RetroboxProject/retrobox-mangohud
+RetroboxProject/retrobox-emulationstation
+RetroboxProject/retrobox-overlay

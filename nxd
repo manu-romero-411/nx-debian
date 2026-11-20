@@ -19,6 +19,7 @@ Usage: nxd COMMAND [options]
   container COMMAND ...   run any of these in a Debian trixie container
   variants                list the variants
   packages VARIANT        print the package set of a variant
+  debs [options] DIR      build nx-debian's own packages (nxd-common, nxd-<variant>)
 
 Every command takes --help.
 EOF
@@ -33,6 +34,7 @@ case "${command}" in
     image) exec "${NXD_ROOT}/scripts/build-image.sh" "$@" ;;
     build) exec "${NXD_ROOT}/scripts/build-variants.sh" "$@" ;;
     inspect) exec "${NXD_ROOT}/scripts/inspect-rootfs.sh" "$@" ;;
+    debs) exec "${NXD_ROOT}/scripts/build-packages.sh" "$@" ;;
     container) exec "${NXD_ROOT}/scripts/in-container.sh" "$@" ;;
     variants)
         while IFS= read -r name; do

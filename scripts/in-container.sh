@@ -32,6 +32,13 @@ if ! "${ENGINE}" image inspect "${IMAGE}" > /dev/null 2>&1; then
     "${ENGINE}" build -t "${IMAGE}" -f "${NXD_ROOT}/docker/Containerfile" "${NXD_ROOT}/docker"
 fi
 
+# The version of nx-debian's packages comes from git, which the container does
+# not have: it is worked out here.
+if [[ -z "${NXD_PACKAGE_VERSION:-}" ]]; then
+    NXD_PACKAGE_VERSION="$("${NXD_ROOT}/scripts/build-packages.sh" --print-version)"
+    export NXD_PACKAGE_VERSION
+fi
+
 # A terminal (for the password prompt of --user) only when there is one.
 TTY=()
 if [[ -t 0 && -t 1 ]]; then
@@ -41,5 +48,5 @@ fi
 exec "${ENGINE}" run --rm --privileged --security-opt label=disable "${TTY[@]}" \
     -v "${NXD_ROOT}:/nxd" -w /nxd \
     -e NXD_SUITE -e NXD_ARCH -e NXD_MIRROR -e NXD_L4T_COMPONENT -e NXD_OUTPUT_DIR \
-    -e NXD_PASSWORD -e NXD_IMAGE_SIZE -e NXD_BOOT_NAME -e NXD_BOOT_ID -e NXD_DIST_DIR -e NXD_DIST_PREFIX -e NXD_PRERELEASES -e GITHUB_TOKEN \
+    -e NXD_PASSWORD -e NXD_IMAGE_SIZE -e NXD_BOOT_NAME -e NXD_BOOT_ID -e NXD_DIST_DIR -e NXD_DIST_PREFIX -e NXD_PRERELEASES -e NXD_PACKAGE_VERSION -e GITHUB_TOKEN \
     "${IMAGE}" ./nxd "$@"

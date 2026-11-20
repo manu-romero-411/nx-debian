@@ -179,15 +179,18 @@ Unzip the installer at the root of the SD card, boot Hekate and flash the
 `l4t.*` parts from its partition manager.
 
 `/etc/fstab`, `/etc/hostname` and `/etc/hosts` come from
-`config/overlay/common`; `config/overlay/<variant>` adds to it. The root
-filesystem is mounted by label, not by partition number.
+`config/overlay/common`: they are what makes one image that image, so they
+stay out of the packages. Every other file nx-debian adds to the system is in
+its packages, nxd-common and nxd-<variant> (see [packages.md](packages.md)).
+The root filesystem is mounted by label, not by partition number.
 
 ## Autologin
 
 When a user is created and the variant sets `NXD_AUTOLOGIN_SESSION`, the user
 hook writes `/etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf`: lightdm logs
 that user straight into the session. `xfce` starts the XFCE session
-(`xfce4-session`), `openbox` a plain Openbox one. The hook warns when the
+(`xfce4-session`), `retrobox` the console's session, `nxd-retrobox` (from the
+package of the same name). The hook warns when the
 session file is missing from `/usr/share/xsessions`.
 
 The first user is also put in `adm` and `systemd-journal`, to read the logs
@@ -217,10 +220,12 @@ The hostname of every variant is `nintendo-switch`
 
 ## Packages from GitHub releases
 
-Some components are not in any apt repository. A variant lists them in
-`config/releases/<NXD_RELEASE_LIST>.list`, one `owner/repo` per line (`#`
-comments allowed), and `scripts/fetch-releases.sh` downloads them before the
-build:
+Some components are not in any apt repository. A variant names a list of them
+(`NXD_RELEASE_LIST`), `<name>.list` in the `usr/share/nxd/releases.d` folder of
+one of nx-debian's packages (`packages/nxd-retrobox/root/usr/share/nxd/releases.d/retrobox.list`),
+one `owner/repo` per line (`#` comments allowed): the same list `nxd-update`
+reads on the console to update them. `scripts/fetch-releases.sh` downloads
+them before the build:
 
 - the latest release that GitHub does not mark as a pre-release is used, and a
   repository that has none stops the build. `--prereleases` (`nxd rootfs`,
@@ -245,13 +250,17 @@ uses the `.deb` files in `D` instead (offline builds, tests), and
 `--no-releases` skips them.
 
 `retrobox` installs `retrobox-core`, `retrobox-mangohud`,
-`retrobox-emulationstation` and `retrobox-overlay`. Openbox starts Retrobox
-from `/etc/skel/.config/openbox/autostart` (`retrobox &`), which the user
-account copies at creation, after the picom compositor (`picom -b --config
+`retrobox-emulationstation` and `retrobox-overlay`. lightdm logs the user into
+the `nxd-retrobox` session (`/usr/share/xsessions/nxd-retrobox.desktop`, from
+the nxd-retrobox package): `/usr/lib/nxd/retrobox-session` runs Openbox with
+the console's `rc.xml` (`/usr/share/nxd/retrobox/openbox`, unless the user has
+an `~/.config/openbox/rc.xml`) and `/usr/lib/nxd/retrobox-autostart` as its
+startup command, which starts the picom compositor (`picom -b --config
 /dev/null --backend glx --vsync`: vsync against tearing, and compositing for
 the overlay's translucency over a game; no config file, so none of the shadows
-and fades of `/etc/xdg/picom.conf`); `/etc/xdg/openbox/autostart` is a dpkg conffile
-and is left alone. Their Recommends are not installed; add the ones you want
+and fades of `/etc/xdg/picom.conf`) and then `retrobox &`. They are files of a
+package, not of the user's home, so an update of the package reaches every
+console. Their Recommends are not installed; add the ones you want
 (for example the PySide6 settings window) to `config/packages/retrobox.list`.
 
 ## Building the installers (`nxd build`)
@@ -309,9 +318,12 @@ workflow and `nxd build` pick it up.
 What the images need beyond what the packages bring is kept here, never in
 another repository, and is applied by the build:
 
-- `config/overlay/common/` and `config/overlay/<variant>/`: files copied into
-  the image as they are (`/etc/hostname`, the Openbox autostart, the lightdm
-  and Retrobox configuration...);
+- `packages/nxd-common/` and `packages/nxd-<variant>/`: every file nx-debian
+  adds to the system (services, the lightdm and Retrobox configuration, the
+  Openbox session, `nxd-update`...), as packages the image installs and
+  `nxd-update` keeps up to date ([packages.md](packages.md));
+- `config/overlay/common/`: the few files that make one image that image
+  (`/etc/hostname`, `/etc/hosts`, `/etc/fstab`), copied in as they are;
 - `config/hooks/*.sh`: scripts run inside the image for every variant, in name
   order; `config/hooks/<variant>/*.sh` run after those, for that variant only;
 - `config/packages/*.list`, `config/variants/*.conf`: what is installed, what
@@ -326,7 +338,7 @@ lightdm 1.32 (Debian 13) starts X only on a seat that logind marks graphical,
 and `seat0` is not on the Switch: the service stays active with no X server
 and the screen is black (`loginctl show-seat seat0 -p CanGraphical` says
 `no`; `systemctl status lightdm` shows no process but lightdm itself).
-`config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf` sets
+`/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf` (nxd-common) sets
 `logind-check-graphical=false`, in the `[LightDM]` section: in `[Seat:*]` the
 option is ignored. If the screen is still black after that, the logs are
 `/var/log/lightdm/lightdm.log` and `x-0.log`.
@@ -334,7 +346,8 @@ option is ignored. If the screen is still black after that, the logs are
 ## The Retrobox image: ROMs on the SD card, preloaded content, a gamepad that is a gamepad
 
 - **ROMs, BIOS and saves on the SD card.** `nxd-sdcard.service`
-  (`config/overlay/retrobox/etc/systemd/system`, script in `usr/local/sbin`)
+  (nxd-retrobox: `/usr/lib/systemd/system/nxd-sdcard.service`, enabled when
+  the package is installed, and `/usr/sbin/nxd-sdcard`)
   mounts the FAT32 partition of the card in `/sdcard`, writable for the user of
   the image, before the session starts, and creates `/sdcard/retrobox/{roms,bios,saves}`.
   `retrobox.ini.d/50-nxd.ini` points `roms_dir`, `saves_dir` and `bios_dir`
@@ -409,7 +422,9 @@ option is ignored. If the screen is still black after that, the logs are
   `etc/retrobox/retrobox.ini.d/50-nxd.ini` sets `[core] console_mode = true`:
   EmulationStation cannot be quit (QUIT opens the restart / suspend / shut down
   menu, with no "quit EmulationStation"), nor closed with Alt+F4. The default
-  `~/.config/retrobox/frontend/.emulationstation/es_settings.cfg` (the skeleton's)
+  `~/.config/retrobox/frontend/.emulationstation/es_settings.cfg`, which the
+  session copies from `/usr/share/nxd/retrobox/emulationstation` when the user
+  has none
   sets `InvertButtons`, EmulationStation's "Switch confirm & cancel buttons":
   the east button confirms and the south one goes back, as on Nintendo pads,
   in EmulationStation, RetroArch's menus and the setup screen alike. Both are
@@ -428,8 +443,8 @@ option is ignored. If the screen is still black after that, the logs are
     keyboard entry matters: the volume and power buttons reach X as keys, and
     EmulationStation opens its keyboard setup when it sees keys of a keyboard
     that has no configuration.
-  - The skeleton's Openbox `rc.xml` takes those keys before EmulationStation
-    does: volume up / down / mute run `/usr/local/bin/nxd-volume` (steps of 5 %
+  - The session's Openbox `rc.xml` takes those keys before EmulationStation
+    does: volume up / down / mute run `/usr/bin/nxd-volume` (steps of 5 %
     of the default PulseAudio output, `pactl`), and the power key is only
     grabbed.
   - `etc/systemd/logind.conf.d/10-nxd-power.conf`: a tap on the power button

@@ -5,7 +5,7 @@ set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NXD_ROOT="$(cd "${TESTS_DIR}/.." && pwd)"
-SCRIPT="${NXD_ROOT}/config/overlay/retrobox/usr/local/sbin/nxd-sdcard"
+SCRIPT="${NXD_ROOT}/packages/nxd-retrobox/root/usr/sbin/nxd-sdcard"
 
 PASS=0
 FAIL=0
@@ -91,12 +91,14 @@ pick "neither FAT32 nor exFAT: nothing" "" mmcblk0
 if grep -q 'lsblk -b[a-z]*r[a-z]*P\|lsblk -b[a-z]*P[a-z]*r' "${SCRIPT}"; then bad "lsblk without -r next to -P"; else ok "lsblk without -r next to -P"; fi
 if grep -q 'iocharset=utf8' "${SCRIPT}"; then bad "no iocharset=utf8 (no nls_utf8 in L4T)"; else ok "no iocharset=utf8 (no nls_utf8 in L4T)"; fi
 if [[ -x "${SCRIPT}" ]]; then ok "the script is executable"; else bad "the script is executable"; fi
-unit="${NXD_ROOT}/config/overlay/retrobox/etc/systemd/system/nxd-sdcard.service"
-if grep -qx 'ExecStart=/usr/local/sbin/nxd-sdcard' "${unit}"; then ok "the unit runs the script"; else bad "the unit runs the script"; fi
-if [[ "$(readlink "${NXD_ROOT}/config/overlay/retrobox/etc/systemd/system/multi-user.target.wants/nxd-sdcard.service")" == /etc/systemd/system/nxd-sdcard.service ]]; then
-    ok "the unit is enabled"
+unit="${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/systemd/system/nxd-sdcard.service"
+if grep -qx 'ExecStart=/usr/sbin/nxd-sdcard' "${unit}"; then ok "the unit runs the script"; else bad "the unit runs the script"; fi
+# shellcheck disable=SC2016 # the literal text of the script
+if grep -q 'deb-systemd-helper enable "${unit}"' "${NXD_ROOT}/packages/nxd-retrobox/DEBIAN/postinst" &&
+    grep -qx 'unit=nxd-sdcard.service' "${NXD_ROOT}/packages/nxd-retrobox/DEBIAN/postinst"; then
+    ok "the package enables the unit"
 else
-    bad "the unit is enabled"
+    bad "the package enables the unit"
 fi
 if grep -qx 'Before=display-manager.service lightdm.service graphical.target' "${unit}"; then ok "it is mounted before the session starts"; else bad "it is mounted before the session starts"; fi
 

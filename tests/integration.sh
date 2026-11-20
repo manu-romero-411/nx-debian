@@ -229,6 +229,7 @@ if [[ -f "${TAR}" ]]; then
         "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-mask' || true)" '^0$'
     expect "rootfs: the hostname survives the build" "$(tar -xOf "${TAR}" ./etc/hostname)" '^nintendo-switch$'
     expect "rootfs: the release package is installed" "${MANIFEST}" $'fake-release\t'
+    expect "rootfs: nx-debian's own nxd-common is installed" "${MANIFEST}" $'nxd-common\t'
     expect "rootfs: the release package files are there" "${LISTING}" 'opt/fake/hello'
     expect "rootfs: no release debs left behind" \
         "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-debs' || true)" '^0$'

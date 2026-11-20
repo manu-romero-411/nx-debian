@@ -1,0 +1,14 @@
+#!/bin/sh
+# nxd-common: on purge, the firmware names postinst made (they belong to no
+# package) go too.
+set -eu
+
+if [ "${1:-}" = purge ]; then
+    fwdir=/usr/lib/firmware/brcm
+    rm -f "${fwdir}/brcmfmac4356-pcie.bin" "${fwdir}/brcmfmac4356-pcie.txt" "${fwdir}/bcm4356.hcd"
+    for model in switch odin vali fric; do
+        rm -f "${fwdir}/brcmfmac4356-pcie.nintendo,${model}.txt"
+    done
+    rm -rf /var/lib/nxd
+fi
+exit 0

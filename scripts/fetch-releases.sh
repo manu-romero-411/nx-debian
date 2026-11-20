@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Downloads the .deb packages of the latest release of every repository in a
-# list (config/releases/NAME.list) and verifies them against the SHA256SUMS of
+# list (NAME.list, in the releases.d folder of nx-debian's packages:
+# packages/*/root/usr/share/nxd/releases.d, the same lists nxd-update reads on
+# the console) and verifies them against the SHA256SUMS of
 # the release. The asset choice follows the install.sh of
 # retroboxproject.github.io: a package built for this CPU and Debian release,
 # else a generic one for the CPU, else an architecture-independent one.
@@ -13,7 +15,8 @@
 # releases lag behind them until it is finished.
 #
 # $GITHUB_TOKEN, when set, avoids the API rate limit. $NXD_GITHUB_API points
-# the script at another API (the tests use a local one).
+# the script at another API, $NXD_RELEASE_LISTS_DIR at another folder of lists
+# (the tests use both).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -29,8 +32,12 @@ if [[ "${1:-}" == "--prereleases" ]]; then
 fi
 LIST_NAME="${1:?usage: fetch-releases.sh [--prereleases] NAME DEST_DIR}"
 DEST="${2:?usage: fetch-releases.sh [--prereleases] NAME DEST_DIR}"
-LIST="${NXD_CONFIG_DIR}/releases/${LIST_NAME}.list"
-[[ -f "${LIST}" ]] || die "no release list: ${LIST}"
+if [[ -n "${NXD_RELEASE_LISTS_DIR:-}" ]]; then
+    LIST="${NXD_RELEASE_LISTS_DIR}/${LIST_NAME}.list"
+else
+    LIST="$(compgen -G "${NXD_ROOT}/packages/*/root/usr/share/nxd/releases.d/${LIST_NAME}.list" | head -n 1 || true)"
+fi
+[[ -f "${LIST}" ]] || die "no release list ${LIST_NAME}.list in packages/*/root/usr/share/nxd/releases.d"
 need_cmd curl "install curl"
 need_cmd jq "install jq"
 need_cmd sha256sum "install coreutils"

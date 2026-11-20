@@ -1,0 +1,246 @@
+#!/usr/bin/env bash
+# nxd-update: updates a Debian for the Nintendo Switch (nx-debian) in one go.
+#
+#   nxd-update [--allow-prereleases]
+#   nxd-update [--allow-prereleases] --download-only DIR
+#
+#   1. apt-get update and apt-get dist-upgrade: Debian and the L4T packages.
+#   2. The packages that come from GitHub releases (the repositories listed in
+#      /usr/share/nxd/releases.d/*.list: nx-debian's own nxd-common and
+#      nxd-<variant>, the Retrobox packages...): for each repository, the
+#      newest release, and from it the .deb files of packages that are
+#      installed here and newer than what is installed, checked against the
+#      release's SHA256SUMS. Packages that are not installed are not added.
+#   3. apt-get autoremove --purge and apt-get clean.
+#
+# Only releases GitHub does not mark as pre-releases are used, unless
+# --allow-prereleases: then the newest release of each repository, a
+# pre-release or not (nx-debian publishes one on every push to main).
+#
+# --download-only DIR stops after downloading and checking the packages of
+# step 2 into DIR: no apt, nothing installed, root not needed.
+#
+# Runs itself through sudo when it is not root. Sleep, shutdown and the power
+# button are held off while it runs. Configuration files changed by hand are
+# kept (dpkg's --force-confold). $GITHUB_TOKEN avoids GitHub's rate limit for
+# anonymous requests (sudo keeps it).
+set -euo pipefail
+
+PRERELEASES=0
+DOWNLOAD_ONLY=""
+LISTS_DIR="${NXD_RELEASES_DIR:-/usr/share/nxd/releases.d}"
+STATE_DIR="${NXD_STATE_DIR:-/var/lib/nxd/releases}"
+API="${NXD_GITHUB_API:-https://api.github.com}"
+# Release assets that must never be installed.
+EXCLUDE_RE='dbgsym|debuginfo|debugsource'
+# Any distro marker in an asset name: an asset carrying one is used only when
+# it is the one of this Debian release; assets without any are generic.
+ANY_TAG_RE='(debian|ubuntu|fedora)[-_.]?[0-9]|[._-]fc[0-9]+|[._-]el[0-9]+|trixie|bookworm|bullseye|forky|focal|jammy|noble|resolute|oracular|plucky|questing'
+
+log() { printf 'nxd-update: %s\n' "$*" >&2; }
+warn() { printf 'nxd-update: warning: %s\n' "$*" >&2; }
+die() {
+    printf 'nxd-update: %s\n' "$*" >&2
+    exit 1
+}
+
+usage() {
+    sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --allow-prereleases) PRERELEASES=1; shift ;;
+        --download-only) DOWNLOAD_ONLY="${2:?--download-only needs a directory}"; shift 2 ;;
+        -h | --help) usage; exit 0 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+
+if [[ -z "${DOWNLOAD_ONLY}" && "${EUID}" -ne 0 ]]; then
+    exec sudo --preserve-env=GITHUB_TOKEN -- "$0" "$@"
+fi
+if [[ -z "${DOWNLOAD_ONLY}" && -z "${NXD_UPDATE_INHIBITED:-}" && -d /run/systemd/system ]] &&
+    command -v systemd-inhibit > /dev/null 2>&1; then
+    export NXD_UPDATE_INHIBITED=1
+    exec systemd-inhibit --what=sleep:shutdown:handle-power-key --who=nxd-update \
+        --why="Updating the system" -- "$0" "$@"
+fi
+
+ARCH="${NXD_ARCH:-$(dpkg --print-architecture)}"
+# this Debian release, as asset names write it ("debian13", "trixie")
+TAG_RE="${NXD_RELEASE_TAG_RE:-}"
+if [[ -z "${TAG_RE}" ]]; then
+    # shellcheck source=/dev/null
+    . /etc/os-release
+    TAG_RE="debian[-_.]?${VERSION_ID:-0}|${VERSION_CODENAME:-none}"
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+APT=(apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
+
+api_get() {
+    local -a headers=(-H "Accept: application/vnd.github+json")
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        headers+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
+    fi
+    curl -fsSL --retry 2 "${headers[@]}" "$1"
+}
+
+# installed_version PACKAGE: its version if it is installed, else nothing
+installed_version() {
+    if [[ -n "${NXD_UPDATE_INSTALLED:-}" ]]; then
+        # for the tests: a file of "package version" lines
+        awk -v p="$1" '$1 == p { print $2; exit }' "${NXD_UPDATE_INSTALLED}"
+        return
+    fi
+    dpkg-query -W -f '${db:Status-Abbrev} ${Version}\n' "$1" 2> /dev/null |
+        awk '$1 ~ /^[ih]i/ { print $2 }'
+}
+
+# select_assets: asset names on stdin; prints the .deb files of this machine
+# (built for it and this Debian release, else generic for it, else for all)
+select_assets() {
+    local name arch_re
+    local -a all=() tagged=() generic=()
+    mapfile -t all
+    for arch_re in "[_.-]${ARCH}\\.deb\$" '[_.-]all\.deb$'; do
+        tagged=()
+        generic=()
+        for name in "${all[@]}"; do
+            [[ "${name,,}" =~ ${arch_re} && ! "${name,,}" =~ ${EXCLUDE_RE} ]] || continue
+            if [[ "${name,,}" =~ ${TAG_RE} ]]; then
+                tagged+=("${name}")
+            elif [[ ! "${name,,}" =~ ${ANY_TAG_RE} ]]; then
+                generic+=("${name}")
+            fi
+        done
+        ((${#tagged[@]} == 0)) || { printf '%s\n' "${tagged[@]}"; return 0; }
+        ((${#generic[@]} == 0)) || { printf '%s\n' "${generic[@]}"; return 0; }
+    done
+    return 1
+}
+
+# release REPO: the JSON of the release to use (see the header), or nothing
+release() {
+    local repo="$1"
+    if [[ "${PRERELEASES}" -eq 1 ]]; then
+        # the newest one with packages, pre-release or not (never a draft):
+        # nx-debian has releases of images made before it had packages
+        api_get "${API}/repos/${repo}/releases?per_page=30" |
+            jq -c '[.[] | select(.draft != true) | select(any(.assets[]; .name | endswith(".deb")))][0] // empty'
+    else
+        api_get "${API}/repos/${repo}/releases/latest" 2> /dev/null | jq -c 'select(.tag_name != null)'
+    fi
+}
+
+# sha_of FILE SUMS: the checksum SUMS gives for FILE's name
+sha_of() {
+    awk -v f="${1##*/}" '
+        { gsub(/\r/, ""); n = $2; sub(/^\*/, "", n); sub(/^.*\//, "", n) }
+        n == f { print tolower($1); exit }' "$2"
+}
+
+# fetch REPO DIR: downloads into DIR the packages of REPO to install; prints
+# their paths
+fetch() {
+    local repo="$1" dir="$2" json tag kind sums_name sums name file package version installed expected
+    local -a names=() chosen=() wanted=()
+    json="$(release "${repo}")" || { warn "cannot read the releases of ${repo} (rate limited? set GITHUB_TOKEN)"; return 0; }
+    if [[ -z "${json}" ]]; then
+        log "${repo}: no release with packages"
+        return 0
+    fi
+    tag="$(jq -r '.tag_name' <<< "${json}")"
+    kind="$(jq -r 'if .prerelease then " (pre-release)" else "" end' <<< "${json}")"
+    mapfile -t names < <(jq -r '.assets[].name' <<< "${json}")
+    mapfile -t chosen < <(printf '%s\n' "${names[@]}" | select_assets) || true
+    for name in "${chosen[@]}"; do
+        package="${name%%_*}"
+        [[ -n "$(installed_version "${package}")" ]] && wanted+=("${name}")
+    done
+    if ((${#wanted[@]} == 0)); then
+        log "${repo} ${tag}${kind}: none of its packages is installed"
+        return 0
+    fi
+    # the same release and the same files as last time: nothing to download
+    if [[ -f "${STATE_DIR}/${repo//\//_}" ]] &&
+        [[ "$(cat "${STATE_DIR}/${repo//\//_}")" == "$(printf '%s\n' "${tag}" "${wanted[@]}")" ]]; then
+        log "${repo} ${tag}${kind}: up to date"
+        return 0
+    fi
+    sums_name="$(printf '%s\n' "${names[@]}" | grep -iE '^sha256sums?(\.txt)?$' | head -n 1 || true)"
+    if [[ -z "${sums_name}" ]]; then
+        warn "${repo} ${tag} has no SHA256SUMS: its packages are not installed"
+        return 0
+    fi
+    mkdir -p "${dir}/${repo//\//_}"
+    sums="${dir}/${repo//\//_}/SHA256SUMS"
+    curl -fsSL --retry 2 -o "${sums}" \
+        "$(jq -r --arg n "${sums_name}" '.assets[] | select(.name == $n) | .browser_download_url' <<< "${json}")"
+    for name in "${wanted[@]}"; do
+        file="${dir}/${repo//\//_}/${name}"
+        curl -fsSL --retry 2 -o "${file}" \
+            "$(jq -r --arg n "${name}" '.assets[] | select(.name == $n) | .browser_download_url' <<< "${json}")"
+        expected="$(sha_of "${file}" "${sums}")"
+        [[ -n "${expected}" ]] || die "${name} is not in the SHA256SUMS of ${repo} ${tag}"
+        [[ "$(sha256sum "${file}" | cut -d' ' -f1)" == "${expected}" ]] ||
+            die "${name} does not match the SHA256SUMS of ${repo} ${tag}"
+        package="$(dpkg-deb -f "${file}" Package)"
+        version="$(dpkg-deb -f "${file}" Version)"
+        installed="$(installed_version "${package}")"
+        if dpkg --compare-versions "${version}" gt "${installed}"; then
+            log "${repo} ${tag}${kind}: ${package} ${installed} -> ${version}"
+            printf '%s\n' "${file}"
+        else
+            log "${repo} ${tag}${kind}: ${package} ${installed} is up to date"
+        fi
+    done
+    printf '%s\n' "${tag}" "${wanted[@]}" > "${dir}/${repo//\//_}/state"
+}
+
+# releases DIR: fetch for every repository of the lists
+releases() {
+    local dir="$1" list repo
+    shopt -s nullglob
+    for list in "${LISTS_DIR}"/*.list; do
+        while IFS= read -r repo; do
+            repo="${repo%%#*}"
+            repo="${repo//[[:space:]]/}"
+            [[ -z "${repo}" ]] || fetch "${repo}" "${dir}"
+        done < "${list}"
+    done
+}
+
+if [[ -n "${DOWNLOAD_ONLY}" ]]; then
+    mkdir -p "${DOWNLOAD_ONLY}"
+    releases "${DOWNLOAD_ONLY}" > "${DOWNLOAD_ONLY}/packages"
+    cat "${DOWNLOAD_ONLY}/packages"
+    exit 0
+fi
+
+log "Debian and L4T packages"
+"${APT[@]}" update
+"${APT[@]}" dist-upgrade
+
+log "packages from GitHub releases"
+work="$(mktemp -d)"
+trap 'rm -rf "${work}"' EXIT
+# into a file, not through a pipe: a package that fails its checksum stops here
+releases "${work}" > "${work}/packages"
+mapfile -t debs < "${work}/packages"
+if ((${#debs[@]} > 0)); then
+    # apt, not dpkg: it brings any new dependency they have
+    "${APT[@]}" install --no-install-recommends "${debs[@]}"
+fi
+# remembered once installed, so the next run does not download them again
+mkdir -p "${STATE_DIR}"
+for state in "${work}"/*/state; do
+    [[ -f "${state}" ]] || continue
+    install -m 644 "${state}" "${STATE_DIR}/$(basename "$(dirname "${state}")")"
+done
+
+log "cleaning up"
+"${APT[@]}" autoremove --purge
+"${APT[@]}" clean
+log "done"

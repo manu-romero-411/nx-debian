@@ -20,12 +20,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the packages take their version from the tags
       - name: Install the tools
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends shellcheck pylint jq
       - name: shellcheck
-        run: shellcheck -x -S style nxd scripts/*.sh scripts/lib/*.sh config/hooks/*.sh config/hooks/*/*.sh config/pre-hooks/*.sh config/overlay/*/usr/local/bin/* config/overlay/*/usr/local/sbin/* tests/*.sh
+        run: shellcheck -x -S style nxd scripts/*.sh scripts/lib/*.sh config/hooks/*.sh config/hooks/*/*.sh config/pre-hooks/*.sh packages/*/root/usr/bin/* packages/*/root/usr/sbin/* packages/*/root/usr/lib/nxd/* packages/*/DEBIAN/p*inst packages/*/DEBIAN/p*rm tests/*.sh
       - name: pylint
         run: pylint scripts/*.py
       - name: Lists, variants and dry runs
@@ -36,6 +38,8 @@ jobs:
         run: tests/version.sh
       - name: SD card partition
         run: tests/sdcard.sh
+      - name: nx-debian's packages and nxd-update (fake GitHub API)
+        run: tests/packages.sh
 
   integration:
     name: Rootfs and image tests

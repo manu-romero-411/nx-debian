@@ -67,6 +67,8 @@ jobs:
         variant: ${{ fromJSON(needs.variants.outputs.list) }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # nx-debian's packages take their version from the tags
       - name: Disk space before
         run: df -h /
       - name: Build the installer
@@ -76,7 +78,13 @@ jobs:
           VARIANT: ${{ matrix.variant }}
           PRERELEASES: ${{ inputs.prereleases }}
           HEKATE: ${{ inputs.hekate }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
+          # an image built from a release tag has the packages of that version
+          if [[ "${EVENT}" == "push" ]]; then
+            export NXD_PACKAGE_VERSION="${REF_NAME#v}"
+          fi
           args=()
           [[ "${PRERELEASES}" != "true" ]] || args+=(--prereleases)
           [[ "${HEKATE}" != "true" ]] || args+=(--require-hekate)
@@ -111,6 +119,22 @@ jobs:
           pattern: image-*
           merge-multiple: true
           path: dist
+      - name: The release tag
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "${EVENT}" == "push" ]]; then
+            tag="$(python3 scripts/next_version.py --tag "${REF_NAME}" --notes notes.md)"
+          else
+            tag="$(python3 scripts/next_version.py --notes notes.md)"
+          fi
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+      - name: nx-debian's packages of that version (for nxd-update)
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: ./nxd debs --version "${TAG#v}" dist
       - name: One SHA256SUMS for everything
         run: |
           cd dist
@@ -120,15 +144,9 @@ jobs:
       - name: Make the release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
           PRERELEASES: ${{ inputs.prereleases }}
+          tag: ${{ steps.tag.outputs.tag }}
         run: |
-          if [[ "${EVENT}" == "push" ]]; then
-            tag="$(python3 scripts/next_version.py --tag "${REF_NAME}" --notes notes.md)"
-          else
-            tag="$(python3 scripts/next_version.py --notes notes.md)"
-          fi
           flags=()
           # an image made with pre-releases of the Retrobox packages is one too
           [[ "${PRERELEASES}" != "true" ]] || flags+=(--prerelease)

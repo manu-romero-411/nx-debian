@@ -109,6 +109,7 @@ export NXD_CONFIG_DIR="${CONFIG}"
 export NXD_GITHUB_API="${BASE}"
 export NXD_ARCH=arm64
 
+export NXD_RELEASE_LISTS_DIR="${CONFIG}/releases"
 list() { printf '%s\n' "$@" > "${CONFIG}/releases/t.list"; }
 fetch() { rm -rf "${tmp}/out"; "${FETCH}" t "${tmp}/out"; }
 have() { [[ -f "${tmp}/out/$1" ]]; }

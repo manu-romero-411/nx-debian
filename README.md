@@ -115,6 +115,20 @@ on): change the password before the console joins a network you do not trust.
 
 ---
 
+## Updating
+
+```bash
+sudo nxd-update                       # Debian, L4T, nx-debian and Retrobox (releases)
+sudo nxd-update --allow-prereleases   # ...including pre-releases
+```
+
+It upgrades Debian and the L4T packages, then nx-debian's own packages
+(`nxd-common`, `nxd-<variant>`: every file the images add to the system) and
+the Retrobox packages from their GitHub releases, and cleans up. Files you
+changed under `/etc` are kept. See [docs/packages.md](docs/packages.md).
+
+---
+
 ## Troubleshooting & FAQs
 
 ### Joy-Con Rail Errors / Boot Loop (`joycon_serdev: received packet has wrong magic` or `malformed`)
@@ -173,9 +187,12 @@ kernel of `switch-bsp`.
 ### Continuous integration
 
 `.github/workflows/ci.yml` runs the linters and the tests on every push.
+`.github/workflows/packages.yml` builds nx-debian's packages (`./nxd debs`)
+on every push to `main` and publishes them as the `nxd-latest` pre-release.
 `.github/workflows/build.yml` builds the images on a native arm64 runner when
 it is started by hand (Actions → *Build images* → *Run workflow*) or when a
-`v*` tag is pushed, and can publish them as a GitHub release; its
+`v*` tag is pushed, and can publish them as a GitHub release (with the
+packages of that version, for `nxd-update`); its
 *prereleases* input builds with the pre-releases of the Retrobox packages and
 marks the release it publishes as a pre-release.
 

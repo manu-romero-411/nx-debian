@@ -184,6 +184,14 @@ if [[ -n "${RELEASE_LIST}" && "${NO_RELEASES}" -eq 0 ]]; then
         "${SCRIPT_DIR}/fetch-releases.sh" "${FETCH_ARGS[@]}" "${RELEASE_LIST}" "${STAGE}/nxd-debs"
     fi
 fi
+# nx-debian's own packages (packages/): nxd-common and nxd-<variant>, built
+# from this checkout, so the image has the files of the commit it is built from.
+HAVE_DEBS=1
+if [[ "${DRY_RUN}" -eq 0 ]]; then
+    PACKAGE_ARGS=(--variant "${VARIANT}")
+    [[ -z "${NXD_PACKAGE_VERSION:-}" ]] || PACKAGE_ARGS+=(--version "${NXD_PACKAGE_VERSION}")
+    "${SCRIPT_DIR}/build-packages.sh" "${PACKAGE_ARGS[@]}" "${STAGE}/nxd-debs"
+fi
 # What the variant downloads at its first start, done here instead.
 PRELOAD="$(variant_setting "${VARIANT}" NXD_PRELOAD)"
 if [[ -n "${PRELOAD}" && "${NO_PRELOAD}" -eq 0 ]]; then
@@ -258,8 +266,10 @@ CMD+=(
     --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends \$(cat /tmp/nxd-packages)"'
     --customize-hook='rm -f "$1/tmp/nxd-packages"'
 )
-# Static files of the repository (hostname, fstab...): config/overlay/common,
-# then config/overlay/<variant>, each top-level entry copied into /.
+# The files that make this image this image (hostname, fstab...):
+# config/overlay/common, then config/overlay/<variant> if a variant has one,
+# each top-level entry copied into /. Every other file is in nx-debian's
+# packages (packages/), installed below.
 for overlay in "${NXD_CONFIG_DIR}/overlay/common" "${NXD_CONFIG_DIR}/overlay/${VARIANT}"; do
     [[ -d "${overlay}" ]] || continue
     for entry in "${overlay}"/*; do

@@ -1,7 +1,0 @@
-# GitHub repositories whose latest release is installed in the Retrobox image,
-# in install order. They are the components retroboxproject.github.io installs
-# on a desktop; the packages are not in Debian, so they come from their releases.
-RetroboxProject/retrobox-core
-RetroboxProject/retrobox-mangohud
-RetroboxProject/retrobox-emulationstation
-RetroboxProject/retrobox-overlay

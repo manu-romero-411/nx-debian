@@ -57,15 +57,28 @@ check "xfce has the pinned Xorg" has_line "${XFCE}" "xserver-xorg-core"
 check "retrobox has openbox" has_line "${RETROBOX}" "openbox"
 check "retrobox has lightdm" has_line "${RETROBOX}" "lightdm"
 check_not "retrobox has no XFCE" has_line "${RETROBOX}" "xfce4-session"
-check "retrobox logs into Openbox" test "$(variant_setting retrobox NXD_AUTOLOGIN_SESSION)" = "openbox"
+check "retrobox logs into its own session" test "$(variant_setting retrobox NXD_AUTOLOGIN_SESSION)" = "nxd-retrobox"
+RPKG="${NXD_ROOT}/packages/nxd-retrobox"
+check "nxd-retrobox ships that session" grep -qx 'Exec=/usr/lib/nxd/retrobox-session' "${RPKG}/root/usr/share/xsessions/nxd-retrobox.desktop"
+# shellcheck disable=SC2016 # the literal text of the script
+check "the session runs Openbox with the console's rc.xml and autostart" \
+    grep -q 'exec openbox --config-file "${rc}" --startup /usr/lib/nxd/retrobox-autostart' "${RPKG}/root/usr/lib/nxd/retrobox-session"
+# shellcheck disable=SC2016 # the literal text of the script
+check "the session puts EmulationStation's defaults in place only if missing" \
+    grep -q '\[ -e "${frontend}/${file}" \] || cp' "${RPKG}/root/usr/lib/nxd/retrobox-session"
+check "nxd-retrobox needs what its files run" grep -q '^Depends: nxd-common (= @VERSION@), openbox, picom, pulseaudio-utils, dosfstools' "${RPKG}/DEBIAN/control.in"
+check "the retrobox overlay is gone: its files are in nxd-retrobox" test ! -e "${NXD_ROOT}/config/overlay/retrobox"
+# shellcheck disable=SC2016 # the literal text of the script
+check "the firmware names are made by nxd-common" grep -q 'brcmfmac4356-pcie.nintendo,${model}.txt' "${NXD_ROOT}/packages/nxd-common/DEBIAN/postinst"
+check "and again when a package changes the firmware" grep -qx 'interest-noawait /usr/lib/firmware/brcm' "${NXD_ROOT}/packages/nxd-common/DEBIAN/triggers"
 check "xfce logs into XFCE" test "$(variant_setting xfce NXD_AUTOLOGIN_SESSION)" = "xfce"
 check "retrobox has a default user" test "$(variant_setting retrobox NXD_DEFAULT_USER)" = "retrobox"
 check "retrobox has a default password" test "$(variant_setting retrobox NXD_DEFAULT_PASSWORD)" = "retrobox"
 check "retrobox installs the retrobox releases" test "$(variant_setting retrobox NXD_RELEASE_LIST)" = "retrobox"
-check "the retrobox release list names the four components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/config/releases/retrobox.list")" -eq 4
+check "the retrobox release list names the four components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/releases.d/retrobox.list")" -eq 4
 check "retrobox has a compositor" has_line "${RETROBOX}" picom
-check "Openbox starts picom with GLX and vsync" grep -qx 'picom -b --config /dev/null --backend glx --vsync' "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/autostart"
-check "retrobox starts retrobox with Openbox" grep -qx 'retrobox &' "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/autostart"
+check "Openbox starts picom with GLX and vsync" grep -qx 'picom -b --config /dev/null --backend glx --vsync' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/nxd/retrobox-autostart"
+check "retrobox starts retrobox with Openbox" grep -qx 'retrobox &' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/nxd/retrobox-autostart"
 check "retrobox leaves ssh on" test -z "$(variant_setting retrobox NXD_DISABLE_UNITS)"
 check "xfce has a default user" test "$(variant_setting xfce NXD_DEFAULT_USER)" = "switch"
 check "xfce keeps ssh off" grep -q 'ssh.service' <(variant_setting xfce NXD_DISABLE_UNITS)
@@ -178,29 +191,29 @@ check "retrobox drops the joystick Xorg config whatever package brings it" \
 check "retrobox preloads the theme, the bezels and the shaders" \
     test "$(variant_setting retrobox NXD_PRELOAD)" = "theme bezels shaders"
 check "retrobox runs in console mode" grep -qx 'console_mode = true' \
-    "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+    "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 # shellcheck disable=SC2016
 check "console_mode is in the [core] section" \
     awk '/^\[/{section=$0} /^console_mode = true/{found=(section=="[core]")} END{exit !found}' \
-    "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+    "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 check "retrobox confirms with the east button, as Nintendo pads do" grep -q 'name="InvertButtons" value="true"' \
-    "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg"
-ESIN="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_input.cfg"
+    "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/emulationstation/es_settings.cfg"
+ESIN="${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/emulationstation/es_input.cfg"
 check "retrobox ships a configured keyboard, so ES never asks for one" grep -q 'deviceName="Keyboard" deviceGUID="-1"' "${ESIN}"
 check "retrobox ships the Switch Lite pad with Home as the hotkey" \
     grep -q 'deviceGUID="06004c277e05000023f1000000000000"' "${ESIN}"
 check "the pad has its hotkey" grep -q 'name="hotkey" type="button" id="11"' "${ESIN}"
-OBRC="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/rc.xml"
+OBRC="${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/openbox/rc.xml"
 for key in XF86AudioRaiseVolume XF86AudioLowerVolume XF86AudioMute XF86PowerOff; do
     check "Openbox takes ${key}" grep -q "keybind key=\"${key}\"" "${OBRC}"
 done
-check "the volume script is executable" test -x "${NXD_ROOT}/config/overlay/retrobox/usr/local/bin/nxd-volume"
+check "the volume script is executable" test -x "${NXD_ROOT}/packages/nxd-retrobox/root/usr/bin/nxd-volume"
 check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' \
-    "${NXD_ROOT}/config/overlay/retrobox/etc/systemd/logind.conf.d/10-nxd-power.conf"
-ESSET="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg"
+    "${NXD_ROOT}/packages/nxd-retrobox/root/etc/systemd/logind.conf.d/10-nxd-power.conf"
+ESSET="${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/emulationstation/es_settings.cfg"
 check "the theme's text is 125 %, for a small screen" grep -q 'name="FontScale" value="1.25"' "${ESSET}"
 check "the menus' text is 125 %" grep -q 'name="MenuFontScale" value="1.25"' "${ESSET}"
-RBINI="${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+RBINI="${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 for folder in roms saves bios; do
     check "the ${folder} are in the SD card" grep -qx "${folder}_dir = /sdcard/retrobox/${folder}" "${RBINI}"
 done
@@ -210,11 +223,11 @@ check "nothing sets RETROBOX_CONFIGDIR any more" test -z "$(grep -rl 'RETROBOX_C
 check "the card's tools are installed" has_line "${RETROBOX}" "dosfstools"
 check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "lightdm starts X without asking logind" \
-    grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"
+    grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/packages/nxd-common/root/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"
 # shellcheck disable=SC2016
 check "that option is in the [LightDM] section" \
     awk '/^\[/{section=$0} /^logind-check-graphical=false/{found=(section=="[LightDM]")} END{exit !found}' \
-    "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"
+    "${NXD_ROOT}/packages/nxd-common/root/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"
 check "the console has killall and chvt" bash -c "grep -qx psmisc '${NXD_ROOT}/config/packages/base.list' && grep -qx kbd '${NXD_ROOT}/config/packages/base.list'"
 "${NXD}" rootfs --variant retrobox --dry-run --output "${tmp}/out1" > /dev/null 2>&1 || true
 check "the preload list is staged for retrobox" grep -qx shaders "${tmp}/out1/retrobox/stage/nxd-preload"

@@ -39,11 +39,18 @@ Status: decided.
 
 The changes the images need (configuration files, hooks, scripts, the pieces of
 the desktop that were in the `switchroot-xfce` package) are kept in this
-repository (`config/overlay/`, `config/hooks/`, `config/variants/`; see
+repository (`packages/`, `config/overlay/`, `config/hooks/`, `config/variants/`; see
 [rootfs.md](rootfs.md#patches-live-in-this-repository)), not in a separate
-repository nor in a package of their own. One place to change, one commit for
-a change and the test that covers it, and the CI builds exactly what is
-committed.
+repository. One place to change, one commit for a change and the test that
+covers it, and the CI builds exactly what is committed.
+
+The files among them are packaged (`nxd-common`, `nxd-<variant>`, built from
+`packages/` by the same commit; [packages.md](packages.md)) rather than copied
+into the image loose: dpkg then knows whose they are, keeps the ones changed
+by hand, and `nxd-update` brings a fix to consoles already installed instead
+of a new flash. They are published as GitHub releases, like the Retrobox
+packages, not in an apt repository: no signing key to keep, and `nxd-update`
+already reads releases for Retrobox.
 
 Reopen it if something here is wanted outside the images, for example the
 desktop pieces installed on an existing Switchroot system: then that part

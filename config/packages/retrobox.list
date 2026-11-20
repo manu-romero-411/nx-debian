@@ -1,6 +1,7 @@
 # What the Retrobox variant adds to the base: the window manager and what the
 # session needs. retrobox-core, retrobox-emulationstation, retrobox-mangohud
-# and retrobox-overlay come from their own releases (config/releases) and bring
+# and retrobox-overlay come from their own releases (the releases.d list of
+# packages/nxd-retrobox) and bring
 # their dependencies with them; recommended packages are not installed, so the
 # ones Retrobox needs to look right are listed here.
 

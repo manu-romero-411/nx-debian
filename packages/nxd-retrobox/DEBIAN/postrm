@@ -1,0 +1,19 @@
+#!/bin/sh
+# nxd-retrobox: forgets nxd-sdcard.service on removal and purge.
+set -eu
+
+unit=nxd-sdcard.service
+case "${1:-}" in
+    remove)
+        if [ -d /run/systemd/system ]; then
+            systemctl --system daemon-reload > /dev/null || true
+        fi
+        deb-systemd-helper mask "${unit}" > /dev/null || true
+        ;;
+    purge)
+        deb-systemd-helper purge "${unit}" > /dev/null || true
+        deb-systemd-helper unmask "${unit}" > /dev/null || true
+        ;;
+    *) ;;
+esac
+exit 0

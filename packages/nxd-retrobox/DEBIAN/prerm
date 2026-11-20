@@ -1,0 +1,8 @@
+#!/bin/sh
+# nxd-retrobox: on removal, the SD card is unmounted (the unit's ExecStop).
+set -eu
+
+if [ "${1:-}" = remove ] && [ -d /run/systemd/system ]; then
+    deb-systemd-invoke stop nxd-sdcard.service > /dev/null || true
+fi
+exit 0

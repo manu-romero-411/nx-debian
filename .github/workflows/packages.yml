@@ -1,0 +1,51 @@
+name: Packages
+
+# nx-debian's own packages (nxd-common, nxd-<variant>; `nxd debs`) on every push
+# to main, published as the "nxd-latest" pre-release, which is replaced each
+# time: the consoles get them with `nxd-update --allow-prereleases`. Releases
+# (a v* tag, build.yml) carry the packages of their version, and are what
+# `nxd-update` takes by default.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: packages
+  cancel-in-progress: false
+
+jobs:
+  packages:
+    name: Build and publish the packages
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the version is worked out from the tags
+      - name: Build
+        run: |
+          ./nxd debs dist
+          cd dist
+          sha256sum -- *.deb > SHA256SUMS
+          cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: dist/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Publish the nxd-latest pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="$(./nxd debs --print-version)"
+          gh release delete nxd-latest --cleanup-tag --yes 2> /dev/null || true
+          gh release create nxd-latest dist/* --prerelease --latest=false \
+            --target "${GITHUB_SHA}" \
+            --title "nx-debian packages ${version} (pre-release)" \
+            --notes "nxd-common and nxd-<variant> ${version}, built from ${GITHUB_SHA}. Replaced on every push to main. On a console: \`sudo nxd-update --allow-prereleases\`."

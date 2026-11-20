@@ -330,8 +330,19 @@ option is ignored. If the screen is still black after that, the logs are
   sets `data_dir = /retrobox`: ROMs, saves, BIOS, themes, bezels and shaders
   live there. `config/hooks/retrobox/10-retrobox-data.sh` creates it owned by
   the user of the image and the group of that user (`retrobox:retrobox` by
-  default). The configuration (`~/.config/retrobox`) and the state stay in the
-  home of the user.
+  default).
+- **Configuration and logs in `/retrobox`.** The configuration is
+  `/retrobox/config` (not `~/.config/retrobox`) and the logs are
+  `/retrobox/logs` (not `~/.local/state/retrobox/logs`). `state_dir =
+  /retrobox` in the same drop-in moves the state, which is also where the
+  record of the installs and of what was offered (`store/`,
+  `downloads-offered`) goes. The configuration cannot be set there: `retrobox.ini`
+  lives in it, so Retrobox only takes it from `RETROBOX_CONFIGDIR`. The overlay
+  sets `RETROBOX_CONFIGDIR` and `RETROBOX_STATEDIR` for the user services
+  (`etc/environment.d`), the X session (`etc/X11/Xsession.d`) and login shells
+  such as ssh (`etc/profile.d`); the overlay and its input daemon read only
+  those variables, not the ini. The build hooks pass them too. The user's home
+  keeps only what is not Retrobox's (Openbox, the shell...).
 - **Content in the image.** Retrobox downloads its default theme
   (es-theme-iconic), the RetroBat bezels and its shaders the first time it
   starts. The hook runs Retrobox's downloader
@@ -379,16 +390,17 @@ option is ignored. If the screen is still black after that, the logs are
 - **A console, with the Nintendo layout.** The drop-in
   `etc/retrobox/retrobox.ini.d/50-nxd.ini` sets `[core] console_mode = true`:
   EmulationStation cannot be quit (QUIT opens the restart / suspend / shut down
-  menu, with no "quit EmulationStation"), nor closed with Alt+F4. The skeleton
-  of the user (`etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg`)
+  menu, with no "quit EmulationStation"), nor closed with Alt+F4. The default
+  `/retrobox/config/frontend/.emulationstation/es_settings.cfg` (the overlay's
+  `retrobox/config/...`)
   sets `InvertButtons`, EmulationStation's "Switch confirm & cancel buttons":
   the east button confirms and the south one goes back, as on Nintendo pads,
   in EmulationStation, RetroArch's menus and the setup screen alike. Both are
   defaults: the first is a system layer that a user's `retrobox.ini` overrides,
-  the second is only copied when the account is created, so a user who changes
-  it keeps their choice.
+  the second is part of the image, and EmulationStation rewrites it when the
+  user changes it, so their choice stays.
 - **Default pad, keyboard, volume and power buttons.**
-  - `es_input.cfg` in the same skeleton folder has the Switch Lite pad
+  - `es_input.cfg` in the same folder has the Switch Lite pad
     (`Nintendo Switch Lite Gamepad`, Home as `hotkey`) and a keyboard. The
     keyboard entry matters: the volume and power buttons reach X as keys, and
     EmulationStation opens its keyboard setup when it sees keys of a keyboard

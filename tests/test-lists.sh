@@ -185,8 +185,8 @@ check "console_mode is in the [core] section" \
     "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 check "the data dir is still in [paths]" bash -c "awk '/^\\[/{s=\$0} /^data_dir = \\/retrobox/{f=(s==\"[paths]\")} END{exit !f}' '${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini'"
 check "retrobox confirms with the east button, as Nintendo pads do" grep -q 'name="InvertButtons" value="true"' \
-    "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg"
-ESIN="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_input.cfg"
+    "${NXD_ROOT}/config/overlay/retrobox/retrobox/config/frontend/.emulationstation/es_settings.cfg"
+ESIN="${NXD_ROOT}/config/overlay/retrobox/retrobox/config/frontend/.emulationstation/es_input.cfg"
 check "retrobox ships a configured keyboard, so ES never asks for one" grep -q 'deviceName="Keyboard" deviceGUID="-1"' "${ESIN}"
 check "retrobox ships the Switch Lite pad with Home as the hotkey" \
     grep -q 'deviceGUID="06004c277e05000023f1000000000000"' "${ESIN}"
@@ -198,6 +198,17 @@ done
 check "the volume script is executable" test -x "${NXD_ROOT}/config/overlay/retrobox/usr/local/bin/nxd-volume"
 check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' \
     "${NXD_ROOT}/config/overlay/retrobox/etc/systemd/logind.conf.d/10-nxd-power.conf"
+RBENV="${NXD_ROOT}/config/overlay/retrobox/etc"
+check "Retrobox's configuration is in /retrobox/config for the user services" \
+    grep -qx 'RETROBOX_CONFIGDIR=/retrobox/config' "${RBENV}/environment.d/50-retrobox.conf"
+check "its logs are in /retrobox for the user services" \
+    grep -qx 'RETROBOX_STATEDIR=/retrobox' "${RBENV}/environment.d/50-retrobox.conf"
+check "the X session gets both" grep -c '^RETROBOX_\(CONFIG\|STATE\)DIR=' "${RBENV}/X11/Xsession.d/45retrobox-env"
+check "a login shell (ssh) gets them" grep -q 'export RETROBOX_CONFIGDIR=/retrobox/config' "${RBENV}/profile.d/retrobox.sh"
+check "retrobox.ini puts the state in /retrobox" grep -qx 'state_dir = /retrobox' "${RBENV}/retrobox/retrobox.ini.d/50-nxd.ini"
+# shellcheck disable=SC2016
+check "the build hooks run Retrobox with the same directories" \
+    test "$(grep -c 'RETROBOX_CONFIGDIR="${data}/config"' "${NXD_ROOT}"/config/hooks/retrobox/*.sh | awk -F: '{s+=$2} END{print s}')" -eq 3
 check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "lightdm starts X without asking logind" \
     grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"

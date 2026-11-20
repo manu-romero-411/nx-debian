@@ -3,7 +3,8 @@
 # and the Retrobox packages are installed.
 #
 # Creates /retrobox, the data directory of Retrobox (config/overlay/retrobox
-# points data_dir there), owned by the user of the image and its group. Then
+# points data_dir there, and the configuration and the logs go there too),
+# owned by the user of the image and its group. Then
 # puts in it what Retrobox would download on its first start (the names are in
 # /tmp/nxd-preload: theme, bezels, shaders), and records that it was offered,
 # so the first start has nothing left to fetch.
@@ -32,10 +33,12 @@ if [ -s "${list}" ]; then
     # starts EmulationStation.
     # shellcheck disable=SC2046 # the names are words, one per line
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
+        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}" \
         python3 -m retrobox.startup.downloads $(cat "${list}")
     # "once" packages (bezels, shaders) are offered at the first start unless
     # they are recorded as offered: pending() records them.
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
+        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}" \
         python3 -c 'from retrobox.startup.downloads import pending; pending()'
 fi
 rm -f "${list}"

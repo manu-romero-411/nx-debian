@@ -108,6 +108,7 @@ for emulator in ${names}; do
     # ARMv8 tuned for the Switch's Cortex-A57, never -march=native, whose
     # result depends on the machine that builds the image
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
+        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}" \
         RETROARCH_CFLAGS="-O3 -march=armv8-a -mtune=cortex-a57 -pipe" \
         CPATH="${glinc:+${glinc}/root/usr/include}" \
         "${emulators}/${emulator}.sh" -i

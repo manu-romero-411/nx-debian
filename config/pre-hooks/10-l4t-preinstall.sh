@@ -11,7 +11,12 @@
 #   It also writes into /etc/apport/blacklist.d, which must exist.
 #
 # The flags are removed again by config/hooks/05-l4t-postinstall.sh.
+#
+# A variant without L4T packages (/tmp/nxd-packages is its package list)
+# needs none of this.
 set -eu
+
+grep -qE '^(switch-bsp|nvidia-l4t-)' /tmp/nxd-packages || exit 0
 
 mkdir -p /opt/nvidia/l4t-packages
 touch /opt/nvidia/l4t-packages/.nv-l4t-disable-boot-fw-update-in-preinstall

@@ -17,7 +17,7 @@ Usage: nxd COMMAND [options]
   build [options]         rootfs + report + image of one or every variant, files to publish (root)
   inspect [options]       report what is inside a built rootfs (no root)
   container COMMAND ...   run any of these in a Debian trixie container
-  variants                list the variants
+  variants [--all]        list the variants (--all: the experimental ones too)
   packages VARIANT        print the package set of a variant
 
 Every command takes --help.
@@ -35,15 +35,17 @@ case "${command}" in
     inspect) exec "${NXD_ROOT}/scripts/inspect-rootfs.sh" "$@" ;;
     container) exec "${NXD_ROOT}/scripts/in-container.sh" "$@" ;;
     variants)
+        case "${1:-}" in
+            "" | --all) ;;
+            *) die "usage: nxd variants [--all]" ;;
+        esac
         while IFS= read -r name; do
-            description="$(
-                NXD_VARIANT_DESCRIPTION=""
-                # shellcheck source=/dev/null
-                . "${NXD_CONFIG_DIR}/variants/${name}.conf"
-                printf '%s' "${NXD_VARIANT_DESCRIPTION}"
-            )"
+            description="$(variant_setting "${name}" NXD_VARIANT_DESCRIPTION)"
+            if [[ "$(variant_setting "${name}" NXD_EXPERIMENTAL)" == 1 ]]; then
+                description="(experimental) ${description}"
+            fi
             printf '%-10s %s\n' "${name}" "${description}"
-        done < <(list_variants)
+        done < <(list_variants "${1:-}")
         ;;
     packages)
         [[ $# -eq 1 ]] || die "usage: nxd packages VARIANT"

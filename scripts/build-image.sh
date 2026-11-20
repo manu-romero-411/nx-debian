@@ -62,6 +62,11 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# The boot files, the Hekate ini and the kernel command line below are the
+# ones of the L4T kernel (switch-bsp). A variant without L4T has none yet.
+[[ "$(variant_uses_l4t "${VARIANT}")" -eq 1 ]] ||
+    die "variant '${VARIANT}' is built without L4T and has no boot path yet: see docs/mainline.md"
+
 [[ "${EUID}" -eq 0 ]] || die "nxd image needs root (use sudo, or: sudo ./nxd container image ...)"
 for tool in mke2fs e2fsck mkimage tar split zip unzip sha256sum; do
     need_cmd "${tool}" "install e2fsprogs, u-boot-tools, zip and unzip"

@@ -128,7 +128,13 @@ elif [[ -n "${USER_HASH}" || "${NO_PASSWORD}" -eq 1 ]]; then
     die "--password-hash and --no-password need --user"
 fi
 
-verify_key "${NXD_L4T_KEY}" "${NXD_L4T_KEY_FPR}"
+# A variant may build without the L4T repository (NXD_L4T=0) and ask for
+# other Debian components (NXD_COMPONENTS, e.g. non-free-firmware).
+USE_L4T="$(variant_uses_l4t "${VARIANT}")"
+NXD_COMPONENTS="$(variant_setting "${VARIANT}" NXD_COMPONENTS)"
+if [[ "${USE_L4T}" -eq 1 ]]; then
+    verify_key "${NXD_L4T_KEY}" "${NXD_L4T_KEY_FPR}"
+fi
 mapfile -t PACKAGES < <(variant_packages "${VARIANT}")
 [[ ${#PACKAGES[@]} -gt 0 ]] || die "variant '${VARIANT}' has no packages"
 
@@ -147,15 +153,18 @@ STAGE="${OUT_DIR}/stage"
 KEY_NAME="$(basename "${NXD_L4T_KEY}")"
 rm -rf "${STAGE}"
 mkdir -p "${STAGE}"
-cp "${NXD_L4T_KEY}" "${STAGE}/${KEY_NAME}"
-{
-    render_compat_pins
-    printf '\n'
-    render_pins "$(url_host "${NXD_L4T_URL}")"
-} > "${STAGE}/10-nxd-l4t.pref"
-compat_sources_file "${NXD_ARCH}" > "${STAGE}/nxd-compat.sources"
-l4t_sources_file "${NXD_ARCH}" "/etc/apt/keyrings/${KEY_NAME}" "${NXD_L4T_COMPONENT}" \
-    > "${STAGE}/nxd-l4t.sources"
+if [[ "${USE_L4T}" -eq 1 ]]; then
+    cp "${NXD_L4T_KEY}" "${STAGE}/${KEY_NAME}"
+    {
+        render_compat_pins
+        printf '\n'
+        render_pins "$(url_host "${NXD_L4T_URL}")"
+    } > "${STAGE}/10-nxd-l4t.pref"
+    # The compat suite only exists for the L4T packages' old dependencies.
+    compat_sources_file "${NXD_ARCH}" > "${STAGE}/nxd-compat.sources"
+    l4t_sources_file "${NXD_ARCH}" "/etc/apt/keyrings/${KEY_NAME}" "${NXD_L4T_COMPONENT}" \
+        > "${STAGE}/nxd-l4t.sources"
+fi
 printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
 dpkg_excludes_file "${VARIANT}" > "${STAGE}/nxd-excludes"
 # One unit name per line, for config/hooks/30-services.sh.
@@ -231,10 +240,14 @@ CMD=(
     --aptopt='APT::Install-Recommends "false"'
     --include="${NXD_BOOTSTRAP_PACKAGES// /,}"
     --customize-hook='mkdir -p "$1/etc/apt/keyrings" "$1/etc/apt/preferences.d" "$1/etc/apt/sources.list.d"'
-    --customize-hook="copy-in ${STAGE}/${KEY_NAME} /etc/apt/keyrings"
-    --customize-hook="copy-in ${STAGE}/10-nxd-l4t.pref /etc/apt/preferences.d"
-    --customize-hook="copy-in ${STAGE}/nxd-l4t.sources /etc/apt/sources.list.d"
 )
+if [[ "${USE_L4T}" -eq 1 ]]; then
+    CMD+=(
+        --customize-hook="copy-in ${STAGE}/${KEY_NAME} /etc/apt/keyrings"
+        --customize-hook="copy-in ${STAGE}/10-nxd-l4t.pref /etc/apt/preferences.d"
+        --customize-hook="copy-in ${STAGE}/nxd-l4t.sources /etc/apt/sources.list.d"
+    )
+fi
 if [[ -s "${STAGE}/nxd-compat.sources" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-compat.sources /etc/apt/sources.list.d")
 fi
@@ -310,7 +323,11 @@ fi
 
 rm -rf "${TARGET}"
 mkdir -p "${OUT_DIR}"
-log "building ${VARIANT}: ${#PACKAGES[@]} packages, ${NXD_SUITE}/${NXD_ARCH} + L4T ${NXD_L4T_COMPONENT}"
+if [[ "${USE_L4T}" -eq 1 ]]; then
+    log "building ${VARIANT}: ${#PACKAGES[@]} packages, ${NXD_SUITE}/${NXD_ARCH} + L4T ${NXD_L4T_COMPONENT}"
+else
+    log "building ${VARIANT}: ${#PACKAGES[@]} packages, ${NXD_SUITE}/${NXD_ARCH} (${NXD_COMPONENTS}), no L4T"
+fi
 BUILD_LOG="${OUT_DIR}/build.log"
 status=0
 "${CMD[@]}" > >(tee "${BUILD_LOG}") 2>&1 || status=$?

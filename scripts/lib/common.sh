@@ -38,20 +38,36 @@ read_list() {
     done < "${file}"
 }
 
-# list_names: the names of the variants (files of config/variants).
+# list_variants [--all]: the names of the variants (files of config/variants).
+# Experimental variants (NXD_EXPERIMENTAL=1) are left out unless --all is
+# given: `nxd build` and the CI build the others only.
 list_variants() {
-    local conf
+    local conf name
     for conf in "${NXD_CONFIG_DIR}"/variants/*.conf; do
         [[ -f "${conf}" ]] || continue
-        basename "${conf}" .conf
+        name="$(basename "${conf}" .conf)"
+        if [[ "${1:-}" != "--all" && "$(variant_setting "${name}" NXD_EXPERIMENTAL)" == 1 ]]; then
+            continue
+        fi
+        printf '%s\n' "${name}"
     done
+}
+
+# variant_uses_l4t VARIANT: 1 when the variant is built with the L4T
+# repository (the default), 0 when it sets NXD_L4T=0.
+variant_uses_l4t() {
+    if [[ "$(variant_setting "$1" NXD_L4T)" == 0 ]]; then
+        printf '0'
+    else
+        printf '1'
+    fi
 }
 
 # variant_lists VARIANT: the package lists of a variant, in order.
 variant_lists() {
     local variant="$1" conf lists
     conf="${NXD_CONFIG_DIR}/variants/${variant}.conf"
-    [[ -f "${conf}" ]] || die "unknown variant '${variant}' (known: $(list_variants | tr '\n' ' '))"
+    [[ -f "${conf}" ]] || die "unknown variant '${variant}' (known: $(list_variants --all | tr '\n' ' '))"
     lists="$(
         NXD_VARIANT_LISTS=""
         # shellcheck source=/dev/null

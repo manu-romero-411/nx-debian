@@ -1,0 +1,12 @@
+# The open graphics stack: Mesa's nouveau driver renders on the GM20B and its
+# tegra driver puts the result on the display (tegra-drm). Debian's Mesa does
+# not enumerate the Tegra GPU in NVK; Vulkan is a later phase (docs/mainline.md).
+libgl1-mesa-dri
+libglx-mesa0
+libegl-mesa0
+libgbm1
+mesa-vulkan-drivers
+
+# Diagnosis on the device (glxinfo, eglinfo, vulkaninfo)
+mesa-utils
+vulkan-tools

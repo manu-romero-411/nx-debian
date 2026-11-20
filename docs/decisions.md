@@ -33,6 +33,45 @@ Things to check on the hardware before relying on this: that the cmdline flag
 really removes the wait, and the real cgroup mode
 (`stat -fc %T /sys/fs/cgroup/`, `tmpfs` means v1).
 
+## Mainline kernel and Mesa: an experimental variant, not a replacement
+
+Status: proposed.
+
+The two graphics stacks cannot be mixed. NVIDIA's driver (`nvidia-l4t-*`
+32.3.1) needs nvgpu and nvmap from the 4.9 L4T kernel, and NVIDIA has no newer
+kernel for T210 (JetPack 4 was the last release for it). Mesa needs nouveau and
+tegra-drm from a mainline kernel; NVK also needs the VM_BIND uAPI of Linux 6.6
+or later. Moving to Mesa therefore means moving to a mainline kernel and leaving
+L4T.
+
+The open stack is worked on in the `mainline` branch, in a separate variant,
+`mainline` (`config/variants/mainline.conf`), marked experimental so that
+`nxd build` and the CI keep building the L4T variants only. `main` goes on
+with L4T and is what is published; the branch is rebased on it and merged
+only when the mainline variant reaches the L4T ones. The plan, its phases and what
+is lost on the way are in [mainline.md](mainline.md).
+
+Why:
+
+- It covers reasons 1 and 2 of the decision above (systemd 258, BlueZ) and
+  adds what 4.9 cannot run: FEX-Emu (and so Proton) and Wayland.
+- The variant reuses everything that does not depend on the kernel (lists,
+  overlays, hooks, users, services): the work is the kernel, the boot path and
+  the hardware, not a second build system.
+- Nothing published changes until the variant boots and works.
+
+Facts to keep in mind:
+
+- NVK does not officially support Tegra. NVK on T210 is being worked on
+  upstream for the Switch, and it is mostly missing kernel fixes (Mesa work
+  item 14105).
+- Tegra210B01 (Mariko: V2, Lite, OLED) is not in mainline yet; the patches are
+  under review. Phase 1 targets Erista (V1).
+
+Make it the default when the mainline variant boots on Erista and Mariko and
+covers the hardware table of mainline.md; drop it if the kernel tree it
+depends on stops being maintained.
+
 ## The images' own changes live in this repository
 
 Status: decided.

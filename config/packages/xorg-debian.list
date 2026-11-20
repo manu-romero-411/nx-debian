@@ -1,0 +1,5 @@
+# Debian's own X server, for the variants without L4T (l4t.list pins Xorg
+# 1.20 for NVIDIA's driver instead). The modesetting driver is part of
+# xserver-xorg-core.
+xserver-xorg-core
+xserver-xorg-input-libinput

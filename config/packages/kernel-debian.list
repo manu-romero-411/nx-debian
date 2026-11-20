@@ -1,0 +1,11 @@
+# The kernel of the mainline variant, for now Debian's own: it has Tegra210,
+# tegra-drm and nouveau, but no Switch device tree and none of the Switch's
+# own drivers. It is the placeholder until the kernel tree is chosen
+# (docs/mainline.md, phase 1); that kernel will come as a .deb.
+linux-image-arm64
+
+# Firmware the mainline drivers load. Which package ships each file
+# (nvidia/tegra210/*, nvidia/gm20b/*, brcm/brcmfmac4356*) is to be confirmed
+# against the built rootfs (nxd inspect).
+firmware-misc-nonfree
+firmware-brcm80211

@@ -1,5 +1,5 @@
 # Retrobox keeps its configuration and its logs in /retrobox, not in the home.
 # Sourced by /etc/X11/Xsession: Openbox and what it starts get them.
 RETROBOX_CONFIGDIR=/retrobox/config
-RETROBOX_STATEDIR=/retrobox
+RETROBOX_STATEDIR=/retrobox/state
 export RETROBOX_CONFIGDIR RETROBOX_STATEDIR

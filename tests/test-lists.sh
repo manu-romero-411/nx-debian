@@ -201,11 +201,11 @@ check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' 
 RBENV="${NXD_ROOT}/config/overlay/retrobox/etc"
 check "Retrobox's configuration is in /retrobox/config for the user services" \
     grep -qx 'RETROBOX_CONFIGDIR=/retrobox/config' "${RBENV}/environment.d/50-retrobox.conf"
-check "its logs are in /retrobox for the user services" \
-    grep -qx 'RETROBOX_STATEDIR=/retrobox' "${RBENV}/environment.d/50-retrobox.conf"
+check "its state (and logs) is in /retrobox/state for the user services" \
+    grep -qx 'RETROBOX_STATEDIR=/retrobox/state' "${RBENV}/environment.d/50-retrobox.conf"
 check "the X session gets both" grep -c '^RETROBOX_\(CONFIG\|STATE\)DIR=' "${RBENV}/X11/Xsession.d/45retrobox-env"
 check "a login shell (ssh) gets them" grep -q 'export RETROBOX_CONFIGDIR=/retrobox/config' "${RBENV}/profile.d/retrobox.sh"
-check "retrobox.ini puts the state in /retrobox" grep -qx 'state_dir = /retrobox' "${RBENV}/retrobox/retrobox.ini.d/50-nxd.ini"
+check "retrobox.ini puts the state in /retrobox/state" grep -qx 'state_dir = /retrobox/state' "${RBENV}/retrobox/retrobox.ini.d/50-nxd.ini"
 # shellcheck disable=SC2016
 check "the build hooks run Retrobox with the same directories" \
     test "$(grep -c 'RETROBOX_CONFIGDIR="${data}/config"' "${NXD_ROOT}"/config/hooks/retrobox/*.sh | awk -F: '{s+=$2} END{print s}')" -eq 3

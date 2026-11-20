@@ -24,6 +24,9 @@ group="$(id -gn "${name}")"
 home="$(getent passwd "${name}" | cut -d: -f6)"
 chown "${name}:${group}" "${data}"
 chmod 755 "${data}"
+# The logs are in the state directory; /retrobox/logs is a link to them.
+mkdir -p "${data}/state/logs"
+ln -sfn state/logs "${data}/logs"
 
 if [ -s "${list}" ]; then
     # Retrobox's own downloader, as the user it is for: the files end up with
@@ -33,12 +36,12 @@ if [ -s "${list}" ]; then
     # starts EmulationStation.
     # shellcheck disable=SC2046 # the names are words, one per line
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
-        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}" \
+        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}/state" \
         python3 -m retrobox.startup.downloads $(cat "${list}")
     # "once" packages (bezels, shaders) are offered at the first start unless
     # they are recorded as offered: pending() records them.
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
-        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}" \
+        RETROBOX_CONFIGDIR="${data}/config" RETROBOX_STATEDIR="${data}/state" \
         python3 -c 'from retrobox.startup.downloads import pending; pending()'
 fi
 rm -f "${list}"

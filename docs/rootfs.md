@@ -333,10 +333,10 @@ option is ignored. If the screen is still black after that, the logs are
   default).
 - **Configuration and logs in `/retrobox`.** The configuration is
   `/retrobox/config` (not `~/.config/retrobox`) and the logs are
-  `/retrobox/logs` (not `~/.local/state/retrobox/logs`). `state_dir =
-  /retrobox` in the same drop-in moves the state, which is also where the
-  record of the installs and of what was offered (`store/`,
-  `downloads-offered`) goes. The configuration cannot be set there: `retrobox.ini`
+  `/retrobox/state/logs` (not `~/.local/state/retrobox/logs`; `/retrobox/logs`
+  is a link to it, made by `10-retrobox-data.sh`). `state_dir = /retrobox/state`
+  in the same drop-in moves the state, which is also where the record of the
+  installs and of what was offered (`store/`, `downloads-offered`) goes. The configuration cannot be set there: `retrobox.ini`
   lives in it, so Retrobox only takes it from `RETROBOX_CONFIGDIR`. The overlay
   sets `RETROBOX_CONFIGDIR` and `RETROBOX_STATEDIR` for the user services
   (`etc/environment.d`), the X session (`etc/X11/Xsession.d`) and login shells

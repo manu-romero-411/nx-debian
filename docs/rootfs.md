@@ -399,6 +399,12 @@ option is ignored. If the screen is still black after that, the logs are
   defaults: the first is a system layer that a user's `retrobox.ini` overrides,
   the second is part of the image, and EmulationStation rewrites it when the
   user changes it, so their choice stays.
+- **Text size.** The same `es_settings.cfg` sets EmulationStation's
+  `FontScale` (the theme's text) to 1.5 and `MenuFontScale` (its menus) to 1.25:
+  the screen of the Switch is small, mostly the Lite's. They are the "theme font
+  scale" and "menu font scale" of its interface settings, and EmulationStation
+  rewrites them if the user changes them. The overlay takes the sizes of its
+  text from the menu theme EmulationStation exports, so it follows.
 - **Default pad, keyboard, volume and power buttons.**
   - `es_input.cfg` in the same folder has the Switch Lite pad
     (`Nintendo Switch Lite Gamepad`, Home as `hotkey`) and a keyboard. The

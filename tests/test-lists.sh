@@ -213,6 +213,9 @@ check "the build hooks run Retrobox with the same directories" \
 check "the data hook gives /retrobox to the user before it runs Retrobox as the user" \
     awk '/chown -hR "\$\{name\}:\$\{group\}" "\$\{data\}"/ && !c {c=NR} /runuser/ && !r {r=NR} END{exit !(c && r && c < r)}' \
     "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
+ESSET="${NXD_ROOT}/config/overlay/retrobox/retrobox/config/frontend/.emulationstation/es_settings.cfg"
+check "the theme's text is 150 %, for a small screen" grep -q 'name="FontScale" value="1.5"' "${ESSET}"
+check "the menus' text is 125 %" grep -q 'name="MenuFontScale" value="1.25"' "${ESSET}"
 check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "lightdm starts X without asking logind" \
     grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"

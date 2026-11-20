@@ -237,7 +237,7 @@ if [[ -f "${TAR}" ]]; then
         "$(printf '%s\n' "${LISTING}" | grep -c 'nxd-other-hook' || true)" '^0$'
     expect "rootfs: lightdm is told not to wait for logind" \
         "$(tar -xOf "${TAR}" ./etc/lightdm/lightdm.conf.d/10-nxd-seat.conf)" '^logind-check-graphical=false$'
-    expect "rootfs: fstab mounts root by label" "$(tar -xOf "${TAR}" ./etc/fstab)" '^LABEL=SWR-DEB +/ +ext4'
+    expect "rootfs: fstab mounts root by label" "$(tar -xOf "${TAR}" ./etc/fstab)" '^LABEL=NXDEB +/ +ext4'
     expect "rootfs: lightdm logs the user in" \
         "$(tar -xOf "${TAR}" ./etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf)" '^autologin-user=manu$'
     expect "rootfs: the user is in adm" "$(tar -xOf "${TAR}" ./etc/group)" '^adm:.*manu'

@@ -17,6 +17,11 @@ ca-certificates
 # Remote access (also makes nvfb generate the host keys on the first boot)
 openssh-server
 
+# A text editor, and the dialog frontend of debconf (without it, apt falls back
+# to a plain prompt and complains about every package that asks something)
+nano
+whiptail
+
 # Network and Bluetooth
 network-manager
 wpasupplicant

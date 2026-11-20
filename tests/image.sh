@@ -42,7 +42,7 @@ for file in bl31.bin bl33.bin initramfs uImage nx-plat.dtimg bootlogo_ubuntu.bmp
 done
 printf 'setenv bootargs "root=/dev/mmcblk0p2 systemd.legacy_systemd_cgroup_controller=1 quiet"\n' > "${tmp}/boot.txt"
 mkimage -A arm64 -T script -C none -n boot.scr -d "${tmp}/boot.txt" "${bootstack}/boot.scr" > /dev/null
-printf 'LABEL=SWR-DEB / ext4 noatime 0 1\n' > "${tree}/etc/fstab"
+printf 'LABEL=NXDEB / ext4 noatime 0 1\n' > "${tree}/etc/fstab"
 : > "${tree}/usr/bin/sudo"
 chmod 4755 "${tree}/usr/bin/sudo"
 : > "${tree}/home/manu/file"
@@ -66,7 +66,7 @@ check "the artwork is renamed" grep -q 'switchroot/debian/bootlogo_debian.bmp' <
 
 INI="$(unzip -p "${INSTALLER}" bootloader/ini/debian.ini)"
 check "the ini names the boot directory" grep -q 'boot_prefixes=/switchroot/debian/' <<< "${INI}"
-check "the ini carries the id" grep -q '^id=SWR-DEB' <<< "${INI}"
+check "the ini carries the id" grep -q '^id=NXDEB' <<< "${INI}"
 check "rebooting goes back to hekate" grep -qx 'r2p_action=bootloader' <<< "${INI}"
 check "the boot is quiet" grep -q '^bootargs_extra=quiet ' <<< "${INI}"
 check "boot.scr got the extra argument" \
@@ -84,7 +84,7 @@ check "the label follows the boot id" grep -q 'Filesystem volume name: *SWR-OTHE
 mkdir "${tmp}/x"
 unzip -q "${INSTALLER}" -d "${tmp}/x"
 cat "${tmp}/x"/switchroot/install/l4t.* > "${tmp}/joined.img"
-check "the label is SWR-DEB" grep -q 'Filesystem volume name: *SWR-DEB' <(dumpe2fs -h "${tmp}/joined.img" 2> /dev/null)
+check "the label is NXDEB" grep -q 'Filesystem volume name: *NXDEB' <(dumpe2fs -h "${tmp}/joined.img" 2> /dev/null)
 check "the owner of the user files is kept" grep -q 'User: *1000 *Group: *1000' <(debugfs -R 'stat /home/manu/file' "${tmp}/joined.img" 2> /dev/null)
 check "setuid is kept" grep -q 'Mode: *0*4755' <(debugfs -R 'stat /usr/bin/sudo' "${tmp}/joined.img" 2> /dev/null)
 check "root is owned by root" grep -q 'User: *0 *Group: *0' <(debugfs -R 'stat /' "${tmp}/joined.img" 2> /dev/null)

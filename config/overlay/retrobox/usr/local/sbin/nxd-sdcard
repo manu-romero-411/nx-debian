@@ -78,7 +78,7 @@ choose() {
 # root_disk: the disk the root filesystem is on
 root_disk() {
     source="$(findmnt -no SOURCE / 2> /dev/null || true)"
-    [ -b "${source}" ] || source="$(findfs LABEL=SWR-DEB 2> /dev/null || true)"
+    [ -b "${source}" ] || source="$(findfs LABEL=NXDEB 2> /dev/null || true)"
     [ -b "${source}" ] || return 0
     lsblk -no PKNAME "$(readlink -f "${source}")" 2> /dev/null | head -n 1
 }

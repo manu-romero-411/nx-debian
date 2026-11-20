@@ -1,4 +1,4 @@
 # /etc/fstab: the root filesystem only, found by label (nxd image sets it), so
 # the partition number does not matter. Other mounts would fail local-fs.target
 # when the card is not in the expected layout.
-LABEL=SWR-DEB  /  ext4  noatime,commit=60,errors=remount-ro  0  1
+LABEL=NXDEB  /  ext4  noatime,commit=60,errors=remount-ro  0  1

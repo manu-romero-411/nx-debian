@@ -154,7 +154,7 @@ It takes `rootfs.tar` and writes `<output>/<variant>/installer.zip` plus
 `SHA256SUMS`:
 
 - the tree is unpacked as root and copied into an ext4 image labelled
-  `SWR-DEB` (`--size`, default 5120M; the first boot expands it to the
+  `NXDEB` (`--size`, default 5120M; the first boot expands it to the
   partition), checked with `e2fsck`, and split in `l4t.00`, `l4t.01`... of
   4092M, the most FAT32 can hold;
 - the kernel (`uImage`), `initramfs`, `nx-plat.dtimg`, `bl31.bin`, `bl33.bin`

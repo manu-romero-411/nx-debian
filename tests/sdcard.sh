@@ -53,7 +53,7 @@ pick "without the boot disk: the biggest of all" mmcblk0p1 ""
 # the label does not matter, spaces in it neither
 cat > "${tmp}/lsblk" << 'LSBLK'
 NAME="mmcblk0p1" PKNAME="mmcblk0" FSTYPE="vfat" SIZE="137438953472" LABEL="MI TARJETA SD"
-NAME="mmcblk0p2" PKNAME="mmcblk0" FSTYPE="ext4" SIZE="16106127360" LABEL="SWR-DEB"
+NAME="mmcblk0p2" PKNAME="mmcblk0" FSTYPE="ext4" SIZE="16106127360" LABEL="NXDEB"
 LSBLK
 pick "a label with spaces" mmcblk0p1 mmcblk0
 

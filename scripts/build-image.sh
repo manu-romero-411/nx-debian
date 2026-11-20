@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Turns the rootfs.tar of a variant into what Hekate installs from an SD card:
-# the ext4 image (label SWR-DEB) split in parts that fit FAT32, the L4T boot
+# the ext4 image (label NXDEB) split in parts that fit FAT32, the L4T boot
 # files taken from the switch-bsp package, the Hekate ini, and optionally
 # Hekate itself. Needs root: the tree is unpacked as it is (ownership, setuid)
 # and mke2fs copies it into the image.

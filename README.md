@@ -133,8 +133,8 @@ This is caused by an attached Joy-Con that is physically broken, has damaged int
    [Debian 13 Trixie]
    l4t=1
    boot_prefixes=/switchroot/debian/
-   id=SWR-DEB
-   r2p_action=self
+   id=NXDEB
+   r2p_action=bootloader
    fbconsole=0
    jc_rail_disable=1
    ```

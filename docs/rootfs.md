@@ -337,7 +337,8 @@ option is ignored. If the screen is still black after that, the logs are
   `retrobox.ini.d/50-nxd.ini` points `roms_dir`, `saves_dir` and `bios_dir`
   there, so the files are the ones hekate, Android and the PC see too.
   - **Which partition.** Not a name or a number (they change from one card to the
-    next): a `vfat` partition of the disk the system booted from. With several,
+    next): a `vfat` partition of the disk the system booted from (`exfat` if
+    there is none; the L4T kernel has both). With several,
     the one with hekate's folders (`bootloader`, `switch`, `atmosphere`) wins, else
     the biggest. `/etc/nxd/sdcard.conf` can name it instead
     (`SDCARD_DEVICE=LABEL=...`, `UUID=...`, `PARTUUID=...` or `/dev/...`).
@@ -347,7 +348,8 @@ option is ignored. If the screen is still black after that, the logs are
     are not on the card. The journal says so (`journalctl -u nxd-sdcard`).
   - **Mount options:** `uid`/`gid` of the user, `umask=0022`, `flush` (writes go
     out early: the card is taken out and the console turned off without
-    asking), `noatime`, `nosuid`, `nodev`, `quiet`. `fsck.vfat -a` runs first
+    asking), `noatime`, `nosuid`, `nodev`, `quiet`, `utf8` (not `iocharset=utf8`: the L4T
+    kernel has no `nls_utf8`). `fsck.vfat -a` runs first
     (`dosfstools`) to clean up what a power cut left.
   - **FAT32 limits:** no file of 4 GiB or more (some GameCube, Wii and PS2 images:
     use a compressed format, `.rvz`, `.chd`...), no symbolic links, no Unix permissions,

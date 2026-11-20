@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Test of the choice of the SD card's partition in nxd-sdcard (--pick), with
-# the output of `lsblk -brnP -o NAME,PKNAME,FSTYPE,SIZE` of several cards.
+# the output of `lsblk -bnP -o NAME,PKNAME,FSTYPE,SIZE` of several cards.
 set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,14 +65,31 @@ NAME="mmcblk0p3" PKNAME="mmcblk0" FSTYPE="ext4" SIZE="16106127360"
 LSBLK
 pick "the biggest of two" mmcblk0p2 mmcblk0
 
-# nothing to mount
+# exFAT only
 cat > "${tmp}/lsblk" << 'LSBLK'
 NAME="mmcblk0p1" PKNAME="mmcblk0" FSTYPE="exfat" SIZE="137438953472"
 NAME="mmcblk0p2" PKNAME="mmcblk0" FSTYPE="ext4" SIZE="16106127360"
 LSBLK
-pick "no FAT32: nothing" "" mmcblk0
+pick "exFAT when there is no FAT32" mmcblk0p1 mmcblk0
+
+# FAT32 before a bigger exFAT
+cat > "${tmp}/lsblk" << 'LSBLK'
+NAME="mmcblk0p1" PKNAME="mmcblk0" FSTYPE="exfat" SIZE="137438953472"
+NAME="mmcblk0p2" PKNAME="mmcblk0" FSTYPE="vfat" SIZE="1073741824"
+LSBLK
+pick "FAT32 before exFAT" mmcblk0p2 mmcblk0
+
+# nothing to mount
+cat > "${tmp}/lsblk" << 'LSBLK'
+NAME="mmcblk0p1" PKNAME="mmcblk0" FSTYPE="ntfs" SIZE="137438953472"
+NAME="mmcblk0p2" PKNAME="mmcblk0" FSTYPE="ext4" SIZE="16106127360"
+LSBLK
+pick "neither FAT32 nor exFAT: nothing" "" mmcblk0
 
 # the unit and the script
+# what broke on the console: lsblk refuses -r together with -P
+if grep -q 'lsblk -b[a-z]*r[a-z]*P\|lsblk -b[a-z]*P[a-z]*r' "${SCRIPT}"; then bad "lsblk without -r next to -P"; else ok "lsblk without -r next to -P"; fi
+if grep -q 'iocharset=utf8' "${SCRIPT}"; then bad "no iocharset=utf8 (no nls_utf8 in L4T)"; else ok "no iocharset=utf8 (no nls_utf8 in L4T)"; fi
 if [[ -x "${SCRIPT}" ]]; then ok "the script is executable"; else bad "the script is executable"; fi
 unit="${NXD_ROOT}/config/overlay/retrobox/etc/systemd/system/nxd-sdcard.service"
 if grep -qx 'ExecStart=/usr/local/sbin/nxd-sdcard' "${unit}"; then ok "the unit runs the script"; else bad "the unit runs the script"; fi

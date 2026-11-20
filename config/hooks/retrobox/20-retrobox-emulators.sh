@@ -13,9 +13,7 @@ set -eu
 list=/tmp/nxd-emulators
 emulators=/opt/retrobox/tools/emulators
 data=/retrobox
-# libgl-dev: flycast's libretro build includes <GL/gl.h> (the installer of
-# retrobox-core only asks for build-essential, git and cmake)
-tools="build-essential git cmake libgl-dev unzip curl 7zip"
+tools="build-essential git cmake unzip curl 7zip"
 
 [ -s "${list}" ] || { rm -f "${list}"; exit 0; }
 names="$(tr '\n' ' ' < "${list}")"
@@ -74,6 +72,34 @@ if ! command -v 7z > /dev/null 2>&1; then
     done
 fi
 
+# flycast's libretro build includes <GL/gl.h> (the installer of retrobox-core
+# only asks for build-essential, git and cmake). libgl-dev is not installed:
+# it depends on libx11-dev, which the L4T repository also has (as 2:1.8.7-1-l4t,
+# tied to its own libx11-6), and apt cannot solve that next to Debian's libx11-6.
+# The headers are all that is needed, and the build finds them by CPATH.
+glinc=""
+for emulator in ${names}; do
+    [ "${emulator}" = retroarch ] || continue
+    glinc="$(mktemp -d)"
+    chmod 755 "${glinc}"
+    (
+        cd "${glinc}"
+        # one by one: a package that is missing must not stop the others, the
+        # check below says whether the three headers are there
+        for package in libgl-dev libglx-dev libegl-dev libgles-dev libglvnd-core-dev; do
+            apt-get download "${package}" || echo "20-retrobox-emulators: warning: cannot download ${package}" >&2
+        done
+        for deb in ./*.deb; do
+            [ ! -f "${deb}" ] || dpkg-deb -x "${deb}" root
+        done
+    )
+    for header in GL/gl.h GL/glext.h KHR/khrplatform.h; do
+        [ -f "${glinc}/root/usr/include/${header}" ] \
+            || { echo "20-retrobox-emulators: ${header} is not in the OpenGL development packages" >&2; exit 1; }
+    done
+    chmod -R a+rX "${glinc}"
+done
+
 mkdir -p "${data}"
 chown "${name}:${group}" "${data}"
 for emulator in ${names}; do
@@ -83,6 +109,7 @@ for emulator in ${names}; do
     # result depends on the machine that builds the image
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
         RETROARCH_CFLAGS="-O3 -march=armv8-a -mtune=cortex-a57 -pipe" \
+        CPATH="${glinc:+${glinc}/root/usr/include}" \
         "${emulators}/${emulator}.sh" -i
     [ -d "${data}/emulators/${emulator}/app" ] \
         || { echo "20-retrobox-emulators: ${emulator} is not in ${data}/emulators" >&2; exit 1; }
@@ -90,6 +117,7 @@ done
 
 # purge the build tools and everything they brought
 [ -z "${created_link}" ] || rm -f "${created_link}"
+[ -z "${glinc}" ] || rm -rf "${glinc}"
 dpkg-query -W -f '${Package}\n' | sort > "${packages_after}"
 # shellcheck disable=SC2046 # the names are words
 DEBIAN_FRONTEND=noninteractive apt-get purge -y $(comm -13 "${packages_before}" "${packages_after}")

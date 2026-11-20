@@ -355,8 +355,13 @@ option is ignored. If the screen is still black after that, the logs are
   - The installer would use `sudo apt-get`, which the image does not need, so
     what it asks for is installed beforehand: the libraries of the binary are in
     `config/packages/retrobox.list`, and the hook installs the build tools
-    (`build-essential git cmake libgl-dev unzip curl 7zip`) for the build and purges
+    (`build-essential git cmake unzip curl 7zip`) for the build and purges
     them, with everything they brought, once the emulators are installed.
+    The OpenGL headers flycast includes (`GL/gl.h`) are unpacked from the
+    `libgl-dev` and related packages into a temporary folder and found through
+    `CPATH`, not installed: `libgl-dev` needs `libx11-dev`, and the L4T
+    repository has its own `libx11-dev`, tied to its own `libx11-6`, which apt
+    cannot solve next to Debian's.
   - It needs a retrobox-core that has the binary install for aarch64 (the
     commit after `v0.7.1`, which is a pre-release: build with `--prereleases`
     until a release has it). With an older one the hook warns that RetroArch

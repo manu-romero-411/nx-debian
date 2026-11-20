@@ -142,7 +142,15 @@ if [ -n "${device}" ]; then
     fstype="$(lsblk -no FSTYPE "${device}" 2> /dev/null | head -n 1)"
     # what a power cut leaves; a failure here is not one of the mount
     if [ "${fstype}" = vfat ] && command -v fsck.vfat > /dev/null 2>&1; then
-        fsck.vfat -a "${device}" > /dev/null 2>&1 || log "fsck.vfat -a ${device} did not end clean"
+        # 1: something was fixed, mostly the dirty bit of a shutdown without
+        # unmounting (Linux sets it while the partition is mounted)
+        status=0
+        fsck.vfat -a "${device}" > /dev/null 2>&1 || status=$?
+        case "${status}" in
+            0) ;;
+            1) log "fsck.vfat -a ${device} fixed it (a shutdown without unmounting)" ;;
+            *) log "fsck.vfat -a ${device} failed (${status}): mounting it anyway" ;;
+        esac
     fi
     options="rw,noatime,nosuid,nodev,uid=${uid},gid=${gid},umask=0022"
     # `utf8`, not an iocharset of UTF-8: the L4T kernel has no nls_utf8

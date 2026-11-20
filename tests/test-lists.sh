@@ -63,6 +63,8 @@ check "retrobox has a default user" test "$(variant_setting retrobox NXD_DEFAULT
 check "retrobox has a default password" test "$(variant_setting retrobox NXD_DEFAULT_PASSWORD)" = "retrobox"
 check "retrobox installs the retrobox releases" test "$(variant_setting retrobox NXD_RELEASE_LIST)" = "retrobox"
 check "the retrobox release list names the four components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/config/releases/retrobox.list")" -eq 4
+check "retrobox has a compositor" has_line "${RETROBOX}" picom
+check "Openbox starts picom with GLX and vsync" grep -qx 'picom -b --config /dev/null --backend glx --vsync' "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/autostart"
 check "retrobox starts retrobox with Openbox" grep -qx 'retrobox &' "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/autostart"
 check "retrobox leaves ssh on" test -z "$(variant_setting retrobox NXD_DISABLE_UNITS)"
 check "xfce has a default user" test "$(variant_setting xfce NXD_DEFAULT_USER)" = "switch"

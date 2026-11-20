@@ -247,7 +247,10 @@ uses the `.deb` files in `D` instead (offline builds, tests), and
 `retrobox` installs `retrobox-core`, `retrobox-mangohud`,
 `retrobox-emulationstation` and `retrobox-overlay`. Openbox starts Retrobox
 from `/etc/skel/.config/openbox/autostart` (`retrobox &`), which the user
-account copies at creation; `/etc/xdg/openbox/autostart` is a dpkg conffile
+account copies at creation, after the picom compositor (`picom -b --config
+/dev/null --backend glx --vsync`: vsync against tearing, and compositing for
+the overlay's translucency over a game; no config file, so none of the shadows
+and fades of `/etc/xdg/picom.conf`); `/etc/xdg/openbox/autostart` is a dpkg conffile
 and is left alone. Their Recommends are not installed; add the ones you want
 (for example the PySide6 settings window) to `config/packages/retrobox.list`.
 

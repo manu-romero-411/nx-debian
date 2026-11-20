@@ -1,4 +1,9 @@
 # Run by openbox-session at login (the account is logged in by lightdm).
 # Retrobox runs in the background: if it ends, Openbox stays up, with xterm in
 # its right-click menu.
+# The compositor first: vsync (no tearing) and the overlay's translucency over
+# a game. GLX backend (NVIDIA's L4T driver). Without a config file
+# (/etc/xdg/picom.conf turns on shadows and fades, which a console does not
+# want): only vsync and compositing.
+picom -b --config /dev/null --backend glx --vsync
 retrobox &

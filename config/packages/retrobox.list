@@ -6,6 +6,8 @@
 
 openbox
 xterm
+# The compositor of the session (vsync, the overlay over a game)
+picom
 
 # Fonts for EmulationStation and its menus, and the keep-the-screen-on hook
 fontconfig

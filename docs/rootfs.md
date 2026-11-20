@@ -164,7 +164,11 @@ It takes `rootfs.tar` and writes `<output>/<variant>/installer.zip` plus
   `SYSTEMD_CGROUP_ENABLE_LEGACY_FORCE=1`, without which systemd 257 waits 30 s
   at every boot on the cgroup v1 of the 4.9 kernel) after the cgroup flag;
 - `config/boot/hekate.ini` becomes `bootloader/ini/debian.ini` (name, id and
-  title from `NXD_BOOT_NAME`, `NXD_BOOT_ID`, `NXD_BOOT_TITLE`);
+  title from `NXD_BOOT_NAME`, `NXD_BOOT_ID`, `NXD_BOOT_TITLE`). It sets
+  `r2p_action=bootloader` (a reboot goes back to hekate's menu, not straight
+  into Debian) and `bootargs_extra=quiet loglevel=3 ...`, which switchroot's
+  `boot.scr` adds to the kernel command line: no kernel or systemd messages on
+  the screen while it boots, only errors (remove the key to see them);
 - the boot logo and icon are `assets/bootlogo.bmp` and `assets/icon.bmp` when
   they exist, else the ones of `switch-bsp`;
 - Hekate itself is not included: whoever installs this has it already (a hats
@@ -408,7 +412,7 @@ option is ignored. If the screen is still black after that, the logs are
   the second is part of the image, and EmulationStation rewrites it when the
   user changes it, so their choice stays.
 - **Text size.** The same `es_settings.cfg` sets EmulationStation's
-  `FontScale` (the theme's text) to 1.5 and `MenuFontScale` (its menus) to 1.25:
+  `FontScale` (the theme's text) and `MenuFontScale` (its menus) to 1.25:
   the screen of the Switch is small, mostly the Lite's. They are the "theme font
   scale" and "menu font scale" of its interface settings, and EmulationStation
   rewrites them if the user changes them. The overlay takes the sizes of its

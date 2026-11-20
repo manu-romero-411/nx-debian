@@ -196,7 +196,7 @@ check "the volume script is executable" test -x "${NXD_ROOT}/config/overlay/retr
 check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' \
     "${NXD_ROOT}/config/overlay/retrobox/etc/systemd/logind.conf.d/10-nxd-power.conf"
 ESSET="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg"
-check "the theme's text is 150 %, for a small screen" grep -q 'name="FontScale" value="1.5"' "${ESSET}"
+check "the theme's text is 125 %, for a small screen" grep -q 'name="FontScale" value="1.25"' "${ESSET}"
 check "the menus' text is 125 %" grep -q 'name="MenuFontScale" value="1.25"' "${ESSET}"
 RBINI="${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 for folder in roms saves bios; do

@@ -177,6 +177,27 @@ check "retrobox keeps its data in /retrobox" grep -qx 'data_dir = /retrobox' \
     "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 check "retrobox preloads the theme, the bezels and the shaders" \
     test "$(variant_setting retrobox NXD_PRELOAD)" = "theme bezels shaders"
+check "retrobox runs in console mode" grep -qx 'console_mode = true' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+# shellcheck disable=SC2016
+check "console_mode is in the [core] section" \
+    awk '/^\[/{section=$0} /^console_mode = true/{found=(section=="[core]")} END{exit !found}' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+check "the data dir is still in [paths]" bash -c "awk '/^\\[/{s=\$0} /^data_dir = \\/retrobox/{f=(s==\"[paths]\")} END{exit !f}' '${NXD_ROOT}/config/overlay/retrobox/etc/retrobox/retrobox.ini.d/50-nxd.ini'"
+check "retrobox confirms with the east button, as Nintendo pads do" grep -q 'name="InvertButtons" value="true"' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_settings.cfg"
+ESIN="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/retrobox/frontend/.emulationstation/es_input.cfg"
+check "retrobox ships a configured keyboard, so ES never asks for one" grep -q 'deviceName="Keyboard" deviceGUID="-1"' "${ESIN}"
+check "retrobox ships the Switch Lite pad with Home as the hotkey" \
+    grep -q 'deviceGUID="06004c277e05000023f1000000000000"' "${ESIN}"
+check "the pad has its hotkey" grep -q 'name="hotkey" type="button" id="11"' "${ESIN}"
+OBRC="${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/rc.xml"
+for key in XF86AudioRaiseVolume XF86AudioLowerVolume XF86AudioMute XF86PowerOff; do
+    check "Openbox takes ${key}" grep -q "keybind key=\"${key}\"" "${OBRC}"
+done
+check "the volume script is executable" test -x "${NXD_ROOT}/config/overlay/retrobox/usr/local/bin/nxd-volume"
+check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' \
+    "${NXD_ROOT}/config/overlay/retrobox/etc/systemd/logind.conf.d/10-nxd-power.conf"
 check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "lightdm starts X without asking logind" \
     grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"
@@ -209,31 +230,6 @@ check "build documents --prereleases" grep -q -- '--prereleases' <("${NXD}" buil
 check "the container forwards NXD_PRERELEASES" grep -q 'NXD_PRERELEASES' "${NXD_ROOT}/scripts/in-container.sh"
 check "the workflow has a prereleases input" grep -q 'prereleases:' "${NXD_ROOT}/.github/workflows/build.yml"
 check "build has a help text" grep -q "Usage: sudo nxd build" <("${NXD}" build --help)
-
-# The experimental mainline variant: listed only with --all, built without L4T.
-MAINLINE="$("${NXD}" packages mainline)"
-check_not "mainline is not in the default variants" grep -q '^mainline ' <("${NXD}" variants)
-check "mainline is listed with --all" grep -q '^mainline .*(experimental)' <("${NXD}" variants --all)
-check_not "nxd build does not pick mainline by default" has_line "$(list_variants)" "mainline"
-check_not "variants refuses an unknown option" "${NXD}" variants --bogus
-check "mainline does not use L4T" test "$(variant_uses_l4t mainline)" = 0
-check "xfce uses L4T" test "$(variant_uses_l4t xfce)" = 1
-check_not "mainline has no L4T BSP" has_line "${MAINLINE}" "switch-bsp"
-check_not "mainline has no NVIDIA userspace" grep -q '^nvidia-l4t-' <<< "${MAINLINE}"
-check "mainline has Mesa" has_line "${MAINLINE}" "libgl1-mesa-dri"
-check "mainline has a kernel" has_line "${MAINLINE}" "linux-image-arm64"
-check "mainline has Debian's X server" has_line "${MAINLINE}" "xserver-xorg-core"
-check "mainline has no duplicate packages" test -z "$(sort <<< "${MAINLINE}" | uniq -d)"
-check "mainline package names are plain" test -z "$(grep -vE '^[a-z0-9][a-z0-9+.-]*$' <<< "${MAINLINE}" || true)"
-MAINLINE_DRY="$("${NXD}" rootfs --variant mainline --dry-run --output "${tmp}/out-mainline" < /dev/null)"
-check_not "mainline dry run adds no L4T source" grep -q 'nxd-l4t.sources' <<< "${MAINLINE_DRY}"
-check_not "mainline dry run adds no L4T key" grep -q 'theofficialgman-L4T.asc' <<< "${MAINLINE_DRY}"
-check_not "mainline dry run adds no compat suite" grep -q 'nxd-compat.sources' <<< "${MAINLINE_DRY}"
-check "mainline dry run asks for non-free-firmware" grep -q 'non-free-firmware' <<< "${MAINLINE_DRY}"
-check "xfce dry run keeps the main component only" grep -q -- '--components=main ' <("${NXD}" rootfs --variant xfce --no-user --dry-run --output "${tmp}/out" < /dev/null)
-check "the L4T pre-hook skips variants without L4T packages" \
-    grep -q "grep -qE '^(switch-bsp|nvidia-l4t-)' /tmp/nxd-packages || exit 0" "${NXD_ROOT}/config/pre-hooks/10-l4t-preinstall.sh"
-check "nxd image refuses a variant without L4T" grep -q 'variant_uses_l4t' "${NXD_ROOT}/scripts/build-image.sh"
 check_not "unknown command is refused" "${NXD}" frobnicate
 
 

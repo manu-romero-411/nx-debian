@@ -31,9 +31,12 @@ Usage: sudo nxd build [options] [-- ROOTFS_OPTIONS]
   --output DIR     where the rootfs and the image are made (default: ${OUTPUT})
   --dist DIR       where the files to publish are put (default: ${DIST})
   --size SIZE      size of the ext4 image (default: ${NXD_IMAGE_SIZE})
-  --hekate ZIP     put this Hekate release in the installers
-  --no-hekate      do not put Hekate in the installers
-  --require-hekate fail when Hekate cannot be downloaded (the CI uses it)
+  --with-hekate    put the latest Hekate in the installers (not by default:
+                   whoever installs this already has it); the installer is
+                   then named ...-installer-hekate.zip
+  --hekate ZIP     put this Hekate release in the installers (implies --with-hekate)
+  --require-hekate with --with-hekate: fail when Hekate cannot be downloaded
+  --no-hekate      the default: no Hekate
   --skip-rootfs    reuse the rootfs.tar already in --output (only re-image)
   --prereleases    use the newest release of the Retrobox packages even if it
                    is a pre-release (by default, only releases that are not)
@@ -43,7 +46,7 @@ Usage: sudo nxd build [options] [-- ROOTFS_OPTIONS]
 Everything after -- goes to nxd rootfs (for example: -- --user manu).
 
 For each variant, <dist> gets:
-  ${NXD_DIST_PREFIX}-<variant>-installer-hekate.zip
+  ${NXD_DIST_PREFIX}-<variant>-installer.zip (-installer-hekate.zip with Hekate)
   ${NXD_DIST_PREFIX}-<variant>-packages.txt
   ${NXD_DIST_PREFIX}-<variant>-report.txt
 and one SHA256SUMS of the lot. Needs root (nxd image does); in a container:
@@ -59,6 +62,7 @@ while [[ $# -gt 0 ]]; do
         --dist) DIST="${2:?--dist needs a value}"; shift 2 ;;
         --size) IMAGE_ARGS+=(--size "${2:?--size needs a value}"); shift 2 ;;
         --hekate) IMAGE_ARGS+=(--hekate "${2:?--hekate needs a value}"); shift 2 ;;
+        --with-hekate) IMAGE_ARGS+=(--with-hekate); shift ;;
         --no-hekate) IMAGE_ARGS+=(--no-hekate); shift ;;
         --require-hekate) IMAGE_ARGS+=(--require-hekate); shift ;;
         --skip-rootfs) SKIP_ROOTFS=1; shift ;;
@@ -99,7 +103,12 @@ for variant in "${VARIANTS[@]}"; do
 
     "${SCRIPT_DIR}/build-image.sh" --variant "${variant}" --output "${OUTPUT}" "${IMAGE_ARGS[@]}"
 
-    zip="${NXD_DIST_PREFIX}-${variant}-installer-hekate.zip"
+    # the name says what is in the zip (Hekate may have been asked for and not
+    # downloaded: --require-hekate is the one that fails then)
+    zip="${NXD_DIST_PREFIX}-${variant}-installer.zip"
+    if unzip -Z1 "${OUTPUT}/${variant}/installer.zip" | grep -q '^hekate_ctcaer'; then
+        zip="${NXD_DIST_PREFIX}-${variant}-installer-hekate.zip"
+    fi
     cp "${OUTPUT}/${variant}/installer.zip" "${DIST}/${zip}"
     for pair in manifest.txt:packages.txt report.txt:report.txt; do
         if [[ -f "${OUTPUT}/${variant}/${pair%%:*}" ]]; then

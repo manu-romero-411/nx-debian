@@ -167,8 +167,9 @@ It takes `rootfs.tar` and writes `<output>/<variant>/installer.zip` plus
   title from `NXD_BOOT_NAME`, `NXD_BOOT_ID`, `NXD_BOOT_TITLE`);
 - the boot logo and icon are `assets/bootlogo.bmp` and `assets/icon.bmp` when
   they exist, else the ones of `switch-bsp`;
-- Hekate itself is the latest release (cached in `downloads/`), or `--hekate
-  ZIP`, or nothing with `--no-hekate`.
+- Hekate itself is not included: whoever installs this has it already (a hats
+  pack updates it together with the rest). `--with-hekate` adds the latest
+  release (cached in `downloads/`) and `--hekate ZIP` a release you have.
 
 Unzip the installer at the root of the SD card, boot Hekate and flash the
 `l4t.*` parts from its partition manager.
@@ -257,15 +258,17 @@ sudo ./nxd build --variant xfce -- --user manu   # options after -- go to nxd ro
 For each variant it runs `nxd rootfs`, `nxd inspect` (a failure there is only a
 warning) and `nxd image`, then puts in `dist/` (`--dist`, `$NXD_DIST_DIR`):
 
-- `switch-debian-13-trixie-<variant>-installer-hekate.zip` (the prefix is
+- `switch-debian-13-trixie-<variant>-installer.zip`, or `-installer-hekate.zip` when
+  Hekate is in it (the prefix is
   `$NXD_DIST_PREFIX`),
 - `...-<variant>-packages.txt`, the package list of the image,
 - `...-<variant>-report.txt`, the `nxd inspect` report,
 - one `SHA256SUMS` of the lot.
 
 `--clean` deletes each `rootfs.tar` once its installer is made, which matters on
-a small disk; `--require-hekate` fails instead of warning when Hekate cannot be
-downloaded; `--size`, `--hekate` and `--no-hekate` are those of `nxd image`.
+a small disk; `--require-hekate` implies `--with-hekate` and fails instead of warning when
+Hekate cannot be downloaded; `--size`, `--with-hekate`, `--hekate` and
+`--no-hekate` are those of `nxd image`.
 It warns when an installer reaches 2 GiB, which GitHub does not take as a
 release asset.
 

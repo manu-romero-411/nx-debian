@@ -89,8 +89,9 @@ def notes(previous: str | None, version: str) -> str:
 ### Installation
 
 1. Download the installer of the variant you want
-   (`switch-debian-13-trixie-<variant>-installer-hekate.zip`) and check it
-   against `SHA256SUMS`.
+   (`switch-debian-13-trixie-<variant>-installer.zip`) and check it
+   against `SHA256SUMS`. It does not include Hekate: the card must already
+   have it (the one of your hats pack is fine).
 2. Unzip it at the root of the microSD card (the FAT32 partition).
 3. In Hekate: Tools -> Partition SD Card -> Flash Linux.
 4. Reboot, More configs, Debian 13 Trixie. The filesystem grows to fill its

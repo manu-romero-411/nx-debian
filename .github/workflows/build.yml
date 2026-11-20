@@ -12,6 +12,10 @@ on:
         default: all
         required: true
         type: string
+      hekate:
+        description: Put Hekate in the installers (by default it is not included)
+        default: false
+        type: boolean
       prereleases:
         description: Use the pre-releases of the Retrobox packages too (by default, only releases)
         default: false
@@ -71,10 +75,12 @@ jobs:
           NXD_CONTAINER_ENGINE: docker
           VARIANT: ${{ matrix.variant }}
           PRERELEASES: ${{ inputs.prereleases }}
+          HEKATE: ${{ inputs.hekate }}
         run: |
           args=()
           [[ "${PRERELEASES}" != "true" ]] || args+=(--prereleases)
-          sudo -E ./nxd container build --variant "${VARIANT}" --require-hekate --clean --dist dist "${args[@]}"
+          [[ "${HEKATE}" != "true" ]] || args+=(--require-hekate)
+          sudo -E ./nxd container build --variant "${VARIANT}" --clean --dist dist "${args[@]}"
       - name: Disk space after
         if: always()
         run: df -h /

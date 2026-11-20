@@ -101,8 +101,8 @@ DIST="${tmp}/dist"
 NXD_CONFIG_DIR="${CONFIG}" NXD_DIST_PREFIX=test-prefix "${NXD}" build --variant fake --skip-rootfs --no-hekate \
     --size 40M --output "${OUT}" --dist "${DIST}" --clean > "${tmp}/build.log" 2>&1 ||
     { cat "${tmp}/build.log"; bad "nxd build ran"; }
-check "build names the installer after the prefix and the variant" test -f "${DIST}/test-prefix-fake-installer-hekate.zip"
-check "build gives the installer the same content" cmp -s "${DIST}/test-prefix-fake-installer-hekate.zip" "${OUT}/fake/installer.zip"
+check "build names the installer after the prefix and the variant" test -f "${DIST}/test-prefix-fake-installer.zip"
+check "build gives the installer the same content" cmp -s "${DIST}/test-prefix-fake-installer.zip" "${OUT}/fake/installer.zip"
 check "build writes one SHA256SUMS of the lot" bash -c "cd '${DIST}' && sha256sum -c SHA256SUMS"
 check "build does not checksum its own list" test "$(grep -c SHA256SUMS "${DIST}/SHA256SUMS" || true)" -eq 0
 check "--clean removes the rootfs.tar" test ! -f "${OUT}/fake/rootfs.tar"
@@ -124,9 +124,36 @@ check_not "an image too small is refused" "${NXD}" image --variant fake --output
 check_not "--require-hekate fails when Hekate cannot be fetched" \
     env NXD_KERNEL_CMDLINE_EXTRA= NXD_GITHUB_API=http://127.0.0.1:9 NXD_DOWNLOADS_DIR="${tmp}/empty-downloads" \
     "${NXD}" image --variant fake --output "${OUT}" --require-hekate --size 40M
-check "without --require-hekate it only warns" \
+check "with --with-hekate alone it only warns" \
     env NXD_KERNEL_CMDLINE_EXTRA= NXD_GITHUB_API=http://127.0.0.1:9 NXD_DOWNLOADS_DIR="${tmp}/empty-downloads" \
-    "${NXD}" image --variant fake --output "${OUT}" --size 40M
+    "${NXD}" image --variant fake --output "${OUT}" --with-hekate --size 40M
+
+# Hekate is optional: not in the installer unless it is asked for.
+export NXD_KERNEL_CMDLINE_EXTRA= # this boot.scr has no anchor to add to
+mkdir -p "${tmp}/hekate/bootloader/res"
+: > "${tmp}/hekate/hekate_ctcaer_6.0.0_Nyx_1.0.0.bin"
+: > "${tmp}/hekate/bootloader/res/icon.bmp"
+(cd "${tmp}/hekate" && zip -q -r "${tmp}/hekate-fake.zip" .)
+tar -C "${tree}" --numeric-owner -cf "${OUT}/fake/rootfs.tar" .
+env NXD_KERNEL_CMDLINE_EXTRA= NXD_GITHUB_API=http://127.0.0.1:9 NXD_DOWNLOADS_DIR="${tmp}/empty-downloads" \
+    "${NXD}" image --variant fake --output "${OUT}" --size 40M > /dev/null 2>&1 || bad "image without options ran"
+check "by default Hekate is not in the installer" bash -c "! unzip -Z1 '${OUT}/fake/installer.zip' | grep -q '^hekate_ctcaer'"
+check "by default nothing is downloaded (no warning about Hekate)" bash -c "
+    env NXD_KERNEL_CMDLINE_EXTRA= NXD_GITHUB_API=http://127.0.0.1:9 NXD_DOWNLOADS_DIR='${tmp}/empty-downloads' \
+    '${NXD}' image --variant fake --output '${OUT}' --size 40M 2>&1 | grep -qi 'hekate' && exit 1 || exit 0"
+tar -C "${tree}" --numeric-owner -cf "${OUT}/fake/rootfs.tar" .
+"${NXD}" image --variant fake --output "${OUT}" --hekate "${tmp}/hekate-fake.zip" --size 40M > "${tmp}/h.log" 2>&1 || { cat "${tmp}/h.log"; bad "image --hekate ran"; }
+check "--hekate ZIP puts Hekate in the installer" bash -c "unzip -Z1 '${OUT}/fake/installer.zip' | grep -q '^hekate_ctcaer_6.0.0'"
+check "...with our ini next to it" bash -c "unzip -Z1 '${OUT}/fake/installer.zip' | grep -q '^bootloader/ini/'"
+tar -C "${tree}" --numeric-owner -cf "${OUT}/fake/rootfs.tar" .
+check "--no-hekate wins over --hekate ZIP" bash -c "'${NXD}' image --variant fake --output '${OUT}' --hekate '${tmp}/hekate-fake.zip' --no-hekate --size 40M > /dev/null 2>&1 && ! unzip -Z1 '${OUT}/fake/installer.zip' | grep -q '^hekate_ctcaer'"
+tar -C "${tree}" --numeric-owner -cf "${OUT}/fake/rootfs.tar" .
+DIST2="${tmp}/dist2"
+NXD_CONFIG_DIR="${CONFIG}" NXD_DIST_PREFIX=test-prefix "${NXD}" build --variant fake --skip-rootfs --hekate "${tmp}/hekate-fake.zip" \
+    --size 40M --output "${OUT}" --dist "${DIST2}" > /dev/null 2>&1 || bad "nxd build --hekate ran"
+check "build names an installer with Hekate ...-installer-hekate.zip" test -f "${DIST2}/test-prefix-fake-installer-hekate.zip"
+check "...and not the plain name" test ! -f "${DIST2}/test-prefix-fake-installer.zip"
+tar -C "${tree}" --numeric-owner -cf "${OUT}/fake/rootfs.tar" .
 check_not "a missing rootfs is refused" "${NXD}" image --variant nope --output "${OUT}" --no-hekate
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"

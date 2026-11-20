@@ -71,7 +71,7 @@ A complete GNU/Linux distribution based on **Debian 13 (Trixie)** for the Ninten
 4. Tap **Next Step** and proceed to format the SD card.
 
 ### 2. Copying Installer Files
-1. Download the installer of the variant you want (`switch-debian-13-trixie-xfce-installer-hekate.zip` or `switch-debian-13-trixie-retrobox-installer-hekate.zip`) from the [Releases](https://github.com/manu-romero-411/nx-debian/releases) page, and check it against `SHA256SUMS`.
+1. Download the installer of the variant you want (`switch-debian-13-trixie-xfce-installer.zip` or `switch-debian-13-trixie-retrobox-installer.zip`) from the [Releases](https://github.com/manu-romero-411/nx-debian/releases) page, and check it against `SHA256SUMS`.
 2. Extract the archive directly onto the root of your MicroSD card's FAT32 partition.
    - The directory tree should contain `bootloader/`, `switchroot/debian/`, and `switchroot/install/l4t.00`, `l4t.01`.
 
@@ -160,7 +160,7 @@ that are not pre-releases; `--prereleases` (for example
 `sudo ./nxd container build --variant retrobox --prereleases`) takes the newest
 of each, which is what you want while Retrobox is still gaining features.
 
-The installers end up in `dist/`: `switch-debian-13-trixie-<variant>-installer-hekate.zip`,
+The installers end up in `dist/`: `switch-debian-13-trixie-<variant>-installer.zip`,
 the package list of each one and a `SHA256SUMS`. Unzip an installer on the root
 of the SD card and flash it from Hekate as described above.
 

@@ -16,6 +16,7 @@ VARIANT="xfce"
 OUTPUT="${NXD_OUTPUT_DIR}"
 SIZE="${NXD_IMAGE_SIZE}"
 HEKATE_ZIP=""
+WITH_HEKATE=0
 NO_HEKATE=0
 REQUIRE_HEKATE=0
 KEEP_STAGE=0
@@ -29,10 +30,14 @@ Usage: sudo nxd image [options]
   --variant NAME   variant to package (default: ${VARIANT})
   --output DIR     directory given to nxd rootfs (default: ${OUTPUT})
   --size SIZE      size of the ext4 image, as mke2fs takes it (default: ${SIZE})
-  --hekate ZIP     Hekate release to put on the card (default: download the
-                   latest one, cached in ${NXD_DOWNLOADS_DIR})
-  --no-hekate      do not add Hekate (the card already has it)
-  --require-hekate fail instead of warning when Hekate cannot be downloaded
+  --with-hekate    put Hekate in the installer: the latest release, cached in
+                   ${NXD_DOWNLOADS_DIR} (by default it is not included: whoever
+                   installs this already has Hekate, maybe from a hats pack
+                   that updates it)
+  --hekate ZIP     put this Hekate release in the installer (implies --with-hekate)
+  --require-hekate with --with-hekate: fail instead of warning when Hekate
+                   cannot be downloaded (implies --with-hekate)
+  --no-hekate      the default: no Hekate (wins over the options above)
   --keep-stage     keep the unpacked tree and the staging directory
   -h, --help       this text
 
@@ -48,6 +53,7 @@ while [[ $# -gt 0 ]]; do
         --output) OUTPUT="${2:?missing value}"; shift 2 ;;
         --size) SIZE="${2:?missing value}"; shift 2 ;;
         --hekate) HEKATE_ZIP="${2:?missing value}"; shift 2 ;;
+        --with-hekate) WITH_HEKATE=1; shift ;;
         --no-hekate) NO_HEKATE=1; shift ;;
         --require-hekate) REQUIRE_HEKATE=1; shift ;;
         --keep-stage) KEEP_STAGE=1; shift ;;
@@ -176,7 +182,7 @@ fetch_hekate() {
     printf '%s' "${cache}"
 }
 
-if [[ "${NO_HEKATE}" -eq 0 ]]; then
+if [[ "${NO_HEKATE}" -eq 0 && ( "${WITH_HEKATE}" -eq 1 || "${REQUIRE_HEKATE}" -eq 1 || -n "${HEKATE_ZIP}" ) ]]; then
     if [[ -z "${HEKATE_ZIP}" ]]; then
         HEKATE_ZIP="$(fetch_hekate)" || {
             [[ "${REQUIRE_HEKATE}" -eq 0 ]] || die "could not download Hekate (use --hekate ZIP)"

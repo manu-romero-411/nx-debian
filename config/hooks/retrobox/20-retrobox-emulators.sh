@@ -13,7 +13,9 @@ set -eu
 list=/tmp/nxd-emulators
 emulators=/opt/retrobox/tools/emulators
 data=/retrobox
-tools="build-essential git cmake unzip curl 7zip"
+# libgl-dev: flycast's libretro build includes <GL/gl.h> (the installer of
+# retrobox-core only asks for build-essential, git and cmake)
+tools="build-essential git cmake libgl-dev unzip curl 7zip"
 
 [ -s "${list}" ] || { rm -f "${list}"; exit 0; }
 names="$(tr '\n' ' ' < "${list}")"

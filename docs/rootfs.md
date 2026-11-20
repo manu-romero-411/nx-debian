@@ -200,9 +200,11 @@ without a terminal, like the CI, takes the defaults without asking. `retrobox` s
 asks nothing. `--user`/`--password-hash`/`--no-password` and `$NXD_PASSWORD`
 override it, and `--no-user` builds without any account.
 
-Because that password is public, `retrobox` keeps `ssh.service` and
-`ssh.socket` disabled (`NXD_DISABLE_UNITS`: the links are removed, the
-packages stay, so `systemctl enable --now ssh` is all it takes). Masked units
+Because that password is public, `xfce` keeps `ssh.service` and `ssh.socket`
+disabled (`NXD_DISABLE_UNITS`: the links are removed, the packages stay, so
+`systemctl enable --now ssh` is all it takes). `retrobox` leaves ssh on, to work
+on the console from a computer: change the password (`--user`,
+`--password-hash`) before it joins a network you do not trust. Masked units
 (`NXD_MASK_UNITS`) are different: they point to `/dev/null` and cannot be
 started at all.
 

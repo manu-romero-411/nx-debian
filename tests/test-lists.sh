@@ -64,7 +64,7 @@ check "retrobox has a default password" test "$(variant_setting retrobox NXD_DEF
 check "retrobox installs the retrobox releases" test "$(variant_setting retrobox NXD_RELEASE_LIST)" = "retrobox"
 check "the retrobox release list names the four components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/config/releases/retrobox.list")" -eq 4
 check "retrobox starts retrobox with Openbox" grep -qx 'retrobox &' "${NXD_ROOT}/config/overlay/retrobox/etc/skel/.config/openbox/autostart"
-check "retrobox keeps ssh off" grep -q 'ssh.service' <(variant_setting retrobox NXD_DISABLE_UNITS)
+check "retrobox leaves ssh on" test -z "$(variant_setting retrobox NXD_DISABLE_UNITS)"
 check "xfce has a default user" test "$(variant_setting xfce NXD_DEFAULT_USER)" = "switch"
 check "xfce keeps ssh off" grep -q 'ssh.service' <(variant_setting xfce NXD_DISABLE_UNITS)
 check "xfce has no release list" test -z "$(variant_setting xfce NXD_RELEASE_LIST)"

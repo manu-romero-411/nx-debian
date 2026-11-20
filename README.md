@@ -10,6 +10,12 @@
 Switchroot L4T kernel and NVIDIA's Tegra X1 driver, packaged as installers for
 Hekate. Two images are built: an XFCE desktop and a Retrobox console image.
 
+> **This is the `mainline` branch.** It adds an experimental `mainline` variant
+> (mainline kernel, Mesa) to the L4T images of `main`, and is rebased on
+> `main`. The variant builds a rootfs but does not boot yet: see
+> [docs/mainline.md](docs/mainline.md). Everything else in this README is the
+> same as on `main`.
+
 > **Status.** The images are built by `nxd` (see [Building](#building-from-source)),
 > which installs everything with apt from Debian and the L4T repository. Some
 > desktop features of the old hand-made image (screen rotation, the NVPModel
@@ -30,7 +36,7 @@ Hekate. Two images are built: an XFCE desktop and a Retrobox console image.
 | Branch | What it is |
 | :--- | :--- |
 | `main` | The L4T images (4.9 kernel, NVIDIA driver). What the releases are built from. |
-| `mainline` | Experimental: an extra `mainline` variant with a mainline kernel and Mesa (nouveau, NVK later). Rootfs only, it does not boot yet. See `docs/mainline.md` on that branch. |
+| `mainline` | Experimental: an extra `mainline` variant with a mainline kernel and Mesa (nouveau, NVK later). Rootfs only, it does not boot yet. See [docs/mainline.md](docs/mainline.md). |
 
 ---
 
@@ -113,6 +119,7 @@ one.
 | :--- | :--- | :--- | :--- |
 | **`xfce`** | XFCE4 desktop | `switch` | `switch` (a build at a terminal asks for the user name and the password) |
 | **`retrobox`** | Openbox starting [Retrobox](https://github.com/RetroboxProject), with RetroArch and its base cores | `retrobox` | `retrobox` |
+| **`mainline`** (experimental, rootfs only) | XFCE4 desktop on Debian's kernel, Xorg and Mesa, no L4T | `switch` | `switch` |
 
 Both log the user in automatically, and the hostname is `nintendo-switch`. In
 `xfce`, the gamepad can act as a mouse (`switch-joystick-mouse`). In
@@ -168,6 +175,7 @@ container.
 
 ```bash
 ./nxd variants                       # what can be built
+./nxd variants --all                 # with the experimental ones (mainline)
 sudo ./nxd build --variant retrobox  # rootfs + installer, native
 sudo ./nxd container build           # the same, every variant, in a container
 ```
@@ -176,6 +184,10 @@ The Retrobox packages come from their GitHub releases, and only from those
 that are not pre-releases; `--prereleases` (for example
 `sudo ./nxd container build --variant retrobox --prereleases`) takes the newest
 of each, which is what you want while Retrobox is still gaining features.
+
+The experimental `mainline` variant is left out of `nxd build` and of the CI.
+Build its rootfs with `sudo ./nxd rootfs --variant mainline`; `nxd image`
+refuses it until it has a boot path ([docs/mainline.md](docs/mainline.md)).
 
 Hekate is left out of the installers; `--with-hekate` puts the latest release
 in them, and the installer is then named `...-installer-hekate.zip`.
@@ -190,7 +202,7 @@ repository resolve), `nxd rootfs`, `nxd inspect` (what is in the rootfs and
 why) and `nxd image`. [docs/rootfs.md](docs/rootfs.md) documents them, the
 variants, the release packages and the tests;
 [docs/decisions.md](docs/decisions.md) records why the image runs the 4.9
-kernel of `switch-bsp`.
+kernel of `switch-bsp`, and why the mainline work is a separate variant.
 
 ### Continuous integration
 

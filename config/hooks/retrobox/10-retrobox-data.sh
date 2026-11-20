@@ -27,6 +27,10 @@ chmod 755 "${data}"
 # The logs are in the state directory; /retrobox/logs is a link to them.
 mkdir -p "${data}/state/logs"
 ln -sfn state/logs "${data}/logs"
+# All of /retrobox (the overlay put files in it as root) belongs to the user
+# before Retrobox runs as the user: it writes its state and its configuration
+# there while it downloads.
+chown -hR "${name}:${group}" "${data}"
 
 if [ -s "${list}" ]; then
     # Retrobox's own downloader, as the user it is for: the files end up with

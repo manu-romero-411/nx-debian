@@ -209,6 +209,10 @@ check "retrobox.ini puts the state in /retrobox/state" grep -qx 'state_dir = /re
 # shellcheck disable=SC2016
 check "the build hooks run Retrobox with the same directories" \
     test "$(grep -c 'RETROBOX_CONFIGDIR="${data}/config"' "${NXD_ROOT}"/config/hooks/retrobox/*.sh | awk -F: '{s+=$2} END{print s}')" -eq 3
+# shellcheck disable=SC2016
+check "the data hook gives /retrobox to the user before it runs Retrobox as the user" \
+    awk '/chown -hR "\$\{name\}:\$\{group\}" "\$\{data\}"/ && !c {c=NR} /runuser/ && !r {r=NR} END{exit !(c && r && c < r)}' \
+    "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "lightdm starts X without asking logind" \
     grep -qx 'logind-check-graphical=false' "${NXD_ROOT}/config/overlay/common/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf"

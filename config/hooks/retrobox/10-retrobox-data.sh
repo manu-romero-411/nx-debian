@@ -25,10 +25,14 @@ chown "${name}:${group}" "${data}"
 chmod 755 "${data}"
 
 if [ -s "${list}" ]; then
-    # Retrobox does the downloading, as the user it is for: the files end up
-    # with the right owner, and in the directories it really uses.
+    # Retrobox's own downloader, as the user it is for: the files end up with
+    # the right owner and in the directories it really uses. The module is
+    # run directly, not through `retrobox --download`: that option exists
+    # only in newer releases, and in 0.6 `retrobox` with an unknown option
+    # starts EmulationStation.
     # shellcheck disable=SC2046 # the names are words, one per line
-    runuser -u "${name}" -- env HOME="${home}" retrobox --download $(cat "${list}")
+    runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \
+        python3 -m retrobox.startup.downloads $(cat "${list}")
     # "once" packages (bezels, shaders) are offered at the first start unless
     # they are recorded as offered: pending() records them.
     runuser -u "${name}" -- env HOME="${home}" PYTHONPATH=/opt/retrobox/lib \

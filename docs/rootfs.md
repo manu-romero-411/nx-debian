@@ -300,7 +300,7 @@ another repository, and is applied by the build:
   is left out (`NXD_PATH_EXCLUDES`), which units are masked or disabled.
 
 A hook that needs something decided at build time gets it as a file in
-`/tmp` that the hook deletes (`nxd-user`, `nxd-mask`, `nxd-preload`...).
+`/tmp` that the hook deletes (`nxd-user`, `nxd-mask`, `nxd-preload`, `nxd-emulators`...).
 
 ## lightdm and the Switch's seat
 
@@ -323,14 +323,41 @@ option is ignored. If the screen is still black after that, the logs are
   home of the user.
 - **Content in the image.** Retrobox downloads its default theme
   (es-theme-iconic), the RetroBat bezels and its shaders the first time it
-  starts. The hook runs `retrobox --download` for the names in `NXD_PRELOAD` as
-  the user, while the image is built, and records the packages as offered, so
+  starts. The hook runs Retrobox's downloader
+  (`python3 -m retrobox.startup.downloads`, not `retrobox --download`, which
+  the 0.6 release does not have) for the names in `NXD_PRELOAD` as the user,
+  while the image is built, and records the packages as offered, so
   the first start has nothing left to fetch. They are the latest commit of
   their GitHub repositories at build time. `nxd rootfs --no-preload` (or
   `nxd build -- --no-preload`) skips it, for a quick build or without network:
   Retrobox then downloads them at its first start, as it always did. The
   bezels count in the size of the image and of the installer: look at the size
   `nxd build` prints (a release asset cannot reach 2 GiB).
+- **RetroArch in the image.** `NXD_EMULATORS="retroarch"` makes
+  `config/hooks/retrobox/20-retrobox-emulators.sh` run Retrobox's own installer
+  (`/opt/retrobox/tools/emulators/retroarch.sh -i`) as the user of the image,
+  into `/retrobox/emulators`. On aarch64 that is the libretro buildbot's
+  `retroarch` binary, its assets (about 240 MiB compressed: assets, cheats,
+  database, slang shaders, overlays...) and the base cores
+  (`retrobox.cores.BASE_CORES`, 25 cores, 39 MiB compressed); flycast is built
+  from source, because the buildbot's build does not work on the desktop
+  OpenGL RetroArch. Every other core is downloaded on demand, from RetroArch's
+  menu or EmulationStation's Content Downloader, into the same place.
+  - The installer would use `sudo apt-get`, which the image does not need, so
+    what it asks for is installed beforehand: the libraries of the binary are in
+    `config/packages/retrobox.list`, and the hook installs the build tools
+    (`build-essential git cmake unzip curl 7zip`) for the build and purges
+    them, with everything they brought, once the emulators are installed.
+  - It needs a retrobox-core release that has the binary install for aarch64
+    (the commit after `v0.7.1`): with an older one the hook stops and says so,
+    instead of compiling RetroArch for the CPU that builds the image
+    (`-march=native`) and crashing on the Switch.
+  - It needs network and makes the build slower (the flycast compile).
+    `nxd rootfs --no-preload` (and `nxd build -- --no-preload`) skips it with
+    the rest of the preload; RetroArch is then installed from Retrobox's setup
+    screen at the first start.
+  - Expect the installer to grow by roughly 0.3 GiB compressed; `nxd build`
+    prints the size and warns from 2000 MiB.
 - **No gamepad-as-mouse.** The mouse mode of the pad is the
   `switch-joystick-mouse` package and the `xserver-xorg-input-joystick` driver: they
   are in the `joystick` package list, which only the desktop uses. In the

@@ -39,8 +39,9 @@ Usage: build-rootfs.sh [options]
   --no-user         no user, even when the variant has a default one
   --no-releases     skip the release packages the variant installs (offline)
   --releases-dir D  use the .deb files in D instead of downloading the releases
-  --no-preload      do not put in the image the content the variant downloads
-                    at its first start (themes, bezels, shaders: big, online)
+  --no-preload      do not put in the image what the variant downloads or
+                    installs at its first start (themes, bezels, shaders and
+                    the emulators: big, slow, online)
   --dry-run         print the mmdebstrap command and stop
   -h, --help        this text
 
@@ -182,6 +183,11 @@ PRELOAD="$(variant_setting "${VARIANT}" NXD_PRELOAD)"
 if [[ -n "${PRELOAD}" && "${NO_PRELOAD}" -eq 0 ]]; then
     printf '%s\n' "${PRELOAD}" | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-preload"
 fi
+# The emulators the variant installs with their own installers, done here too.
+EMULATORS="$(variant_setting "${VARIANT}" NXD_EMULATORS)"
+if [[ -n "${EMULATORS}" && "${NO_PRELOAD}" -eq 0 ]]; then
+    printf '%s\n' "${EMULATORS}" | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-emulators"
+fi
 if [[ -n "${USER_NAME}" ]]; then
     (umask 077; printf '%s\n%s\n%s\n' "${USER_NAME}" "${USER_HASH}" \
         "$(variant_setting "${VARIANT}" NXD_AUTOLOGIN_SESSION)" > "${STAGE}/nxd-user")
@@ -273,6 +279,9 @@ if [[ -s "${STAGE}/nxd-user" ]]; then
 fi
 if [[ -s "${STAGE}/nxd-preload" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-preload /tmp")
+fi
+if [[ -s "${STAGE}/nxd-emulators" ]]; then
+    CMD+=(--customize-hook="copy-in ${STAGE}/nxd-emulators /tmp")
 fi
 # The hooks of every variant, then the ones of this variant only
 # (config/hooks/<variant>/), which run once the user and the services are set.

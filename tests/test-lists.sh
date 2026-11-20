@@ -190,6 +190,15 @@ check "the preload list is staged for retrobox" grep -qx shaders "${tmp}/out1/re
 "${NXD}" rootfs --variant retrobox --no-preload --dry-run --output "${tmp}/out2" > /dev/null 2>&1 || true
 check "--no-preload stages nothing" test ! -s "${tmp}/out2/retrobox/stage/nxd-preload"
 check "xfce has nothing to preload" test -z "$(variant_setting xfce NXD_PRELOAD)"
+check "retrobox installs RetroArch in the image" test "$(variant_setting retrobox NXD_EMULATORS)" = "retroarch"
+check "xfce installs no emulators" test -z "$(variant_setting xfce NXD_EMULATORS)"
+check "the emulators hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/20-retrobox-emulators.sh"
+check "the emulator list is staged for retrobox" grep -qx retroarch "${tmp}/out1/retrobox/stage/nxd-emulators"
+check "--no-preload stages no emulators" test ! -s "${tmp}/out2/retrobox/stage/nxd-emulators"
+check "the emulator list is copied into the image" grep -q 'nxd-emulators' <("${NXD}" rootfs --variant retrobox --dry-run --output "${tmp}/out3" 2>&1)
+for lib in libasound2t64 libpulse0 libgl1 libegl1 libsdl2-2.0-0 libxkbcommon0 libgbm1; do
+    check "retrobox has ${lib} for the RetroArch binary" has_line "${RETROBOX}" "${lib}"
+done
 check "--no-releases is accepted" "${NXD}" rootfs --variant retrobox --no-releases --dry-run --output "${tmp}/out" < /dev/null
 check "--no-user is accepted" "${NXD}" rootfs --variant retrobox --no-user --no-releases --dry-run --output "${tmp}/out" < /dev/null
 check "--user takes the password from NXD_PASSWORD" env NXD_PASSWORD=x "${NXD}" rootfs --variant xfce --user manu --dry-run --output "${tmp}/out"

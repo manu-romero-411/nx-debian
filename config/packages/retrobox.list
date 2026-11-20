@@ -11,3 +11,29 @@ xterm
 fontconfig
 fonts-dejavu-core
 python3-jeepney
+
+# The libraries of the buildbot's RetroArch binary (the list of
+# tools/emulators/retroarch.sh): installed here so its installer, which runs as
+# the user of the image and cannot use apt, finds nothing missing
+libasound2t64
+libpulse0
+libfreetype6
+libfontconfig1
+libwayland-egl1
+libwayland-client0
+libwayland-cursor0
+libx11-6
+libxxf86vm1
+libxinerama1
+libxrandr2
+libx11-xcb1
+libxcb1
+libxi6
+libxkbcommon0
+libudev1
+libgbm1
+libdrm2
+libgl1
+libegl1
+libsdl2-2.0-0
+libv4l-0t64

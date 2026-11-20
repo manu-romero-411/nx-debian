@@ -10,7 +10,7 @@ a newer kernel now, and we stay on trixie.
 
 Why:
 
-- The L4T userspace (`nvidia-l4t-*`, Xorg 1.20.14) and the Tegra X1 drivers
+- The L4T userspace (`nvidia-l4t-*`, Xorg 1.20.13) and the Tegra X1 drivers
   are tied to that kernel; a newer one means maintaining that stack ourselves.
 - Debian 13 works with it. systemd 257 still supports cgroup v1, which this
   kernel needs; the 30 s wait it causes at boot is avoided with

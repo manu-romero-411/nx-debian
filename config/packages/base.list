@@ -21,6 +21,8 @@ openssh-server
 # to a plain prompt and complains about every package that asks something)
 nano
 whiptail
+# The system at a glance, in a terminal or over ssh
+fastfetch
 
 # Network and Bluetooth
 network-manager
@@ -43,3 +45,5 @@ systemd-zram-generator
 # Console tools for diagnosing on the device (killall, chvt)
 psmisc
 kbd
+# The font of the text consoles (Terminus 8x16: nxd-common sets it)
+console-setup

@@ -45,6 +45,7 @@ Common to both:
   which the user at the console can change without a password: from the
   overlay in `retrobox`, from the panel indicator in `xfce`. The fan mode and the
   charge limit are kept across reboots.
+* **Text consoles** in Terminus 8x16, and `fastfetch`.
 * **A quiet boot** (no kernel or systemd text on the screen), and a reboot that
   goes back to Hekate's menu.
 * **Installers for Hekate**: the system is an ext4 image in parts that fit
@@ -72,8 +73,8 @@ Common to both:
   its first start.
 * ROMs, BIOS and saves in the SD card's FAT32 partition (`/sdcard/retrobox`),
   the one Hekate, Android and a PC see too.
-* The volume buttons change the volume; the power button suspends (a long press
-  turns the console off).
+* The volume buttons change the volume and show it at the top of the screen;
+  the power button suspends (a long press turns the console off).
 * The picom compositor (vsync, and the overlay over a running game).
 
 ---

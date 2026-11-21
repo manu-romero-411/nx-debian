@@ -444,7 +444,9 @@ option is ignored. If the screen is still black after that, the logs are
     EmulationStation opens its keyboard setup when it sees keys of a keyboard
     that has no configuration.
   - The session's Openbox `rc.xml` takes those keys before EmulationStation
-    does: volume up / down / mute run `/usr/bin/nxd-volume` (steps of 5 %
+    does: volume up / down / mute run `/usr/bin/nxd-volume`, which hands them to
+    `retrobox-overlay --volume` (the same steps, and the volume toast the
+    image turns on in `/etc/retrobox/overlay.ini`), or else does them itself (steps of 5 %
     of the default PulseAudio output, `pactl`), and the power key is only
     grabbed.
   - `etc/systemd/logind.conf.d/10-nxd-power.conf`: a tap on the power button

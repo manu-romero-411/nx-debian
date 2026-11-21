@@ -93,6 +93,27 @@ check "NVIDIA's and CTCaer's copyrights are kept" grep -q 'Copyright (c) 2021, C
 check "the indicator starts in XFCE only" grep -qx 'OnlyShowIn=XFCE;' "${NXD_ROOT}/packages/nxd-xfce/root/etc/xdg/autostart/nxd-nvpmodel-indicator.desktop"
 check "nxd-xfce brings Ayatana for it" grep -q 'gir1.2-ayatanaappindicator3-0.1' <<< "$(dpkg-deb -f "${XFCE}" Depends)"
 
+## the console's text, the volume toast
+
+OVINI="${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/overlay.ini"
+check "the overlay shows the volume toast" bash -c "awk '/^\\[/{s=\$0} /^toast = true\$/{f=(s==\"[volume]\")} END{exit !f}' '${OVINI}'"
+check "...from a conffile of nxd-retrobox" \
+    grep -qx '/etc/retrobox/overlay.ini' <<< "$(dpkg-deb --ctrl-tarfile "${RETRO}" | tar -xO ./conffiles)"
+mkdir -p "${tmp}/fakebin"
+printf '#!/bin/sh\necho "overlay $*" > "%s/overlay-called"\n' "${tmp}" > "${tmp}/fakebin/retrobox-overlay"
+chmod +x "${tmp}/fakebin/retrobox-overlay"
+VOLUME="${NXD_ROOT}/packages/nxd-retrobox/root/usr/bin/nxd-volume"
+PATH="${tmp}/fakebin:${PATH}" "${VOLUME}" up
+check "the volume buttons go through the overlay (its toast)" grep -qx 'overlay --volume up' "${tmp}/overlay-called"
+check_not "nxd-volume refuses anything else" "${VOLUME}" louder
+check "nxd-common sets Terminus 8x16 for the consoles" \
+    grep -q "s/^FONTFACE=.*/FONTFACE=\"Terminus\"/' -e 's/^FONTSIZE=.*/FONTSIZE=\"8x16\"/" "${CPKG}/DEBIAN/postinst"
+# shellcheck disable=SC2016 # the literal text of the script
+check "...only on a first install" grep -q '\[ -n "${2:-}" \] || console_font' "${CPKG}/DEBIAN/postinst"
+check "...and in debconf, so that console-setup keeps it" grep -q 'console-setup/fontface47 select Terminus' "${CPKG}/DEBIAN/postinst"
+check "nxd-common needs console-setup" grep -q 'console-setup' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
+check "fastfetch is in every image" grep -qx 'fastfetch' "${NXD_ROOT}/config/packages/base.list"
+
 # the version from git, in a repository of its own
 repo="${tmp}/repo"
 git init -q "${repo}"

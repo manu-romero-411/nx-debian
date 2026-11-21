@@ -34,6 +34,24 @@ modules() {
     done
 }
 
+# console_font: Terminus (regular, not bold), 8x16, for the text consoles,
+# in /etc/default/console-setup and in debconf (so that a dpkg-reconfigure of
+# console-setup keeps it). Only on the first install: a font chosen later stays.
+console_font() {
+    file=/etc/default/console-setup
+    [ -f "${file}" ] || return 0
+    for key in FONTFACE FONTSIZE; do
+        grep -q "^${key}=" "${file}" || echo "${key}=" >> "${file}"
+    done
+    sed -i -e 's/^FONTFACE=.*/FONTFACE="Terminus"/' -e 's/^FONTSIZE=.*/FONTSIZE="8x16"/' "${file}"
+    if command -v debconf-set-selections > /dev/null 2>&1; then
+        printf '%s\n' \
+            "console-setup console-setup/fontface47 select Terminus" \
+            "console-setup console-setup/fontsize-text47 select 8x16" \
+            "console-setup console-setup/fontsize-fb47 select 8x16" | debconf-set-selections
+    fi
+}
+
 units() {
     unit=nxd-nvpmodel-restore.service
     deb-systemd-helper unmask "${unit}" > /dev/null || true
@@ -46,6 +64,8 @@ units() {
 
 case "${1:-}" in
     configure)
+        # $2 is the version that was installed before: none on a first install
+        [ -n "${2:-}" ] || console_font
         units
         firmware
         modules

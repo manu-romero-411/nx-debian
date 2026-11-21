@@ -12,13 +12,15 @@
 
 import os
 import signal
+import sys
 import gi
+# nxd-xfce: the nvpmodel module and the icons are switch-bsp's, in its folder
+sys.path.insert(0, '/usr/share/nvpmodel_indicator')
 import nvpmodel as nvpm
 import subprocess
 import time
 import threading
 import re
-import sys
 import glob
 
 gi.require_version("Gtk", "3.0")
@@ -48,7 +50,10 @@ else:
 
 JOYCON_MAP = os.path.abspath('/usr/share/nvpmodel_indicator/jc_map.png')
 
-nvpmodel_helper_path = "/usr/share/nvpmodel_indicator/nvpmodel_helper.sh"
+# nxd-xfce: nxd-common's helper (validated input, run through pkexec with the
+# polkit policy org.nxd.nvpmodel-helper), for this file and for nvpmodel.py
+nvpmodel_helper_path = "/usr/lib/nxd/nvpmodel-helper"
+nvpm.nvpmodel_helper_path = nvpmodel_helper_path
 
 GET_COLOR_MODE = '1'
 SET_COLOR_MODE = '2'
@@ -282,10 +287,9 @@ def set_chg_mode(item, mode_id):
             dialog.format_secondary_text( "This protects battery against prolonged high voltage which decreases capacity life!\n\nIt also disables charging at sleep!\n\n(The protection does not continue outside of L4T)")
             dialog.run()
             dialog.destroy()
-        success = cm.set_mode(mode_id, ['pkexec'])
-        if not success and confirm_reboot():
-            cm.set_mode(mode_id, ['pkexec'], force=True)
-            return
+        # nxd-xfce: as root, through the helper (nvpmodel.py's set_mode writes
+        # to sysfs as the user)
+        subprocess.call(['pkexec', nvpmodel_helper_path, '7', str(mode_id)])
 
 def set_cm_mode(item, mode_id):
     cur_mode = subprocess.call([nvpmodel_helper_path, GET_COLOR_MODE])
@@ -296,7 +300,7 @@ def set_cm_mode(item, mode_id):
             if cur_mode == 0:
                 cur_mode = 4
             mode_id = cur_mode + 4;
-        subprocess.call([nvpmodel_helper_path, SET_COLOR_MODE, str(mode_id)])
+        subprocess.call(['pkexec', nvpmodel_helper_path, SET_COLOR_MODE, str(mode_id)])
 
 def do_tegrastats(_):
     cmd = "x-terminal-emulator -e pkexec tegrastats-l4t".split()
@@ -333,9 +337,9 @@ def do_auto_profiles(self):
         return
     auto_profiles = self.get_active()
     if auto_profiles:
-        subprocess.call([nvpmodel_helper_path, SET_AUTO_PROFILES, '1'])
+        subprocess.call(['pkexec', nvpmodel_helper_path, SET_AUTO_PROFILES, '1'])
     else:
-        subprocess.call([nvpmodel_helper_path, SET_AUTO_PROFILES, '0'])
+        subprocess.call(['pkexec', nvpmodel_helper_path, SET_AUTO_PROFILES, '0'])
 
 def build_menu():
     global main_menu

@@ -65,6 +65,34 @@ check "--variant retrobox builds both" bash -c \
     "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant retrobox '${tmp}/rb' && test \"\$(ls '${tmp}/rb' | wc -l)\" -eq 2"
 check_not "a version that is not one is refused" "${NXD_ROOT}/scripts/build-packages.sh" --version v1 "${tmp}/bad"
 
+## the performance backend (nxd-common) and indicator (nxd-xfce)
+
+CPKG="${NXD_ROOT}/packages/nxd-common"
+HELPER="${CPKG}/root/usr/lib/nxd/nvpmodel-helper"
+POLICY="${CPKG}/root/usr/share/polkit-1/actions/org.nxd.nvpmodel.policy"
+check "the helper is in nxd-common" grep -q '\./usr/lib/nxd/nvpmodel-helper$' <<< "$(dpkg-deb -c "${COMMON}")"
+check "the policy is in nxd-common" grep -q 'org.nxd.nvpmodel.policy$' <<< "$(dpkg-deb -c "${COMMON}")"
+check "the user at the console needs no password" test "$(grep -c '<allow_active>yes</allow_active>' "${POLICY}")" -eq 2
+check "anyone else needs an administrator's" test "$(grep -c '<allow_any>auth_admin</allow_any>' "${POLICY}")" -eq 2
+check "the policy covers nvpmodel (the overlay runs it)" grep -q '>/usr/sbin/nvpmodel<' "${POLICY}"
+check "...and the helper" grep -q '>/usr/lib/nxd/nvpmodel-helper<' "${POLICY}"
+check "nxd-common needs pkexec" grep -q 'pkexec' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
+check "the saved settings are applied at boot" grep -qx 'ExecStart=/usr/lib/nxd/nvpmodel-helper restore' \
+    "${CPKG}/root/usr/lib/systemd/system/nxd-nvpmodel-restore.service"
+check "...by a unit nxd-common enables" grep -q 'unit=nxd-nvpmodel-restore.service' "${CPKG}/DEBIAN/postinst"
+check_not "the helper refuses what is not a number" "${HELPER}" 10 '1; rm -rf /'
+check "...with its usage status" bash -c "'${HELPER}' 7 abc; test \$? -eq 2"
+check_not "the helper needs an action" "${HELPER}"
+check_not "no file is opened to everyone" grep -q 'chmod 666' "${HELPER}"
+IND="${NXD_ROOT}/packages/nxd-xfce/root/usr/share/nxd/nvpmodel-indicator/nvpmodel_indicator.py"
+check "the indicator compiles" python3 -m py_compile "${IND}"
+check "the indicator uses nxd-common's helper" grep -q '^nvpmodel_helper_path = "/usr/lib/nxd/nvpmodel-helper"$' "${IND}"
+check "...for switch-bsp's nvpmodel module too" grep -q '^nvpm.nvpmodel_helper_path = nvpmodel_helper_path$' "${IND}"
+check_not "...and never writes as the user through it" grep -qE "subprocess.call\(\[nvpmodel_helper_path, (SET_|'7'|'10')" "${IND}"
+check "NVIDIA's and CTCaer's copyrights are kept" grep -q 'Copyright (c) 2021, CTCaer' "${IND}"
+check "the indicator starts in XFCE only" grep -qx 'OnlyShowIn=XFCE;' "${NXD_ROOT}/packages/nxd-xfce/root/etc/xdg/autostart/nxd-nvpmodel-indicator.desktop"
+check "nxd-xfce brings Ayatana for it" grep -q 'gir1.2-ayatanaappindicator3-0.1' <<< "$(dpkg-deb -f "${XFCE}" Depends)"
+
 # the version from git, in a repository of its own
 repo="${tmp}/repo"
 git init -q "${repo}"

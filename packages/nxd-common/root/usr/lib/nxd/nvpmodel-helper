@@ -1,0 +1,120 @@
+#!/bin/sh
+# nvpmodel-helper: the root side of the Switch's performance settings, for the
+# nvpmodel indicator (XFCE) and anything else run through pkexec (polkit:
+# /usr/share/polkit-1/actions/org.nxd.nvpmodel.policy). Based on the
+# nvpmodel_helper.sh of switch-bsp's indicator, with fan modes added.
+#
+#   nvpmodel-helper N [VALUE]   the indicator's numbered actions (below); a
+#                               "get" returns its answer as the exit status
+#   nvpmodel-helper restore     applies the saved fan mode, charging limit and
+#                               panel colour mode (nxd-nvpmodel-restore.service)
+#
+#    1 get the panel colour mode       2 set it            3 is it supported?
+#    4 get "auto profiles"             5 set it
+#    6 get the charging limit          7 set it            8 is it supported?
+#    9 get the saved charging limit
+#   10 set the fan mode (0 docked, 1 handheld, 2 cool, 3 full speed)
+#   11 get the fan mode
+set -u
+
+state=/var/lib/nvpmodel
+panel=/sys/devices/50000000.host1x/tegradc.0/panel_color_mode
+charge=/sys/class/power_supply/usb/charge_control_limit
+
+# number VALUE: VALUE, if it is a whole number (anything else stops here)
+number() {
+    case "${1:-}" in
+        '' | *[!0-9]*)
+            echo "nvpmodel-helper: not a number: ${1:-}" >&2
+            exit 2
+            ;;
+        *) echo "$1" ;;
+    esac
+}
+
+saved() {
+    cat "${state}/$1" 2> /dev/null || echo 0
+}
+
+save() {
+    mkdir -p "${state}"
+    echo "$2" > "${state}/$1"
+}
+
+# fan MODE: the speed of the fan, set by hand (the kernel's thermal control is
+# turned off, as in the indicator's "full speed" mode)
+fan() {
+    case "$1" in
+        1) pwm=77 profile=Handheld ;;
+        2) pwm=192 profile=Cool ;;
+        3) pwm=255 profile=Cool ;;
+        *) pwm=128 profile=Console ;;
+    esac
+    save custom_fan_mode "$1"
+    for dir in /sys/devices/pwm-fan /sys/bus/platform/devices/pwm-fan; do
+        [ -d "${dir}" ] || continue
+        # the profile first: changing it can reset the caps
+        [ ! -w "${dir}/fan_profile" ] || echo "${profile}" > "${dir}/fan_profile"
+        [ ! -w "${dir}/state_cap" ] || echo 9 > "${dir}/state_cap"
+        [ ! -w "${dir}/pwm_cap" ] || echo 255 > "${dir}/pwm_cap"
+        [ ! -w "${dir}/step_time" ] || echo 20 > "${dir}/step_time"
+        [ ! -w "${dir}/temp_control" ] || echo 0 > "${dir}/temp_control"
+        [ ! -w "${dir}/tach_enable" ] || echo 1 > "${dir}/tach_enable"
+        [ ! -w "${dir}/target_pwm" ] || echo "${pwm}" > "${dir}/target_pwm"
+        break
+    done
+    for dir in /sys/devices/platform/thermal-fan-est /sys/devices/thermal-fan-est; do
+        [ ! -w "${dir}/fan_profile" ] || echo "${profile}" > "${dir}/fan_profile"
+    done
+    # nvpmodel's status file names the fan mode too
+    if [ -f "${state}/status" ]; then
+        sed -i "s/fmode:[^ ]*/fmode:${profile}/" "${state}/status"
+    else
+        save status "pmode:0000 fmode:${profile}"
+    fi
+}
+
+case "${1:-}" in
+    1) exit "$(cat "${panel}" 2> /dev/null || echo 0)" ;;
+    2)
+        value="$(number "${2:-}")" || exit 2
+        [ -e "${panel}" ] || exit 1
+        echo "${value}" > "${panel}"
+        save color_mode "${value}"
+        ;;
+    3) [ -e "${panel}" ] && exit 1 || exit 0 ;;
+    4) [ "$(saved auto_profiles)" = 0 ] && exit 0 || exit 1 ;;
+    5)
+        value="$(number "${2:-}")" || exit 2
+        save auto_profiles "${value}"
+        ;;
+    6) exit "$(cat "${charge}" 2> /dev/null || echo 0)" ;;
+    7)
+        value="$(number "${2:-}")" || exit 2
+        [ ! -e "${charge}" ] || echo "${value}" > "${charge}"
+        save charging_status "${value}"
+        ;;
+    8) [ -e "${charge}" ] && exit 1 || exit 0 ;;
+    9) exit "$(saved charging_status)" ;;
+    10)
+        value="$(number "${2:-}")" || exit 2
+        fan "${value}"
+        ;;
+    11) exit "$(saved custom_fan_mode)" ;;
+    restore)
+        if value="$(number "$(saved custom_fan_mode)")" && [ -f "${state}/custom_fan_mode" ]; then
+            fan "${value}"
+        fi
+        if value="$(number "$(saved charging_status)")" && [ -f "${state}/charging_status" ] && [ -e "${charge}" ]; then
+            echo "${value}" > "${charge}"
+        fi
+        if value="$(number "$(saved color_mode)")" && [ -f "${state}/color_mode" ] && [ -e "${panel}" ]; then
+            echo "${value}" > "${panel}"
+        fi
+        ;;
+    *)
+        sed -n '2,18p' "$0" | sed 's/^# \{0,1\}//' >&2
+        exit 2
+        ;;
+esac
+exit 0

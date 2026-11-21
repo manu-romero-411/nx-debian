@@ -1,0 +1,12 @@
+[Unit]
+Description=Apply the saved fan mode, charging limit and panel colour mode
+Documentation=https://github.com/manu-romero-411/nx-debian/blob/main/docs/packages.md
+After=nvpmodel.service
+ConditionPathIsDirectory=/var/lib/nvpmodel
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/nxd/nvpmodel-helper restore
+
+[Install]
+WantedBy=multi-user.target

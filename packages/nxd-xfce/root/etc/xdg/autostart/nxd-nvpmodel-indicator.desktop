@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Performance and fan
+Comment=Performance profiles, fan modes and battery charge limit of the Switch
+Exec=/usr/share/nxd/nvpmodel-indicator/nvpmodel_indicator.py
+Icon=/usr/share/nvpmodel_indicator/nvpmodel-switch.svg
+Terminal=false
+NoDisplay=true
+OnlyShowIn=XFCE;

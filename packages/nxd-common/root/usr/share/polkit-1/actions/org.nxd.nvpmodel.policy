@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<!-- nxd-common: the Switch's performance settings, through pkexec, for the
+     user at the console (the active session): the Retrobox overlay and the
+     XFCE indicator change them without asking. A session that is not the
+     active one (ssh, another seat) needs an administrator's password. -->
+<policyconfig>
+  <action id="org.nxd.nvpmodel">
+    <description>Change the Switch's performance profile</description>
+    <message>Authentication is required to change the performance profile</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/sbin/nvpmodel</annotate>
+  </action>
+  <action id="org.nxd.nvpmodel-helper">
+    <description>Change the Switch's fan, charging and panel settings</description>
+    <message>Authentication is required to change the fan, charging and panel settings</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/nxd/nvpmodel-helper</annotate>
+  </action>
+</policyconfig>

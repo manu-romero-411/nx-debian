@@ -1,5 +1,8 @@
 #!/bin/sh
-# nxd-common: the Switch's Wi-Fi/Bluetooth chip asks for firmware files under
+# nxd-common: enables nxd-nvpmodel-restore.service the first time (an upgrade
+# keeps what the administrator chose).
+#
+# The Switch's Wi-Fi/Bluetooth chip asks for firmware files under
 # other names than the ones the L4T packages ship: link them, and rebuild the
 # module dependencies of the L4T kernel (4.9.140-l4t). Run on install and again
 # whenever a package changes those folders (see triggers). Everything is
@@ -31,8 +34,23 @@ modules() {
     done
 }
 
+units() {
+    unit=nxd-nvpmodel-restore.service
+    deb-systemd-helper unmask "${unit}" > /dev/null || true
+    if deb-systemd-helper --quiet was-enabled "${unit}"; then
+        deb-systemd-helper enable "${unit}" > /dev/null || true
+    else
+        deb-systemd-helper update-state "${unit}" > /dev/null || true
+    fi
+}
+
 case "${1:-}" in
-    configure | triggered)
+    configure)
+        units
+        firmware
+        modules
+        ;;
+    triggered)
         firmware
         modules
         ;;

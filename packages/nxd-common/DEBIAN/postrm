@@ -1,7 +1,16 @@
 #!/bin/sh
-# nxd-common: on purge, the firmware names postinst made (they belong to no
-# package) go too.
+# nxd-common: forgets nxd-nvpmodel-restore.service; on purge, the firmware
+# names postinst made (they belong to no package) go too.
 set -eu
+
+case "${1:-}" in
+    remove) deb-systemd-helper mask nxd-nvpmodel-restore.service > /dev/null || true ;;
+    purge)
+        deb-systemd-helper purge nxd-nvpmodel-restore.service > /dev/null || true
+        deb-systemd-helper unmask nxd-nvpmodel-restore.service > /dev/null || true
+        ;;
+    *) ;;
+esac
 
 if [ "${1:-}" = purge ]; then
     fwdir=/usr/lib/firmware/brcm

@@ -41,6 +41,10 @@ Common to both:
 * **The hardware**: the L4T 4.9 kernel and boot files of Switchroot's
   `switch-bsp`, NVIDIA's Tegra X1 drivers and the Xorg server they are built
   for, Wi-Fi and Bluetooth, the integrated pad and the Joy-Cons, PulseAudio.
+* **Performance profiles** (`nvpmodel`), fan modes and a battery charge limit,
+  which the user at the console can change without a password: from the
+  overlay in `retrobox`, from the panel indicator in `xfce`. The fan mode and the
+  charge limit are kept across reboots.
 * **A quiet boot** (no kernel or systemd text on the screen), and a reboot that
   goes back to Hekate's menu.
 * **Installers for Hekate**: the system is an ext4 image in parts that fit
@@ -52,8 +56,8 @@ Common to both:
 * `switch-rotate`, which turns the screen and the touchscreen together, at
   once, and keeps the choice for the next login (button in the top panel).
 * A top panel with the applications menu, windows, rotation, volume, battery,
-  the SoC temperature and the fan (`switch-sensors`), Wi-Fi (nm-applet),
-  Bluetooth (Blueman), the clock and the session actions; a bottom launcher bar,
+  the SoC temperature and the fan (`switch-sensors`), the performance indicator,
+  Wi-Fi (nm-applet), Bluetooth (Blueman), the clock and the session actions; a bottom launcher bar,
   hidden until the pointer gets there (terminal, files, Firefox ESR, finder).
 * The Adwaita theme, Firefox ESR and Thunar as default applications, and
   Onboard, the on-screen keyboard, in the menu.

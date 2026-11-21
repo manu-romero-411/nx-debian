@@ -4,10 +4,13 @@ Architecture: all
 Maintainer: Manuel Jesús Romero Mateos <manu4.2012@gmail.com>
 Section: admin
 Priority: optional
-Depends: bash, curl, jq, ca-certificates, apt, dpkg (>= 1.17), coreutils
+Depends: bash, curl, jq, ca-certificates, apt, dpkg (>= 1.17), coreutils, pkexec, polkitd
 Homepage: https://github.com/manu-romero-411/nx-debian
 Description: Debian on the Nintendo Switch: files of every image
  The system files of the nx-debian images that no Debian or L4T package
  ships: the lightdm seat settings for the Switch's display, the firmware
- names its Wi-Fi/Bluetooth chip asks for, and nxd-update, which updates the
- system, these packages and the Retrobox packages from their GitHub releases.
+ names its Wi-Fi/Bluetooth chip asks for, the performance backend (a polkit
+ policy so that the user at the console can change the nvpmodel profile, the
+ fan mode and the charge limit through pkexec, and the service that applies
+ the saved ones at boot), and nxd-update, which updates the system, these
+ packages and the Retrobox packages from their GitHub releases.

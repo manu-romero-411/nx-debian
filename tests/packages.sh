@@ -112,7 +112,9 @@ release() {
         names+=("${asset}")
     done
     (cd "${dir}" && sha256sum -- "${names[@]}" > SHA256SUMS)
-    [[ "${badsum}" -eq 0 ]] || sed -i '1s/^./0/; 1s/^00/11/' "${dir}/SHA256SUMS"
+    # a checksum no file has (changing one character of the real one could
+    # leave it as it was)
+    [[ "${badsum}" -eq 0 ]] || sed -i -E "1s/^[0-9a-f]{64}/$(printf '%064d' 0)/" "${dir}/SHA256SUMS"
     names+=(SHA256SUMS)
     for name in "${names[@]}"; do
         assets="$(jq -c --arg n "${name}" --arg u "${BASE}/dl/${repo}/${tag}/${name}" '. + [{name: $n, browser_download_url: $u}]' <<< "${assets}")"

@@ -5,10 +5,11 @@ Maintainer: Manuel Jesús Romero Mateos <manu4.2012@gmail.com>
 Section: games
 Priority: optional
 Depends: nxd-common (= @VERSION@), openbox, picom, pulseaudio-utils, dosfstools, util-linux, mount
+Recommends: retrobox-session-openbox
 Homepage: https://github.com/manu-romero-411/nx-debian
 Description: Debian on the Nintendo Switch: the Retrobox console
- The system files of the nx-debian Retrobox image: its Openbox session
- (nxd-retrobox, with the picom compositor), Retrobox's settings for the
+ The system files of the nx-debian Retrobox image: what its Openbox session
+ (retrobox-openbox, from retrobox-session-openbox) needs for the Switch, Retrobox's settings for the
  Switch (console mode, ROMs, BIOS and saves on the SD card), the SD card's
  FAT32 partition mounted in /sdcard, the volume and power buttons, and the
  default EmulationStation pad and text size.

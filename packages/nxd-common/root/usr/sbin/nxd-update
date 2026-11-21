@@ -10,7 +10,10 @@
 #      nxd-<variant>, the Retrobox packages...): for each repository, the
 #      newest release, and from it the .deb files of packages that are
 #      installed here and newer than what is installed, checked against the
-#      release's SHA256SUMS. Packages that are not installed are not added.
+#      release's SHA256SUMS. Packages that are not installed are not added,
+#      except the ones a list names after its repository (REPO PACKAGE...):
+#      those are installed if they are not yet, so a console gets what its
+#      image would have today.
 #   3. apt-get autoremove --purge and apt-get clean.
 #
 # Only releases GitHub does not mark as pre-releases are used, unless
@@ -143,9 +146,13 @@ sha_of() {
 
 # fetch REPO DIR: downloads into DIR the packages of REPO to install; prints
 # their paths
+# fetch REPO DIR [PACKAGE...]: the packages of REPO's release that are
+# installed; when the list names packages, those, installed or not (so a
+# console gets a package its image did not have yet).
 fetch() {
     local repo="$1" dir="$2" json tag kind sums_name sums name file package version installed expected
-    local -a names=() chosen=() wanted=()
+    shift 2
+    local -a names=() chosen=() wanted=() listed=("$@")
     json="$(release "${repo}")" || { warn "cannot read the releases of ${repo} (rate limited? set GITHUB_TOKEN)"; return 0; }
     if [[ -z "${json}" ]]; then
         log "${repo}: no release with packages"
@@ -157,7 +164,11 @@ fetch() {
     mapfile -t chosen < <(printf '%s\n' "${names[@]}" | select_assets) || true
     for name in "${chosen[@]}"; do
         package="${name%%_*}"
-        [[ -n "$(installed_version "${package}")" ]] && wanted+=("${name}")
+        if ((${#listed[@]} > 0)); then
+            [[ " ${listed[*]} " == *" ${package} "* ]] && wanted+=("${name}")
+        elif [[ -n "$(installed_version "${package}")" ]]; then
+            wanted+=("${name}")
+        fi
     done
     if ((${#wanted[@]} == 0)); then
         log "${repo} ${tag}${kind}: none of its packages is installed"
@@ -189,7 +200,10 @@ fetch() {
         package="$(dpkg-deb -f "${file}" Package)"
         version="$(dpkg-deb -f "${file}" Version)"
         installed="$(installed_version "${package}")"
-        if dpkg --compare-versions "${version}" gt "${installed}"; then
+        if [[ -z "${installed}" ]]; then
+            log "${repo} ${tag}${kind}: ${package} ${version} (new)"
+            printf '%s\n' "${file}"
+        elif dpkg --compare-versions "${version}" gt "${installed}"; then
             log "${repo} ${tag}${kind}: ${package} ${installed} -> ${version}"
             printf '%s\n' "${file}"
         else
@@ -204,10 +218,11 @@ releases() {
     local dir="$1" list repo
     shopt -s nullglob
     for list in "${LISTS_DIR}"/*.list; do
+        # "REPO [PACKAGE...]"
         while IFS= read -r repo; do
             repo="${repo%%#*}"
-            repo="${repo//[[:space:]]/}"
-            [[ -z "${repo}" ]] || fetch "${repo}" "${dir}"
+            read -r -a fields <<< "${repo}" || true
+            ((${#fields[@]} == 0)) || fetch "${fields[@]:0:1}" "${dir}" "${fields[@]:1}"
         done < "${list}"
     done
 }

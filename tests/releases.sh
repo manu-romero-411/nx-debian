@@ -94,6 +94,7 @@ release Org/both v1.0 false both_1.0_all.deb
 release Org/both v1.1 true both_1.1_all.deb
 release Org/nosums v1.0 false nosums nosums_1.0_all.deb
 release Org/noarch v1.0 false noarch_1.0_amd64.deb
+release Org/multi v1.0 false multi-common_1.0_all.deb multi-labwc_1.0_all.deb multi-openbox_1.0_all.deb
 
 (cd "${SITE}" && exec python3 -m http.server "${PORT}" --bind 127.0.0.1 > /dev/null 2>&1) &
 server=$!
@@ -157,6 +158,17 @@ release Org/core v1.0 false core_1.0_all.deb
 list "# the components" "" "Org/core   # first" "Org/es"
 fetch > /dev/null 2>&1 || true
 check "a list with comments and two repositories gives both" bash -c "[[ -f '${tmp}/out/core_1.0_all.deb' && -f '${tmp}/out/es_2.0_debian13_arm64.deb' ]]"
+
+# After a repository, the packages to take from it.
+list "Org/multi multi-common multi-openbox   # not its labwc one"
+fetch > /dev/null 2>&1 || true
+check "the packages a line names are taken" bash -c "[[ -f '${tmp}/out/multi-common_1.0_all.deb' && -f '${tmp}/out/multi-openbox_1.0_all.deb' ]]"
+check "...and only those" test ! -f "${tmp}/out/multi-labwc_1.0_all.deb"
+list "Org/multi"
+fetch > /dev/null 2>&1 || true
+check "without names, all of them" have multi-labwc_1.0_all.deb
+list "Org/multi multi-none"
+check_not "names that match no package are refused" fetch
 
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [[ "${FAIL}" -eq 0 ]]

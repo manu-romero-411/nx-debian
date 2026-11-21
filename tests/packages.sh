@@ -49,7 +49,7 @@ check "the files under /etc are conffiles" \
     grep -qx '/etc/retrobox/retrobox.ini.d/50-nxd.ini' <<< "$(dpkg-deb --ctrl-tarfile "${RETRO}" | tar -xO ./conffiles)"
 check "the files belong to root" test -z "$(dpkg-deb -c "${RETRO}" | awk '$2 != "root/root"')"
 check "nxd-update is executable" grep -q '^-rwxr-xr-x .*\./usr/sbin/nxd-update$' <<< "$(dpkg-deb -c "${COMMON}")"
-check "the session script is executable" grep -q '^-rwxr-xr-x .*\./usr/lib/nxd/retrobox-session$' <<< "$(dpkg-deb -c "${RETRO}")"
+check "the session's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox-system-settings/session.d/50-nxd-emulationstation$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
 check "--variant xfce builds nxd-common and nxd-xfce" bash -c \
     "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant xfce '${tmp}/xfce' && test \"\$(ls '${tmp}/xfce' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-xfce_1_all.deb '"
@@ -99,13 +99,7 @@ OVINI="${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/overlay.ini"
 check "the overlay shows the volume toast" bash -c "awk '/^\\[/{s=\$0} /^toast = true\$/{f=(s==\"[volume]\")} END{exit !f}' '${OVINI}'"
 check "...from a conffile of nxd-retrobox" \
     grep -qx '/etc/retrobox/overlay.ini' <<< "$(dpkg-deb --ctrl-tarfile "${RETRO}" | tar -xO ./conffiles)"
-mkdir -p "${tmp}/fakebin"
-printf '#!/bin/sh\necho "overlay $*" > "%s/overlay-called"\n' "${tmp}" > "${tmp}/fakebin/retrobox-overlay"
-chmod +x "${tmp}/fakebin/retrobox-overlay"
-VOLUME="${NXD_ROOT}/packages/nxd-retrobox/root/usr/bin/nxd-volume"
-PATH="${tmp}/fakebin:${PATH}" "${VOLUME}" up
-check "the volume buttons go through the overlay (its toast)" grep -qx 'overlay --volume up' "${tmp}/overlay-called"
-check_not "nxd-volume refuses anything else" "${VOLUME}" louder
+check_not "the volume buttons are retrobox-session-openbox's (retrobox-volume)" test -e "${NXD_ROOT}/packages/nxd-retrobox/root/usr/bin/nxd-volume"
 check "nxd-common sets Terminus 8x16 for the consoles" \
     grep -q "s/^FONTFACE=.*/FONTFACE=\"Terminus\"/' -e 's/^FONTSIZE=.*/FONTSIZE=\"8x16\"/" "${CPKG}/DEBIAN/postinst"
 # shellcheck disable=SC2016 # the literal text of the script
@@ -201,7 +195,7 @@ export NXD_GITHUB_API="${BASE}" NXD_ARCH=arm64 NXD_RELEASE_TAG_RE='debian[-_.]?1
 export NXD_RELEASES_DIR="${tmp}/lists" NXD_STATE_DIR="${tmp}/state" NXD_UPDATE_INSTALLED="${tmp}/installed"
 mkdir -p "${NXD_RELEASES_DIR}"
 printf '%s\n' "# nx-debian" Me/nxd > "${NXD_RELEASES_DIR}/nx-debian.list"
-printf '%s\n' Org/core Org/images > "${NXD_RELEASES_DIR}/retrobox.list"
+printf '%s\n' "Org/core core   # only its core package" Org/images > "${NXD_RELEASES_DIR}/retrobox.list"
 
 # update [FLAGS...]: the packages nxd-update would install, by file name
 update() {
@@ -228,6 +222,11 @@ mkdir -p "${NXD_STATE_DIR}"
 cp "${tmp}/dl/Me_nxd/state" "${NXD_STATE_DIR}/Me_nxd"
 update --allow-prereleases > /dev/null
 check "a release installed before is not downloaded again" grep -q 'Me/nxd nxd-latest (pre-release): up to date' "${tmp}/log"
+
+# the packages a list names come even when they are not installed yet
+printf '%s\n' "nxd-common 1.0.0" "nxd-retrobox 1.0.0" > "${NXD_UPDATE_INSTALLED}"
+check "a package the list names is installed when it is not yet" test "$(update)" = "core_2.0_arm64.deb "
+check "...and said to be new" grep -q 'Org/core v2.0: core 2.0 (new)' "${tmp}/log"
 
 printf '%s\n' "bad 1.0" > "${NXD_UPDATE_INSTALLED}"
 printf '%s\n' Org/bad > "${NXD_RELEASES_DIR}/retrobox.list"

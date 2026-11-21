@@ -1,6 +1,9 @@
 #!/bin/sh
 # nxd-retrobox: enables nxd-sdcard.service the first time (an upgrade keeps
-# what the administrator chose), the way debhelper does it.
+# what the administrator chose), the way debhelper does it; moves a console
+# from the old nxd-retrobox session to retrobox-openbox; and writes the
+# console's polkit rule for its user when it is missing (consoles made before
+# the image's hook config/hooks/retrobox/30-retrobox-polkit.sh did).
 set -eu
 
 unit=nxd-sdcard.service
@@ -15,4 +18,23 @@ case "${1:-}" in
         ;;
     *) ;;
 esac
+
+# The console's session is now retrobox-session-openbox's (retrobox-openbox):
+# a console set up with the old nxd-retrobox session logs into the new one.
+autologin=/etc/lightdm/lightdm.conf.d/50-nxd-autologin.conf
+if [ "${1:-}" = configure ] && [ -f "${autologin}" ] &&
+    grep -qx 'autologin-session=nxd-retrobox' "${autologin}"; then
+    sed -i 's/^autologin-session=nxd-retrobox$/autologin-session=retrobox-openbox/' "${autologin}"
+fi
+
+# needs retrobox-system-settings: when it comes in the same update but after
+# this package, the next update writes the rule
+rule=/etc/polkit-1/rules.d/50-retrobox-console.rules
+user="$(getent passwd 1000 | cut -d: -f1 || true)"
+if [ "${1:-}" = configure ] && [ ! -e "${rule}" ] && [ -n "${user}" ] &&
+    command -v retrobox-polkit-rule > /dev/null 2>&1; then
+    mkdir -p /etc/polkit-1/rules.d
+    retrobox-polkit-rule "${user}" > "${rule}"
+    chmod 644 "${rule}"
+fi
 exit 0

@@ -1,0 +1,15 @@
+#!/bin/sh
+# Run by retrobox-openbox-session (retrobox-session-openbox) at every start,
+# before Openbox: the defaults of EmulationStation for the Switch (its pad, the
+# Nintendo button layout, the text size) are put in the user's Retrobox
+# configuration when they are not there yet. EmulationStation rewrites those
+# files, so they are the user's from then on.
+set -eu
+
+share=/usr/share/nxd/retrobox
+config="${RETROBOX_CONFIGDIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/retrobox}"
+frontend="${config}/frontend/.emulationstation"
+mkdir -p "${frontend}"
+for file in es_input.cfg es_settings.cfg; do
+    [ -e "${frontend}/${file}" ] || cp "${share}/emulationstation/${file}" "${frontend}/${file}"
+done

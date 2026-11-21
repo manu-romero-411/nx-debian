@@ -1,7 +1,0 @@
-[Desktop Entry]
-Name=Retrobox
-Comment=The Retrobox console: Openbox, picom and Retrobox
-Exec=/usr/lib/nxd/retrobox-session
-TryExec=/usr/lib/nxd/retrobox-session
-Type=Application
-DesktopNames=Retrobox

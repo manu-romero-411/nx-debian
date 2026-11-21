@@ -1,5 +1,6 @@
 #!/bin/sh
-# nxd-retrobox: forgets nxd-sdcard.service on removal and purge.
+# nxd-retrobox: forgets nxd-sdcard.service on removal and purge, and the
+# console's polkit rule (written by its postinst) on purge.
 set -eu
 
 unit=nxd-sdcard.service
@@ -13,6 +14,7 @@ case "${1:-}" in
     purge)
         deb-systemd-helper purge "${unit}" > /dev/null || true
         deb-systemd-helper unmask "${unit}" > /dev/null || true
+        rm -f /etc/polkit-1/rules.d/50-retrobox-console.rules
         ;;
     *) ;;
 esac

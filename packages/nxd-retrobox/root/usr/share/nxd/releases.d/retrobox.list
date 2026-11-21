@@ -1,7 +1,10 @@
 # GitHub repositories whose releases bring the Retrobox packages, in install
 # order: the image installs them at build time (scripts/fetch-releases.sh),
-# nxd-update updates the installed ones.
+# nxd-update updates the installed ones. After a repository, the names of the
+# packages to take from it, when not all of them.
 RetroboxProject/retrobox-core
+# the console's Openbox session and system settings (not its labwc session)
+RetroboxProject/retrobox-system-settings retrobox-system-settings retrobox-session-openbox
 RetroboxProject/retrobox-mangohud
 RetroboxProject/retrobox-emulationstation
 RetroboxProject/retrobox-overlay

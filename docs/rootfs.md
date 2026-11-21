@@ -249,18 +249,23 @@ main package list, so their dependencies come from Debian. `--releases-dir D`
 uses the `.deb` files in `D` instead (offline builds, tests), and
 `--no-releases` skips them.
 
-`retrobox` installs `retrobox-core`, `retrobox-mangohud`,
-`retrobox-emulationstation` and `retrobox-overlay`. lightdm logs the user into
-the `nxd-retrobox` session (`/usr/share/xsessions/nxd-retrobox.desktop`, from
-the nxd-retrobox package): `/usr/lib/nxd/retrobox-session` runs Openbox with
-the console's `rc.xml` (`/usr/share/nxd/retrobox/openbox`, unless the user has
-an `~/.config/openbox/rc.xml`) and `/usr/lib/nxd/retrobox-autostart` as its
-startup command, which starts the picom compositor (`picom -b --config
-/dev/null --backend glx --vsync`: vsync against tearing, and compositing for
-the overlay's translucency over a game; no config file, so none of the shadows
-and fades of `/etc/xdg/picom.conf`) and then `retrobox &`. They are files of a
-package, not of the user's home, so an update of the package reaches every
-console. Their Recommends are not installed; add the ones you want
+`retrobox` installs `retrobox-core`, `retrobox-system-settings` and
+`retrobox-session-openbox` (from retrobox-system-settings' releases: not its
+labwc session), `retrobox-mangohud`, `retrobox-emulationstation` and
+`retrobox-overlay`. lightdm logs the user into the `retrobox-openbox` session
+(`/usr/share/xsessions/retrobox-openbox.desktop`, from
+retrobox-session-openbox), which first runs the steps of
+`/etc/retrobox-system-settings/session.d` (nxd-retrobox's
+`50-nxd-emulationstation`, below), then Openbox with the console's `rc.xml`
+(the volume and power keys) and, once it is up, the picom compositor (`picom -b
+--config /dev/null --backend glx --vsync`: vsync against tearing, and
+compositing for the overlay's translucency over a game; no config file, so none
+of the shadows and fades of `/etc/xdg/picom.conf`) and `retrobox &`. They are
+files of packages, not of the user's home, so an update reaches every console.
+The image's hook `config/hooks/retrobox/30-retrobox-polkit.sh` writes the
+console's polkit rule for the user (`retrobox-polkit-rule`): power off, reboot,
+and the time zone and keyboard layout that EmulationStation's console mode sets
+through `retrobox-system-settings`. Their Recommends are not installed; add the ones you want
 (for example the PySide6 settings window) to `config/packages/retrobox.list`.
 
 ## Building the installers (`nxd build`)
@@ -444,11 +449,11 @@ option is ignored. If the screen is still black after that, the logs are
     EmulationStation opens its keyboard setup when it sees keys of a keyboard
     that has no configuration.
   - The session's Openbox `rc.xml` takes those keys before EmulationStation
-    does: volume up / down / mute run `/usr/bin/nxd-volume`, which hands them to
-    `retrobox-overlay --volume` (the same steps, and the volume toast the
-    image turns on in `/etc/retrobox/overlay.ini`), or else does them itself (steps of 5 %
-    of the default PulseAudio output, `pactl`), and the power key is only
-    grabbed.
+    does: volume up / down / mute run retrobox-session-openbox's
+    `retrobox-volume`, which hands them to `retrobox-overlay --volume` (the
+    same steps, and the volume toast the image turns on in
+    `/etc/retrobox/overlay.ini`), or else does them itself (steps of 5 %,
+    `wpctl` or `pactl`), and the power key is only grabbed.
   - `etc/systemd/logind.conf.d/10-nxd-power.conf`: a tap on the power button
     suspends (standby), a long press powers off. Standby depends on the kernel
     and drivers of the Switch (4.9 L4T) and has not been verified on a device;

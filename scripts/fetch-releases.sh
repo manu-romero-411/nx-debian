@@ -9,6 +9,10 @@
 #
 #   fetch-releases.sh [--prereleases] NAME DEST_DIR
 #
+# A line of a list is a repository, optionally followed by the names of the
+# packages to take from its releases (all of them when none is given):
+#   RetroboxProject/retrobox-system-settings retrobox-system-settings retrobox-session-openbox
+#
 # Only the releases GitHub does not mark as pre-releases are used, unless
 # --prereleases (or NXD_PRERELEASES=1) asks for the newest release of each
 # repository, a pre-release or not: Retrobox keeps adding features, and its
@@ -106,11 +110,20 @@ verify() {
         die "checksum mismatch for ${name} (expected ${expected}, got ${actual})"
 }
 
+# only PACKAGE...: names on stdin; prints those of these packages (all with none).
+only() {
+    local name
+    while IFS= read -r name; do
+        if (($# == 0)) || [[ " $* " == *" ${name%%_*} "* ]]; then printf '%s\n' "${name}"; fi
+    done
+}
+
 mkdir -p "${DEST}"
-while IFS= read -r repo; do
-    repo="${repo%%#*}"
-    repo="${repo//[[:space:]]/}"
-    [[ -n "${repo}" ]] || continue
+while IFS= read -r line; do
+    line="${line%%#*}"
+    read -r repo packages <<< "${line}" || true
+    [[ -n "${repo:-}" ]] || continue
+    read -r -a wanted_packages <<< "${packages:-}" || true
     if [[ "${PRERELEASES}" == "1" ]]; then
         # the newest published release, pre-release or not (never a draft)
         json="$(api_get "${API}/repos/${repo}/releases?per_page=30" | jq '[.[] | select(.draft != true)][0]')" ||
@@ -124,7 +137,7 @@ while IFS= read -r repo; do
     [[ -n "${tag}" ]] || die "${repo} has no release"
     kind="$(jq -r 'if .prerelease then " (pre-release)" else "" end' <<< "${json}")"
     mapfile -t names < <(jq -r '.assets[].name' <<< "${json}")
-    mapfile -t chosen < <(printf '%s\n' "${names[@]}" | select_assets) || true
+    mapfile -t chosen < <(printf '%s\n' "${names[@]}" | select_assets | only "${wanted_packages[@]}") || true
     if ((${#chosen[@]} == 0)); then
         warn "assets of ${repo} ${tag}: ${names[*]}"
         die "${repo} ${tag} has no .deb for ${NXD_ARCH} (looking for ${NXD_ARCH} or all, tag ${TAG_RE})"

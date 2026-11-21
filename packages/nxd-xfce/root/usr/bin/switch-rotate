@@ -1,0 +1,92 @@
+#!/bin/sh
+# switch-rotate: turns the Switch's screen and its touchscreen together, at
+# once, without restarting the session.
+#
+#   switch-rotate landscape | portrait | inverted_landscape | inverted_portrait
+#   switch-rotate next        the next one, clockwise (the panel's button)
+#   switch-rotate --restore   the one saved last (run at login)
+#   switch-rotate --show      print the current one
+#
+# normal, left, inverted and right (xrandr's names) work too. The choice is
+# saved in ~/.config/nxd/rotation, so the next login starts with it.
+set -eu
+
+state="${XDG_CONFIG_HOME:-${HOME}/.config}/nxd/rotation"
+
+usage() {
+    sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+}
+
+# output: the screen xrandr has connected (DSI-0 is the Switch's own)
+output() {
+    xrandr --query | awk '/ connected/ { print $1; exit }'
+}
+
+# current: the rotation of the screen now, in xrandr's words
+current() {
+    xrandr --query --verbose |
+        awk -v out="$(output)" '$1 == out { for (i = 1; i <= NF; i++) if ($i ~ /^(normal|left|inverted|right)$/) { print $i; exit } }'
+}
+
+# canonical NAME: xrandr's word for NAME, or nothing
+canonical() {
+    case "$1" in
+        normal | landscape | 0) echo normal ;;
+        left | portrait | 90) echo left ;;
+        inverted | inverted_landscape | 180) echo inverted ;;
+        right | inverted_portrait | 270) echo right ;;
+        *) ;;
+    esac
+}
+
+# apply ROTATION: the screen, then every touchscreen
+apply() {
+    case "$1" in
+        normal) matrix="1 0 0 0 1 0 0 0 1" ;;
+        left) matrix="0 -1 1 1 0 0 0 0 1" ;;
+        inverted) matrix="-1 0 1 0 -1 1 0 0 1" ;;
+        right) matrix="0 1 0 -1 0 1 0 0 1" ;;
+        *) return 1 ;;
+    esac
+    xrandr --output "$(output)" --rotate "$1"
+    # one name per line: names have spaces
+    xinput list --name-only | grep -iE 'touch|stmfts|goodix' | while IFS= read -r device; do
+        # shellcheck disable=SC2086 # the matrix is nine words
+        xinput set-prop "${device}" --type=float "Coordinate Transformation Matrix" ${matrix} || true
+    done
+    mkdir -p "$(dirname "${state}")"
+    echo "$1" > "${state}"
+}
+
+case "${1:-}" in
+    -h | --help)
+        usage
+        exit 0
+        ;;
+    --show)
+        current
+        exit 0
+        ;;
+    --restore)
+        [ -s "${state}" ] || exit 0
+        rotation="$(canonical "$(cat "${state}")")"
+        [ -n "${rotation}" ] || exit 0
+        ;;
+    next | "")
+        case "$(current)" in
+            normal) rotation=left ;;
+            left) rotation=inverted ;;
+            inverted) rotation=right ;;
+            *) rotation=normal ;;
+        esac
+        ;;
+    *)
+        rotation="$(canonical "$1")"
+        if [ -z "${rotation}" ]; then
+            usage >&2
+            exit 2
+        fi
+        ;;
+esac
+
+apply "${rotation}"

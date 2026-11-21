@@ -17,6 +17,7 @@ Retrobox and the emulators installed at build time.
 | Package | What it has | Installed in |
 | --- | --- | --- |
 | `nxd-common` | `nxd-update`; the lightdm seat settings for the Switch (`/etc/lightdm/lightdm.conf.d/10-nxd-seat.conf`); the firmware names the Wi-Fi/Bluetooth chip asks for (made by its `postinst`, again whenever a package changes `/usr/lib/firmware/brcm` or `/usr/lib/modules`: `triggers`); the GitHub repository of nx-debian (`/usr/share/nxd/releases.d/nx-debian.list`) | every image |
+| `nxd-xfce` | `switch-rotate` (turns the screen and the touchscreen together and remembers it: `~/.config/nxd/rotation`, put back at login by `/etc/xdg/autostart/nxd-switch-rotate.desktop`) and its launcher; `switch-sensors` (SoC temperature and fan, for the panel's genmon plugin); the desktop's defaults in `/etc/xdg/nxd` (theme and fonts, the two panels, default applications, MIME types), put before `/etc/xdg` in `XDG_CONFIG_DIRS` for the XFCE session (`/etc/X11/Xsession.d/55nxd-xfce`) and the user services (`/usr/lib/environment.d/60-nxd-xfce.conf`), so they win over the XFCE packages' defaults and a user's own settings win over them | `xfce` |
 | `nxd-retrobox` | the `nxd-retrobox` session (Openbox, picom, Retrobox: `/usr/share/xsessions/nxd-retrobox.desktop`, `/usr/lib/nxd/retrobox-session`, `retrobox-autostart`, `/usr/share/nxd/retrobox/openbox/rc.xml`); Retrobox's settings (`/etc/retrobox/retrobox.ini.d/50-nxd.ini`); the SD card (`nxd-sdcard.service`, `/usr/sbin/nxd-sdcard`); the volume and power buttons (`/usr/bin/nxd-volume`, `/etc/systemd/logind.conf.d/10-nxd-power.conf`); EmulationStation's defaults for the Switch (`/usr/share/nxd/retrobox/emulationstation`); the GitHub repositories of the Retrobox packages (`/usr/share/nxd/releases.d/retrobox.list`) | `retrobox` |
 
 `packages/<name>/root/` holds the files as they go in `/`, and
@@ -29,6 +30,10 @@ there is one.
   copy changed by hand when the package brings a new one (`nxd-update` keeps
   the old one, `--force-confold`, and dpkg leaves the new one next to it as
   `.dpkg-dist`).
+- **Other packages' files.** A package cannot own a file another one has
+  (`/etc/xdg/xfce4/panel/default.xml` is xfce4-panel's, `xsettings.xml`
+  xfce4-settings'), so nxd-xfce's defaults live in `/etc/xdg/nxd`, a
+  configuration folder of its own that comes first.
 - **The user's files.** Nothing goes in `/etc/skel`: a package update would not
   reach accounts that already exist. Openbox gets its configuration from the
   session's command line, not from the home. EmulationStation's `es_input.cfg`

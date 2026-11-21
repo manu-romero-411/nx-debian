@@ -1,0 +1,49 @@
+#!/bin/sh
+# switch-sensors: the Switch's SoC temperature and fan speed, for the XFCE
+# panel (xfce4-genmon-plugin: <txt>, <tool> and <click> lines) or, at a
+# terminal or with --plain, as one line of text. What cannot be read is "--".
+
+temperature() {
+    # the SoC's own zones first, then any zone with a plausible value
+    for zone in /sys/class/thermal/thermal_zone*; do
+        case "$(cat "${zone}/type" 2> /dev/null)" in
+            *CPU* | *PLL* | *Tdiode* | *soc* | *tegra*)
+                raw="$(cat "${zone}/temp" 2> /dev/null)"
+                [ "${raw:-0}" -gt 0 ] 2> /dev/null && { echo "$((raw / 1000))°C"; return; }
+                ;;
+            *) ;;
+        esac
+    done
+    for zone in /sys/class/thermal/thermal_zone*; do
+        raw="$(cat "${zone}/temp" 2> /dev/null)"
+        if [ "${raw:-0}" -ge 10000 ] 2> /dev/null && [ "${raw}" -le 115000 ]; then
+            echo "$((raw / 1000))°C"
+            return
+        fi
+    done
+    echo "--°C"
+}
+
+fan() {
+    for dir in /sys/devices/pwm-fan /sys/bus/platform/devices/pwm-fan; do
+        [ -d "${dir}" ] || continue
+        pwm="$(cat "${dir}/cur_pwm" 2> /dev/null || cat "${dir}/target_pwm" 2> /dev/null)"
+        rpm="$(cat "${dir}/rpm_measured" 2> /dev/null)"
+        text="--"
+        [ -z "${pwm}" ] || text="$((pwm * 100 / 255))%"
+        [ -z "${rpm}" ] || text="${text} (${rpm} RPM)"
+        echo "${text}"
+        return
+    done
+    echo "--"
+}
+
+temp="$(temperature)"
+speed="$(fan)"
+if [ -t 1 ] || [ "${1:-}" = "--plain" ]; then
+    echo "${temp} | Fan: ${speed}"
+    exit 0
+fi
+echo "<txt>${temp} | ${speed}</txt>"
+echo "<tool>Nintendo Switch&#10;Temperature: ${temp}&#10;Fan: ${speed}&#10;Click for tegrastats</tool>"
+echo "<click>x-terminal-emulator -e tegrastats</click>"

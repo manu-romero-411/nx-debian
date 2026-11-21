@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Rotate Screen
+Comment=Turn the screen and the touchscreen to the next orientation
+Exec=switch-rotate next
+Icon=display
+Terminal=false
+Categories=Settings;HardwareSettings;

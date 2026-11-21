@@ -1,117 +1,104 @@
-# Switchroot Debian 13 (Trixie) for Nintendo Switch
+# Debian 13 (Trixie) for the Nintendo Switch
 
 [![Build images](https://github.com/manu-romero-411/nx-debian/actions/workflows/build.yml/badge.svg)](https://github.com/manu-romero-411/nx-debian/actions/workflows/build.yml)
 [![CI](https://github.com/manu-romero-411/nx-debian/actions/workflows/ci.yml/badge.svg)](https://github.com/manu-romero-411/nx-debian/actions/workflows/ci.yml)
 [![Debian Version](https://img.shields.io/badge/Debian-13%20(Trixie)-crimson.svg)](https://www.debian.org/)
-[![Kernel](https://img.shields.io/badge/Kernel-4.9.140--l4t%2B-blue.svg)](https://developer.nvidia.com/embedded/linux-tegra)
-[![Architecture](https://img.shields.io/badge/Arch-arm64%20%2F%20aarch64-green.svg)](https://wiki.debian.org/Arm64Port)
+[![Kernel](https://img.shields.io/badge/Kernel-4.9.140--l4t-blue.svg)](https://developer.nvidia.com/embedded/linux-tegra)
+[![Architecture](https://img.shields.io/badge/Arch-arm64-green.svg)](https://wiki.debian.org/Arm64Port)
 
-A complete GNU/Linux distribution based on **Debian 13 (Trixie)** for the Nintendo Switch (V1, V2, Lite, and OLED models). Engineered with native hardware acceleration, modern BlueZ support, instantaneous display rotation, power management, battery health protection, and streamlined Hekate Nyx installer packaging.
+Debian 13 for the Nintendo Switch, booted by Hekate, with Switchroot's L4T
+kernel and NVIDIA's Tegra drivers. Two images: an XFCE desktop and Retrobox, a
+console made of EmulationStation and RetroArch.
 
-> **Status.** The images are built by `nxd` (see [Building](#building-from-source)),
-> which installs everything with apt from Debian and the L4T repository. The
-> feature list below describes the desktop image; the parts of it that the old
-> build script did by hand and `nxd` has not ported yet are tracked in
-> [docs/legacy-inventory.md](docs/legacy-inventory.md).
+Everything in the images is installed by apt, from Debian and the L4T
+repository. What nx-debian adds itself is in its own packages (`nxd-common`,
+`nxd-xfce`, `nxd-retrobox`), so a console that is already installed is
+updated with `nxd-update` instead of being flashed again.
 
 ---
 
 <p align="center">
-  <img src="screenshots/xfce4.png" alt="Switchroot Debian 13 (Trixie) XFCE4 Desktop" width="850">
+  <img src="screenshots/xfce4.png" alt="The XFCE desktop" width="850">
 </p>
 
 ---
 
-## Key Features
+## The images
 
-* **Debian 13 (Trixie) Base**: Up-to-date modern package repositories with long-term stability and security.
-* **NVIDIA Tegra X1 Hardware Acceleration**:
-  - Integrated with proprietary NVIDIA Tegra 32.3.1 drivers (`nvidia_drv.so`).
-  - Custom Xorg 1.20.13 (ABI 24.1) server ensuring zero ABI mismatch crashes and full 2D/3D hardware rendering.
-* **Instantaneous Screen & Touch Rotation**:
-  - `switch-rotate` command-line and panel launcher.
-  - Dynamically rotates both display output (`xrandr`) and touchscreen coordinates (`xinput` transformation matrix) in real time without requiring a system reboot.
-* **Kernel 4.9.140-l4t+ with Modern BlueZ Backports**:
-  - Backported Linux kernel Bluetooth Management opcodes (`MGMT_OP_READ_EXP_FEATURES_INFO` and `MGMT_OP_GET_DEVICE_FLAGS`).
-  - Full compatibility with modern BlueZ 5.80+ stacks for wireless controllers, audio devices, and accessories.
-* **Complete Audio Subsystem**:
-  - Fully configured ALSA UCM2 device profiles.
-  - PulseAudio per-user daemon supporting internal speakers, 3.5mm headphone jack (with automatic jack detection), and HDMI/DisplayPort audio out.
-* **NVPModel Overclock & Battery Charging Protection**:
-  - Top panel status indicators for CPU, GPU, and EMC memory clock profiles.
-  - Configurable fan profiles (Quiet, Cool, Balanced).
-  - Battery charge threshold protection (50% to 100%) to extend battery lifespan during prolonged docked use.
-* **Desktop Environment & Layout**:
-  - Lightweight XFCE4 desktop with a clean, clutter-free desktop area.
-  - Top status panel featuring NetworkManager (WiFi), Blueman (Bluetooth), Audio volume, Battery level, and NVPModel indicators.
-  - Bottom quick-launch dock with Show Desktop, Web Browser (Firefox ESR), Terminal (XFCE Terminal), File Manager (Thunar), and Application Finder.
-* **Hekate Nyx Split Installer (`l4t.00` & `l4t.01`)**:
-  - FAT32-safe 4 MiB-aligned ext4 disk images compatible with the Hekate Nyx Partition Manager.
-  - Automatic partition expansion on first boot via `initramfs` and `resize2fs`.
-
----
-
-## Hardware Support
-
-| Model | Supported | 8gb RAM | Notes |
-| :--- | :---: | :---: | :--- |
-| **Nintendo Switch V1 (Erista)** | Yes | Yes | RCM exploit or modchip |
-| **Nintendo Switch V2 (Mariko)** | Yes | Yes | Modchip required |
-| **Nintendo Switch Lite** | Yes | Yes | Modchip required |
-| **Nintendo Switch OLED** | Yes | Yes | Modchip required |
-
----
-
-## Quick Installation Guide (Hekate Nyx)
-
-### 1. Partitioning the MicroSD Card
-1. Boot your Nintendo Switch into **Hekate**.
-2. Tap **Tools** -> **Partition SD Card**.
-3. Move the **Linux** slider to allocate space for Debian (minimum: **8 GB**, recommended: **16 GB** or more).
-4. Tap **Next Step** and proceed to format the SD card.
-
-### 2. Copying Installer Files
-1. Download the installer of the variant you want (`switch-debian-13-trixie-xfce-installer.zip` or `switch-debian-13-trixie-retrobox-installer.zip`) from the [Releases](https://github.com/manu-romero-411/nx-debian/releases) page, and check it against `SHA256SUMS`.
-2. Extract the archive directly onto the root of your MicroSD card's FAT32 partition.
-   - The directory tree should contain `bootloader/`, `switchroot/debian/`, and `switchroot/install/l4t.00`, `l4t.01`.
-
-### 3. Flashing & First Boot
-1. Insert the MicroSD card into your Nintendo Switch and power on into Hekate.
-2. Navigate to **Tools** -> **Partition SD Card** -> **Flash Linux**.
-3. Hekate will verify the checksums and flash `l4t.00` and `l4t.01` into your ext4 partition.
-4. Once completed, return to the Hekate main menu, tap **More Configs**, and select **Debian 13 (Trixie)**.
-5. On the first boot, the system will automatically resize the ext4 filesystem to fill the entire allocated space.
-
----
-
-## Variants and default credentials
-
-| Variant | Session | User | Password |
+| Image | What it starts | User | Password |
 | :--- | :--- | :--- | :--- |
-| **`xfce`** | XFCE4 desktop | `switch` | `switch` (a build at a terminal asks for the user name and the password) |
-| **`retrobox`** | Openbox starting [Retrobox](https://github.com/RetroboxProject) | `retrobox` | `retrobox` |
+| **`xfce`** | the XFCE desktop | `switch` | `switch` (a build at a terminal asks for the user name and the password) |
+| **`retrobox`** | [Retrobox](https://github.com/RetroboxProject), as a console | `retrobox` | `retrobox` |
 
-Both log the user in automatically, and the hostname is `nintendo-switch`. In
-`retrobox`, the ROMs, BIOS and saves are in the SD card's FAT32 partition
-(`/sdcard/retrobox`, mounted at boot) and the gamepad is never a mouse. The
-account can `sudo` and `root` has no password. `ssh` is on in `retrobox` and
-installed but disabled in `xfce` (`sudo systemctl enable --now ssh` turns it
-on): change the password before the console joins a network you do not trust.
+Both log the user in automatically, the hostname is `nintendo-switch`, the
+user can `sudo` and `root` has no password. Change the password before the
+console joins a network you do not trust: `ssh` is on in `retrobox` (to work
+on it from a computer), and installed but off in `xfce` (`sudo systemctl
+enable --now ssh` turns it on).
+
+Common to both:
+
+* **The hardware**: the L4T 4.9 kernel and boot files of Switchroot's
+  `switch-bsp`, NVIDIA's Tegra X1 drivers and the Xorg server they are built
+  for, Wi-Fi and Bluetooth, the integrated pad and the Joy-Cons, PulseAudio.
+* **A quiet boot** (no kernel or systemd text on the screen), and a reboot that
+  goes back to Hekate's menu.
+* **Installers for Hekate**: the system is an ext4 image in parts that fit
+  FAT32 (`l4t.00`, `l4t.01`), which Hekate's partition manager flashes; the
+  first boot grows the file system to the size of the partition.
+
+**`xfce`** adds, through `nxd-xfce`:
+
+* `switch-rotate`, which turns the screen and the touchscreen together, at
+  once, and keeps the choice for the next login (button in the top panel).
+* A top panel with the applications menu, windows, rotation, volume, battery,
+  the SoC temperature and the fan (`switch-sensors`), Wi-Fi (nm-applet),
+  Bluetooth (Blueman), the clock and the session actions; a bottom launcher bar,
+  hidden until the pointer gets there (terminal, files, Firefox ESR, finder).
+* The Adwaita theme, Firefox ESR and Thunar as default applications, and
+  Onboard, the on-screen keyboard, in the menu.
+
+**`retrobox`** adds, through `nxd-retrobox`:
+
+* EmulationStation as a console: no way to quit to a desktop, the Nintendo
+  button layout (the east button confirms), the Switch Lite's pad with Home as
+  the hotkey, larger text for the small screen.
+* RetroArch and a base set of cores already installed (more from the Content
+  Downloader), with the theme, bezels and shaders Retrobox would download at
+  its first start.
+* ROMs, BIOS and saves in the SD card's FAT32 partition (`/sdcard/retrobox`),
+  the one Hekate, Android and a PC see too.
+* The volume buttons change the volume; the power button suspends (a long press
+  turns the console off).
+* The picom compositor (vsync, and the overlay over a running game).
 
 ---
 
-## Controls & Usage
+## Hardware
 
-* **WiFi**: Click the WiFi applet on the top panel or launch **Escáner de Redes WiFi** from the application menu.
-* **Bluetooth**: Click the Bluetooth icon on the top panel to pair wireless controllers or audio headsets.
-* **Screen Rotation**: Tap the rotation icon in the top panel or execute:
-  ```bash
-  switch-rotate landscape
-  switch-rotate portrait
-  switch-rotate inverted_landscape
-  switch-rotate inverted_portrait
-  ```
-* **Performance / Overclock**: Click the NVPModel icon in the top panel to select clock speeds or toggle battery charging limits.
+The images are built for every model the L4T kernel of `switch-bsp` supports
+(Erista and Mariko: the first Switch, the V2, the Lite and the OLED); a
+Mariko needs a modchip to run Hekate. They have been tested on a **Switch
+Lite**; reports from other models are welcome.
+
+---
+
+## Installation (Hekate)
+
+1. **Partition the SD card.** In Hekate: *Tools* → *Partition SD Card*, and
+   give *Linux (EXT4)* at least 6 GB (the image is 5 GiB; 16 GB or more leaves
+   room for your files). Then *Next Step* and *Start*.
+2. **Copy the installer.** Download the installer of the image you want
+   (`switch-debian-13-trixie-xfce-installer.zip` or
+   `switch-debian-13-trixie-retrobox-installer.zip`) from the
+   [Releases](https://github.com/manu-romero-411/nx-debian/releases), check it
+   against `SHA256SUMS`, and unzip it at the root of the SD card's FAT32
+   partition: it has `bootloader/` and `switchroot/` (`switchroot/install/`
+   holds `l4t.00` and `l4t.01`).
+3. **Flash it.** In Hekate: *Tools* → *Partition SD Card* → *Flash Linux*.
+4. **Boot it.** From Hekate's *More Configs*, pick **Debian 13 Trixie**.
+
+Hekate is not in the installers: install or update it as you usually do.
 
 ---
 
@@ -122,85 +109,70 @@ sudo nxd-update                       # Debian, L4T, nx-debian and Retrobox (rel
 sudo nxd-update --allow-prereleases   # ...including pre-releases
 ```
 
-It upgrades Debian and the L4T packages, then nx-debian's own packages
-(`nxd-common`, `nxd-<variant>`: every file the images add to the system) and
-the Retrobox packages from their GitHub releases, and cleans up. Files you
-changed under `/etc` are kept. See [docs/packages.md](docs/packages.md).
+It upgrades Debian and the L4T packages, then nx-debian's packages and the
+Retrobox ones from their GitHub releases, and cleans up. Files you changed
+under `/etc` are kept. See [docs/packages.md](docs/packages.md).
 
 ---
 
-## Troubleshooting & FAQs
+## Troubleshooting
 
-### Joy-Con Rail Errors / Boot Loop (`joycon_serdev: received packet has wrong magic` or `malformed`)
-If your Switch repeats messages such as:
+### A broken Joy-Con (`joycon_serdev: Received pkt has wrong magic`)
+
+Messages like these, over and over, come from a Joy-Con on a rail that sends
+corrupt data (a damaged controller, ribbon cable or rail pins):
+
 ```text
-joycon_serdev serial 0-0: Received pkt has wrong magic
-joycon_serdev serial 0-0: Received pkt is malformed
-joycon_serdev serial 0-0: Packet length too large; ignoring
+joycon_serdev serial0-0: Received pkt has wrong magic
+joycon_serdev serial0-0: Received pkt is malformed
 ```
-This is caused by an attached Joy-Con that is physically broken, has damaged internal electronics/ribbon cable, or dirty/damaged rail pins (`serial0-0` is the Left rail, `serial1-0` is the Right rail). The kernel detects the controller presence via the physical rail pin, but receives corrupt serial packets from the faulty hardware.
 
-**Solutions:**
-1. **Physical Fix (Fastest)**: Simply **slide off and detach the broken Joy-Con** from the console. If you use a Pro Controller or Bluetooth controllers, you can keep the rail empty and Debian will boot normally.
-2. **Optional Software Setting (to keep the broken Joy-Con slotted in)**: On your SD card, edit `bootloader/ini/debian.ini` and change `jc_rail_disable=0` to `jc_rail_disable=1` under `[Debian 13 Trixie]`:
-   ```ini
-   [Debian 13 Trixie]
-   l4t=1
-   boot_prefixes=/switchroot/debian/
-   id=NXDEB
-   r2p_action=bootloader
-   fbconsole=0
-   jc_rail_disable=1
-   ```
-   *(Note: Rails are fully enabled by default in Debian 4 Switch. `jc_rail_disable=1` is strictly optional for users with malfunctioning rail hardware).*
+Take that Joy-Con off. To keep it attached and ignore the rails instead, set
+`jc_rail_disable=1` in `bootloader/ini/debian.ini` on the SD card (it is `0` by
+default).
 
 ---
 
-## Building from Source
+## Building from source
 
 Everything goes through `nxd` (`./nxd --help`). The build is done by Debian's
-`mmdebstrap`, so any host works, including a non-arm64 one (qemu) or one that
-is not Debian: `nxd container` runs the same steps in a Debian trixie
-container.
+`mmdebstrap`, so any host works, even one that is not arm64 (qemu) or not
+Debian: `nxd container` runs the same steps in a Debian trixie container.
 
 ```bash
-./nxd variants                       # what can be built
-sudo ./nxd build --variant retrobox  # rootfs + installer, native
-sudo ./nxd container build           # the same, every variant, in a container
+./nxd variants                                              # what can be built
+sudo ./nxd container build --variant retrobox --clean       # one image
+sudo ./nxd container build                                  # every image
 ```
 
-The Retrobox packages come from their GitHub releases, and only from those
-that are not pre-releases; `--prereleases` (for example
-`sudo ./nxd container build --variant retrobox --prereleases`) takes the newest
-of each, which is what you want while Retrobox is still gaining features.
+The Retrobox packages come from their GitHub releases, only from the ones that
+are not pre-releases unless `--prereleases` is given (the newest of each,
+which is what you want while Retrobox is still gaining features). The
+installers end up in `dist/`, with the package list of each one and a
+`SHA256SUMS`.
 
-The installers end up in `dist/`: `switch-debian-13-trixie-<variant>-installer.zip`,
-the package list of each one and a `SHA256SUMS`. Unzip an installer on the root
-of the SD card and flash it from Hekate as described above.
-
-The steps can also be run apart: `nxd rootfs`, `nxd inspect` (what is in the
-rootfs and why) and `nxd image`. [docs/rootfs.md](docs/rootfs.md) documents
-them, the variants, the release packages and the tests;
-[docs/decisions.md](docs/decisions.md) records why the image runs the 4.9
-kernel of `switch-bsp`.
+[docs/rootfs.md](docs/rootfs.md) documents the steps (`nxd rootfs`,
+`nxd inspect`, `nxd image`), the variants and the tests;
+[docs/packages.md](docs/packages.md) nx-debian's packages and `nxd-update`;
+[docs/decisions.md](docs/decisions.md) why the images run the 4.9 kernel of
+`switch-bsp`; [docs/legacy-inventory.md](docs/legacy-inventory.md) what became
+of the old build script.
 
 ### Continuous integration
 
-`.github/workflows/ci.yml` runs the linters and the tests on every push.
-`.github/workflows/packages.yml` builds nx-debian's packages (`./nxd debs`)
-on every push to `main` and publishes them as the `nxd-latest` pre-release.
-`.github/workflows/build.yml` builds the images on a native arm64 runner when
-it is started by hand (Actions → *Build images* → *Run workflow*) or when a
-`v*` tag is pushed, and can publish them as a GitHub release (with the
-packages of that version, for `nxd-update`); its
-*prereleases* input builds with the pre-releases of the Retrobox packages and
-marks the release it publishes as a pre-release.
+* `ci.yml`: the linters and the tests, on every push.
+* `packages.yml`: nx-debian's packages, on every push to `main`, published as
+  the `nxd-latest` pre-release.
+* `build.yml`: the images, on an arm64 runner, by hand (*Actions* → *Build
+  images* → *Run workflow*) or for a `v*` tag; it can publish them as a release,
+  with the packages of that version.
 
 ---
 
-## License & Credits
+## Credits
 
-* **Debian GNU/Linux**: [Software in the Public Interest, Inc.](https://www.debian.org/)
-* **Switchroot Team**: For foundational device tree trees, bootloaders, and L4T patches.
-* **CTCaer & contributors**: For Hekate, Nyx, and partition management tools.
-* **NVIDIA**: For Linux for Tegra (L4T) board support packages and drivers.
+* **Debian**: [Software in the Public Interest, Inc.](https://www.debian.org/)
+* **Switchroot**: the L4T kernel, device trees and boot files (`switch-bsp`).
+* **CTCaer and contributors**: Hekate and Nyx.
+* **NVIDIA**: Linux for Tegra and its drivers.
+* **Retrobox**: [RetroboxProject](https://github.com/RetroboxProject).

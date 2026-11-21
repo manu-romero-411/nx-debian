@@ -1,0 +1,15 @@
+Package: nxd-xfce
+Version: @VERSION@
+Architecture: all
+Maintainer: Manuel Jesús Romero Mateos <manu4.2012@gmail.com>
+Section: x11
+Priority: optional
+Depends: nxd-common (= @VERSION@), x11-xserver-utils, xinput, x11-common
+Recommends: xfce4-panel, xfce4-genmon-plugin, xfce4-pulseaudio-plugin, xfce4-power-manager-plugins, adwaita-icon-theme, thunar, xfce4-terminal
+Homepage: https://github.com/manu-romero-411/nx-debian
+Description: Debian on the Nintendo Switch: the XFCE desktop
+ The system files of the nx-debian XFCE image: switch-rotate (turns the
+ screen and the touchscreen together, and remembers it), switch-sensors (the
+ SoC temperature and the fan for the panel), and the defaults of the desktop
+ (theme, panels, default applications), which come before the XFCE packages'
+ ones in the XFCE session and are overridden by the user's.

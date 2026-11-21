@@ -51,8 +51,16 @@ check "the files belong to root" test -z "$(dpkg-deb -c "${RETRO}" | awk '$2 != 
 check "nxd-update is executable" grep -q '^-rwxr-xr-x .*\./usr/sbin/nxd-update$' <<< "$(dpkg-deb -c "${COMMON}")"
 check "the session script is executable" grep -q '^-rwxr-xr-x .*\./usr/lib/nxd/retrobox-session$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
-check "--variant xfce builds nxd-common only" bash -c \
-    "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant xfce '${tmp}/xfce' && test \"\$(ls '${tmp}/xfce')\" = nxd-common_1_all.deb"
+check "--variant xfce builds nxd-common and nxd-xfce" bash -c \
+    "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant xfce '${tmp}/xfce' && test \"\$(ls '${tmp}/xfce' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-xfce_1_all.deb '"
+XFCE="${tmp}/debs/nxd-xfce_1.2.3_all.deb"
+check "nxd-xfce is built" test -f "${XFCE}"
+check "nxd-xfce needs the nxd-common of its version" grep -q 'nxd-common (= 1.2.3)' <<< "$(dpkg-deb -f "${XFCE}" Depends)"
+check "switch-rotate is in nxd-xfce, executable" grep -q '^-rwxr-xr-x .*\./usr/bin/switch-rotate$' <<< "$(dpkg-deb -c "${XFCE}")"
+check "the desktop's defaults are conffiles" \
+    grep -qx '/etc/xdg/nxd/xfce4/panel/default.xml' <<< "$(dpkg-deb --ctrl-tarfile "${XFCE}" | tar -xO ./conffiles)"
+check_not "nxd-xfce owns no file of the XFCE packages" grep -qE '\./etc/xdg/xfce4/' <<< "$(dpkg-deb -c "${XFCE}")"
+check_not "switch-rotate is not in the console" grep -q 'switch-rotate' <<< "$(dpkg-deb -c "${RETRO}")"
 check "--variant retrobox builds both" bash -c \
     "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant retrobox '${tmp}/rb' && test \"\$(ls '${tmp}/rb' | wc -l)\" -eq 2"
 check_not "a version that is not one is refused" "${NXD_ROOT}/scripts/build-packages.sh" --version v1 "${tmp}/bad"

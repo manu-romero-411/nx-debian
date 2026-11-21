@@ -1,0 +1,12 @@
+# shellcheck shell=sh
+# nxd-xfce: in the XFCE session, the defaults of the Switch's desktop
+# (/etc/xdg/nxd: theme, panel, default applications) come before the ones of
+# the XFCE packages. A file in ~/.config still wins over both. Sourced by
+# /etc/X11/Xsession, which lightdm runs.
+case "${DESKTOP_SESSION:-}" in
+    xfce*)
+        XDG_CONFIG_DIRS="/etc/xdg/nxd:${XDG_CONFIG_DIRS:-/etc/xdg}"
+        export XDG_CONFIG_DIRS
+        ;;
+    *) ;;
+esac

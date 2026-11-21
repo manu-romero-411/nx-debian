@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Screen orientation
+Comment=Turn the screen to the orientation chosen last
+Exec=switch-rotate --restore
+Terminal=false
+NoDisplay=true
+OnlyShowIn=XFCE;

@@ -27,7 +27,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends shellcheck pylint jq
       - name: shellcheck
-        run: shellcheck -x -S style nxd scripts/*.sh scripts/lib/*.sh config/hooks/*.sh config/hooks/*/*.sh config/pre-hooks/*.sh packages/*/root/usr/bin/* packages/*/root/usr/sbin/* packages/*/root/usr/lib/nxd/* packages/*/DEBIAN/p*inst packages/*/DEBIAN/p*rm tests/*.sh
+        run: shellcheck -x -S style nxd scripts/*.sh scripts/lib/*.sh config/hooks/*.sh config/hooks/*/*.sh config/pre-hooks/*.sh packages/*/root/usr/bin/* packages/*/root/usr/sbin/* packages/*/root/usr/lib/nxd/* packages/*/DEBIAN/p*inst packages/*/DEBIAN/p*rm packages/*/root/etc/X11/Xsession.d/* tests/*.sh
       - name: pylint
         run: pylint scripts/*.py
       - name: Lists, variants and dry runs
@@ -40,6 +40,8 @@ jobs:
         run: tests/sdcard.sh
       - name: nx-debian's packages and nxd-update (fake GitHub API)
         run: tests/packages.sh
+      - name: switch-rotate and switch-sensors (fake xrandr and xinput)
+        run: tests/xfce.sh
 
   integration:
     name: Rootfs and image tests

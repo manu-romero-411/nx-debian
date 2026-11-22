@@ -46,6 +46,7 @@ Common to both:
   overlay in `retrobox`, from the panel indicator in `xfce`. The fan mode and the
   charge limit are kept across reboots.
 * **Text consoles** in Terminus 8x16, and `fastfetch`.
+* **Locales** of the common languages of Europe generated (English, Spanish, Catalan, Basque, Galician, French, German, Italian, Polish, Russian, Ukrainian, Greek).
 * **A quiet boot** (no kernel or systemd text on the screen), and a reboot that
   goes back to Hekate's menu.
 * **Installers for Hekate**: the system is an ext4 image in parts that fit

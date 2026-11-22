@@ -1,0 +1,74 @@
+#!/bin/sh
+# ensure-locales: makes sure the locales of /usr/share/nxd/locales are
+# generated. Each one missing from /etc/locale.gen is uncommented there (or
+# added); then, if the file changed or one of them is not generated yet,
+# locale-gen runs. Locales the administrator added stay, and so do the others
+# of the file: nothing is ever commented out or removed.
+#
+#   ensure-locales [--no-generate] [LIST [LOCALE_GEN]]
+#
+# --no-generate only edits the file (for the tests). Run by nxd-common's
+# postinst on every configure.
+set -eu
+
+generate=1
+if [ "${1:-}" = --no-generate ]; then
+    generate=0
+    shift
+fi
+list="${1:-/usr/share/nxd/locales}"
+gen="${2:-/etc/locale.gen}"
+
+[ -f "${list}" ] || exit 0
+[ -f "${gen}" ] || : > "${gen}"
+
+new="$(mktemp)"
+trap 'rm -f "${new}"' EXIT
+# first the list (LOCALE CHARSET, # comments), then locale.gen: an active line
+# of a wanted locale is kept, a commented one ("# es_ES.UTF-8 UTF-8") is
+# uncommented, and those not in the file at all are added at its end
+awk '
+    NR == FNR {
+        if ($1 !~ /^#/ && NF == 2 && !($1 in want)) {
+            want[$1] = $2
+            order[++count] = $1
+        }
+        next
+    }
+    $1 !~ /^#/ && ($1 in want) && want[$1] == $2 { done[$1] = 1 }
+    /^#/ {
+        line = $0
+        sub(/^#[ \t]*/, "", line)
+        n = split(line, f, /[ \t]+/)
+        if (n == 2 && (f[1] in want) && want[f[1]] == f[2] && !(f[1] in done)) {
+            print f[1] " " f[2]
+            done[f[1]] = 1
+            next
+        }
+    }
+    { print }
+    END {
+        for (i = 1; i <= count; i++) if (!(order[i] in done)) print order[i] " " want[order[i]]
+    }' "${list}" "${gen}" > "${new}"
+
+changed=0
+if ! cmp -s "${new}" "${gen}"; then
+    cat "${new}" > "${gen}"
+    changed=1
+fi
+[ "${generate}" -eq 1 ] || exit 0
+command -v locale-gen > /dev/null 2>&1 || exit 0
+
+# generated already? (locale -a writes es_ES.UTF-8 as es_ES.utf8)
+missing=0
+if [ "${changed}" -eq 0 ]; then
+    available="$(locale -a 2> /dev/null || true)"
+    while read -r name _; do
+        case "${name}" in '' | '#'*) continue ;; esac
+        short="$(printf '%s' "${name}" | sed -e 's/\.UTF-8$/.utf8/')"
+        printf '%s\n' "${available}" | grep -qxF "${short}" || missing=1
+    done < "${list}"
+fi
+if [ "${changed}" -eq 1 ] || [ "${missing}" -eq 1 ]; then
+    locale-gen
+fi

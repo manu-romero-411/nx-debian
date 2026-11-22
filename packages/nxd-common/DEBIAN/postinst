@@ -1,6 +1,7 @@
 #!/bin/sh
 # nxd-common: enables nxd-nvpmodel-restore.service the first time (an upgrade
-# keeps what the administrator chose).
+# keeps what the administrator chose), and has the locales of
+# /usr/share/nxd/locales generated.
 #
 # The Switch's Wi-Fi/Bluetooth chip asks for firmware files under
 # other names than the ones the L4T packages ship: link them, and rebuild the
@@ -32,6 +33,14 @@ modules() {
         [ -d "${moddir}" ] || continue
         depmod -a "$(basename "${moddir}")"
     done
+}
+
+# the common locales of Europe, generated (Retrobox offers the languages that
+# are; see /usr/share/nxd/locales): on every configure, so that a locale the
+# list gains reaches the consoles that are installed already
+locales() {
+    [ -x /usr/lib/nxd/ensure-locales ] || return 0
+    /usr/lib/nxd/ensure-locales || echo "nxd-common: the locales could not be generated" >&2
 }
 
 # console_font: Terminus (regular, not bold), 8x16, for the text consoles,
@@ -67,6 +76,7 @@ case "${1:-}" in
         # $2 is the version that was installed before: none on a first install
         [ -n "${2:-}" ] || console_font
         units
+        locales
         firmware
         modules
         ;;

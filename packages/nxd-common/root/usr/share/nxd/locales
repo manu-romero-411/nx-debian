@@ -1,0 +1,17 @@
+# The locales every nx-debian image has generated (/usr/lib/nxd/ensure-locales,
+# run by nxd-common's postinst): the common languages of Europe. Retrobox lists
+# the languages it offers by the generated ones, and XFCE needs one to switch
+# to. Format of /etc/locale.gen: LOCALE CHARSET.
+en_US.UTF-8 UTF-8
+en_GB.UTF-8 UTF-8
+es_ES.UTF-8 UTF-8
+ca_ES.UTF-8 UTF-8
+eu_ES.UTF-8 UTF-8
+gl_ES.UTF-8 UTF-8
+fr_FR.UTF-8 UTF-8
+de_DE.UTF-8 UTF-8
+it_IT.UTF-8 UTF-8
+pl_PL.UTF-8 UTF-8
+ru_RU.UTF-8 UTF-8
+uk_UA.UTF-8 UTF-8
+el_GR.UTF-8 UTF-8

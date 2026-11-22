@@ -47,3 +47,5 @@ psmisc
 kbd
 # The font of the text consoles (Terminus 8x16: nxd-common sets it)
 console-setup
+# The locales (the common ones of Europe: nxd-common has them generated)
+locales

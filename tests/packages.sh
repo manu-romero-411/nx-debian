@@ -111,6 +111,32 @@ check "...and in debconf, so that console-setup keeps it" grep -q 'console-setup
 check "nxd-common needs console-setup" grep -q 'console-setup' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
 check "fastfetch is in every image" grep -qx 'fastfetch' "${NXD_ROOT}/config/packages/base.list"
 
+## the locales: the common ones of Europe, generated
+
+LOCS="${CPKG}/root/usr/share/nxd/locales"
+ENSURE="${CPKG}/root/usr/lib/nxd/ensure-locales"
+for loc in es_ES en_US en_GB fr_FR de_DE it_IT pl_PL ru_RU uk_UA el_GR ca_ES eu_ES gl_ES; do
+    check "${loc} is generated in every image" grep -qx "${loc}.UTF-8 UTF-8" "${LOCS}"
+done
+check "nxd-common ships the list and the helper" \
+    bash -c "dpkg-deb -c '${COMMON}' | grep -q './usr/share/nxd/locales\$' && dpkg-deb -c '${COMMON}' | grep -q '^-rwxr-xr-x.*./usr/lib/nxd/ensure-locales\$'"
+check "...needs locales" grep -qw 'locales' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
+check "...which every image installs" grep -qx 'locales' "${NXD_ROOT}/config/packages/base.list"
+check "...and runs the helper on every configure" grep -q '/usr/lib/nxd/ensure-locales ||' "${CPKG}/DEBIAN/postinst"
+# Debian's /etc/locale.gen: everything commented out
+printf '%s\n' "# This file lists locales that you wish to have built." "#" "# en_US.UTF-8 UTF-8" \
+    "# es_ES ISO-8859-1" "#  es_ES.UTF-8 UTF-8" "nl_NL.UTF-8 UTF-8" > "${tmp}/locale.gen"
+sh "${ENSURE}" --no-generate "${LOCS}" "${tmp}/locale.gen"
+check "a commented locale is uncommented" grep -qx 'es_ES.UTF-8 UTF-8' "${tmp}/locale.gen"
+check "...once" test "$(grep -c 'es_ES.UTF-8' "${tmp}/locale.gen")" -eq 1
+check "one not in the file is added" grep -qx 'uk_UA.UTF-8 UTF-8' "${tmp}/locale.gen"
+check "the administrator's locales stay" grep -qx 'nl_NL.UTF-8 UTF-8' "${tmp}/locale.gen"
+check "...and the other charsets stay commented" grep -qx '# es_ES ISO-8859-1' "${tmp}/locale.gen"
+check "all of them are there" test "$(grep -c '^[a-z][a-z]_[A-Z][A-Z].UTF-8 UTF-8$' "${tmp}/locale.gen")" -eq 14
+cp "${tmp}/locale.gen" "${tmp}/locale.gen.before"
+sh "${ENSURE}" --no-generate "${LOCS}" "${tmp}/locale.gen"
+check "a second run changes nothing" cmp -s "${tmp}/locale.gen" "${tmp}/locale.gen.before"
+
 # the version from git, in a repository of its own
 repo="${tmp}/repo"
 git init -q "${repo}"

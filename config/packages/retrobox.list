@@ -43,3 +43,7 @@ libv4l-0t64
 
 # nxd-sdcard checks the SD card's FAT32 partition (fsck.vfat) before it mounts it
 dosfstools
+
+# gl, mesa and vk utils for retrobox graphics API detections
+mesa-utils
+vulkan-tools

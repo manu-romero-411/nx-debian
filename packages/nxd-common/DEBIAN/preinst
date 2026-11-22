@@ -1,0 +1,16 @@
+#!/bin/sh
+# nxd-common: Switchroot's UCM profile of the Switch's sound card is diverted
+# before it is unpacked, so that postinst can put in its place the one without
+# the lines that set the volume to 100% (/usr/lib/nxd/ucm-volume).
+set -eu
+
+ucm=/usr/share/alsa/ucm2/Tegra/tegra-snd-t210ref-mobile-rt565x/HiFi.conf
+
+case "${1:-}" in
+    install | upgrade)
+        dpkg-divert --package nxd-common --rename \
+            --divert "${ucm}.switch-alsa-ucm2" --add "${ucm}" > /dev/null
+        ;;
+    *) ;;
+esac
+exit 0

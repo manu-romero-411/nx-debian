@@ -1,2 +1,3 @@
 interest-noawait /usr/lib/firmware/brcm
 interest-noawait /usr/lib/modules
+interest-noawait /usr/share/alsa/ucm2/Tegra/tegra-snd-t210ref-mobile-rt565x

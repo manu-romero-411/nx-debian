@@ -1,8 +1,9 @@
 #!/bin/sh
 # nxd-common: enables nxd-nvpmodel-restore.service the first time (an upgrade
 # keeps what the administrator chose), and has the locales of
-# /usr/share/nxd/locales generated, and gives back to root the files of the
-# image's overlay that older images left to the user.
+# /usr/share/nxd/locales generated, gives back to root the files of the
+# image's overlay that older images left to the user, and replaces
+# Switchroot's UCM profile with one that leaves the volume alone.
 #
 # The Switch's Wi-Fi/Bluetooth chip asks for firmware files under
 # other names than the ones the L4T packages ship: link them, and rebuild the
@@ -34,6 +35,13 @@ modules() {
         [ -d "${moddir}" ] || continue
         depmod -a "$(basename "${moddir}")"
     done
+}
+
+# the Switch's UCM profile without the lines that set the volume to 100%
+# (made from Switchroot's, diverted by preinst; again whenever that changes)
+ucm() {
+    [ -x /usr/lib/nxd/ucm-volume ] || return 0
+    /usr/lib/nxd/ucm-volume || echo "nxd-common: the UCM profile could not be made" >&2
 }
 
 # the common locales of Europe, generated (Retrobox offers the languages that
@@ -91,10 +99,12 @@ case "${1:-}" in
         root_owned
         units
         locales
+        ucm
         firmware
         modules
         ;;
     triggered)
+        ucm
         firmware
         modules
         ;;

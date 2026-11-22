@@ -1,5 +1,6 @@
 #!/bin/sh
-# nxd-common: forgets nxd-nvpmodel-restore.service; on purge, the firmware
+# nxd-common: forgets nxd-nvpmodel-restore.service and gives the UCM profile
+# back to switch-alsa-ucm2; on purge, the firmware
 # names postinst made (they belong to no package) go too.
 set -eu
 
@@ -8,6 +9,21 @@ case "${1:-}" in
     purge)
         deb-systemd-helper purge nxd-nvpmodel-restore.service > /dev/null || true
         deb-systemd-helper unmask nxd-nvpmodel-restore.service > /dev/null || true
+        ;;
+    *) ;;
+esac
+
+# Switchroot's UCM profile goes back in its place (the one ucm-volume made
+# belongs to no package). On abort-install too, as preinst may have diverted
+# it already.
+case "${1:-}" in
+    remove | abort-install)
+        ucm=/usr/share/alsa/ucm2/Tegra/tegra-snd-t210ref-mobile-rt565x/HiFi.conf
+        if [ -e "${ucm}.switch-alsa-ucm2" ]; then
+            rm -f "${ucm}"
+        fi
+        dpkg-divert --package nxd-common --rename \
+            --divert "${ucm}.switch-alsa-ucm2" --remove "${ucm}" > /dev/null
         ;;
     *) ;;
 esac

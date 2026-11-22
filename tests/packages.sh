@@ -139,6 +139,56 @@ cp "${tmp}/locale.gen" "${tmp}/locale.gen.before"
 sh "${ENSURE}" --no-generate "${LOCS}" "${tmp}/locale.gen"
 check "a second run changes nothing" cmp -s "${tmp}/locale.gen" "${tmp}/locale.gen.before"
 
+## the volume: Switchroot's UCM profile put the speaker and the headphones at
+## 100% on every start of PulseAudio
+
+UCMV="${CPKG}/root/usr/lib/nxd/ucm-volume"
+UCMF=/usr/share/alsa/ucm2/Tegra/tegra-snd-t210ref-mobile-rt565x/HiFi.conf
+cat > "${tmp}/HiFi.orig" << 'UCM'
+SectionDevice."Headphones" {
+	EnableSequence [
+		cset "name='x HP L Playback Switch' on"
+		cset "name='x DAC1 HP Playback Volume' 170,170"
+		cset "name='x HP Playback Volume' 31,31"
+	]
+	DisableSequence [
+		cset "name='x HP Playback Volume' 0,0"
+		cset "name='x DAC1 HP Playback Volume' 0,0"
+	]
+	Value {
+		PlaybackVolume "x DAC1 HP Playback Volume"
+	}
+}
+SectionDevice."Speaker" {
+	EnableSequence [
+		cset "name='x DAC1 Speaker Playback Volume' 148,148"
+		cset "name='x Speaker Playback Volume' 35,35"
+	]
+	DisableSequence [
+		cset "name='x DAC1 Speaker Playback Volume' 0,0"
+	]
+	Value {
+		PlaybackVolume "x DAC1 Speaker Playback Volume"
+	}
+}
+UCM
+sh "${UCMV}" "${tmp}/HiFi.orig" "${tmp}/HiFi.conf"
+check_not "the DAC1 volumes are not set by the profile" grep -q "cset \"name='x DAC1" "${tmp}/HiFi.conf"
+check "...which still tells PulseAudio which control is the volume" test "$(grep -c 'PlaybackVolume "x DAC1' "${tmp}/HiFi.conf")" -eq 2
+check "...and keeps the rest of the sequences" \
+    test "$(grep -c 'cset' "${tmp}/HiFi.conf")" -eq "$(($(grep -c 'cset' "${tmp}/HiFi.orig") - 4))"
+check "...saying where it comes from" grep -q '^# Made by nxd-common' "${tmp}/HiFi.conf"
+rm -f "${tmp}/HiFi.conf"
+sh "${UCMV}" "${tmp}/none" "${tmp}/HiFi.conf"
+check_not "without Switchroot's profile, nothing is made" test -e "${tmp}/HiFi.conf"
+# shellcheck disable=SC2016 # the literal text of the script
+check "Switchroot's profile is diverted before it is unpacked" \
+    grep -q -- '--divert "${ucm}.switch-alsa-ucm2" --add "${ucm}"' "${CPKG}/DEBIAN/preinst"
+check "...made again when switch-alsa-ucm2 changes it" \
+    grep -qx "interest-noawait ${UCMF%/*}" <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -xO ./triggers)"
+# shellcheck disable=SC2016 # the literal text of the script
+check "...and given back on remove" grep -q -- '--divert "${ucm}.switch-alsa-ucm2" --remove "${ucm}"' "${CPKG}/DEBIAN/postrm"
+
 # the version from git, in a repository of its own
 repo="${tmp}/repo"
 git init -q "${repo}"

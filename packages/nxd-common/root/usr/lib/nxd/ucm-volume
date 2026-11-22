@@ -1,0 +1,34 @@
+#!/bin/sh
+# ucm-volume: the Switch's UCM profile (switch-alsa-ucm2) without the lines
+# that put the speaker and the headphones at full volume.
+#
+#   ucm-volume [SOURCE [TARGET]]
+#
+# Switchroot's HiFi.conf sets 'x DAC1 Speaker Playback Volume' and
+# 'x DAC1 HP Playback Volume' to their maximum whenever the device is enabled
+# (and to 0 when it is disabled). Those are the controls PulseAudio drives as
+# the volume of each output, so every start of PulseAudio found them at 100%
+# and kept that, instead of the volume it had saved. Without those lines the
+# controls keep what PulseAudio sets; the switches and the analog gains of the
+# sequences stay as they are.
+#
+# nxd-common diverts the file of switch-alsa-ucm2 to SOURCE (dpkg-divert, see
+# its preinst) and its postinst runs this again whenever that package changes
+# it (triggers). Without SOURCE nothing is done.
+set -eu
+
+dir=/usr/share/alsa/ucm2/Tegra/tegra-snd-t210ref-mobile-rt565x
+source="${1:-${dir}/HiFi.conf.switch-alsa-ucm2}"
+target="${2:-${dir}/HiFi.conf}"
+
+[ -f "${source}" ] || exit 0
+tmp="$(mktemp "${target}.XXXXXX")"
+trap 'rm -f "${tmp}"' EXIT
+{
+    echo "# Made by nxd-common (/usr/lib/nxd/ucm-volume) from ${source##*/}:"
+    echo "# the DAC1 volumes are left to PulseAudio. Edits here are lost."
+    sed "/cset \"name='x DAC1 \(HP\|Speaker\) Playback Volume'/d" "${source}"
+} > "${tmp}"
+chmod 644 "${tmp}"
+mv -f "${tmp}" "${target}"
+trap - EXIT

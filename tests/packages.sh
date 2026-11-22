@@ -259,6 +259,26 @@ printf '%s\n' Org/roll > "${NXD_RELEASES_DIR}/retrobox.list"
 check "the release with the newest packages, not the newest release" test "$(update --allow-prereleases)" = "roll_1.1_all.deb "
 check "...while without the flag, the release" test "$(update)" = "roll_1.0_all.deb "
 
+# a repository with pre-releases only: GitHub answers /releases/latest 404,
+# which is no reason to warn
+release Org/pre beta true pre_2.0_all.deb
+printf '%s\n' "pre 1.0" > "${NXD_UPDATE_INSTALLED}"
+printf '%s\n' Org/pre > "${NXD_RELEASES_DIR}/retrobox.list"
+check "pre-releases only, without the flag: nothing" test -z "$(update)"
+check "...saying that the flag would take them" grep -q 'Org/pre: no release with packages (pre-releases need' "${tmp}/log"
+check_not "...and no warning" grep -q 'warning' "${tmp}/log"
+check "...and with the flag, the pre-release" test "$(update --allow-prereleases)" = "pre_2.0_all.deb "
+
+# running itself again (sudo, systemd-inhibit) keeps the options: the option
+# loop consumes "$@"
+if [[ "${EUID}" -ne 0 ]]; then
+    mkdir -p "${tmp}/bin"
+    printf '#!/bin/sh\nprintf "%%s\\n" "$@" > "%s"\n' "${tmp}/sudo-args" > "${tmp}/bin/sudo"
+    chmod +x "${tmp}/bin/sudo"
+    PATH="${tmp}/bin:${PATH}" "${UPDATE}" --allow-prereleases > /dev/null 2>&1 || true
+    check "through sudo, with the options it was given" grep -qx -- '--allow-prereleases' "${tmp}/sudo-args"
+fi
+
 printf '%s\n' "bad 1.0" > "${NXD_UPDATE_INSTALLED}"
 printf '%s\n' Org/bad > "${NXD_RELEASES_DIR}/retrobox.list"
 check_not "a package that does not match SHA256SUMS stops it" \

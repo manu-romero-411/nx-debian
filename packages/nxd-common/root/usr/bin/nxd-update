@@ -51,6 +51,9 @@ usage() {
     sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
+# the arguments as given, for running again through sudo and systemd-inhibit
+# (the loop below consumes them)
+ARGS=("$@")
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --allow-prereleases) PRERELEASES=1; shift ;;
@@ -61,13 +64,13 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${DOWNLOAD_ONLY}" && "${EUID}" -ne 0 ]]; then
-    exec sudo --preserve-env=GITHUB_TOKEN -- "$0" "$@"
+    exec sudo --preserve-env=GITHUB_TOKEN -- "$0" "${ARGS[@]}"
 fi
 if [[ -z "${DOWNLOAD_ONLY}" && -z "${NXD_UPDATE_INHIBITED:-}" && -d /run/systemd/system ]] &&
     command -v systemd-inhibit > /dev/null 2>&1; then
     export NXD_UPDATE_INHIBITED=1
     exec systemd-inhibit --what=sleep:shutdown:handle-power-key --who=nxd-update \
-        --why="Updating the system" -- "$0" "$@"
+        --why="Updating the system" -- "$0" "${ARGS[@]}"
 fi
 
 ARCH="${NXD_ARCH:-$(dpkg --print-architecture)}"
@@ -139,19 +142,18 @@ select_assets() {
 }
 
 # release REPO: the JSON of the release to use (see the header), or nothing
+# The one with the newest packages, never a draft, and a pre-release only with
+# --allow-prereleases: by the date of its packages, not its own, because
+# nx-debian's nxd-latest is not made again on each push, its files are
+# replaced; and nx-debian has releases of images made before it had packages.
+# Not /releases/latest: a repository with pre-releases only answers it 404.
 release() {
     local repo="$1"
-    if [[ "${PRERELEASES}" -eq 1 ]]; then
-        # the one with the newest packages, pre-release or not (never a draft):
-        # by the date of its packages, not its own, because nx-debian's
-        # nxd-latest is not made again on each push, its files are replaced;
-        # and nx-debian has releases of images made before it had packages
-        api_get "${API}/repos/${repo}/releases?per_page=30" |
-            jq -c '[.[] | select(.draft != true) | select(any(.assets[]; .name | endswith(".deb")))]
-                | max_by([.assets[] | select(.name | endswith(".deb")) | .updated_at // ""] | max) // empty'
-    else
-        api_get "${API}/repos/${repo}/releases/latest" 2> /dev/null | jq -c 'select(.tag_name != null)'
-    fi
+    api_get "${API}/repos/${repo}/releases?per_page=30" |
+        jq -c --argjson pre "${PRERELEASES}" '
+            [.[] | select(.draft != true) | select($pre == 1 or .prerelease != true)
+                | select(any(.assets[]; .name | endswith(".deb")))]
+            | max_by([.assets[] | select(.name | endswith(".deb")) | .updated_at // ""] | max) // empty'
 }
 
 # newest: .deb names on stdin; prints, for each package, the one of its
@@ -195,7 +197,11 @@ fetch() {
     local -a names=() chosen=() wanted=() listed=("$@")
     json="$(release "${repo}")" || { warn "cannot read the releases of ${repo} (see above; GITHUB_TOKEN lifts the limit of 60 anonymous requests an hour)"; return 0; }
     if [[ -z "${json}" ]]; then
-        log "${repo}: no release with packages"
+        if [[ "${PRERELEASES}" -eq 1 ]]; then
+            log "${repo}: no release with packages"
+        else
+            log "${repo}: no release with packages (pre-releases need --allow-prereleases)"
+        fi
         return 0
     fi
     tag="$(jq -r '.tag_name' <<< "${json}")"

@@ -91,8 +91,10 @@ the power button while it works. In order:
    the L4T pins of `/etc/apt/preferences.d` still decide which comes from where).
 2. The packages from GitHub releases. For each repository of
    `/usr/share/nxd/releases.d/*.list` (nx-debian, then the Retrobox
-   components), the newest release, or with `--allow-prereleases` the one
-   with the newest packages (by their upload date), pre-release or not; from it, the `.deb` of this
+   components), the release with the newest packages (by their upload
+   date) that is not a pre-release, or with `--allow-prereleases` pre-release
+   or not (a repository with pre-releases only gets nothing without it, and
+   says so); from it, the `.deb` of this
    machine (as the build picks them: this CPU or `all`, this Debian's build
    before a generic one, no `-dbgsym`) **of packages that are installed**, if
    they are newer than the installed version. A release without a

@@ -2,11 +2,15 @@
 Description=Mount the FAT32 partition of the SD card in /sdcard
 Documentation=https://github.com/manu-romero-411/nx-debian/blob/main/docs/rootfs.md
 After=local-fs.target
-Before=display-manager.service lightdm.service graphical.target
+# before any login, so that at shutdown it is unmounted after every session
+# (EmulationStation, the user's services) has let go of it
+Before=systemd-user-sessions.service display-manager.service lightdm.service graphical.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# the session waits for this: never for ever (the check has its own limit)
+TimeoutStartSec=4min
 ExecStart=/usr/sbin/nxd-sdcard
 ExecStop=/usr/sbin/nxd-sdcard --umount
 

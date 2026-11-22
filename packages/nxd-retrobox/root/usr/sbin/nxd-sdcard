@@ -6,6 +6,9 @@
 #   nxd-sdcard --umount         unmount it
 #   nxd-sdcard --pick DISK FILE print the partition chosen among the ones in
 #                               FILE (the output of `lsblk -bnP`), for the tests
+#   nxd-sdcard --dirty FILE VERSION
+#                               whether the FAT in FILE has its dirty bit
+#                               set (exit status), for the tests
 #
 # The partition is not looked for by label or number (they differ from one
 # card to the next): it is a FAT32 partition of the disk the system booted from,
@@ -22,6 +25,22 @@ folders="roms bios saves"
 
 log() {
     echo "nxd-sdcard: $*" >&2
+}
+
+# dirty DEVICE [VERSION]: whether the FAT's dirty bit is set (Linux sets it while the
+# partition is mounted and clears it when it is unmounted: set at boot, the
+# last shutdown did not unmount it). FAT32 keeps it at byte 0x41 of the boot
+# sector, FAT12/16 at 0x25; an unknown version counts as dirty. VERSION
+# (FAT32, FAT16...) is lsblk's when not given.
+dirty() {
+    version="${2:-$(lsblk -no FSVER "$1" 2> /dev/null | head -n 1)}"
+    case "${version}" in
+        FAT32) offset=65 ;;
+        FAT12 | FAT16) offset=37 ;;
+        *) return 0 ;;
+    esac
+    byte="$(od -An -tu1 -j "${offset}" -N 1 "$1" 2> /dev/null | tr -d ' ')"
+    [ -z "${byte}" ] || [ $((byte & 1)) -eq 1 ]
 }
 
 # field LINE KEY: the value of KEY in a line of `lsblk -P`
@@ -96,10 +115,25 @@ case "${1:-}" in
         choose "$2" < "$3"
         exit
         ;;
+    --dirty)
+        dirty "$2" "$3"
+        exit
+        ;;
     --umount)
+        # at shutdown, after the sessions: whatever still holds the partition
+        # is asked to end; if it is still busy, it is made read-only, which
+        # clears the dirty bit too, so the next boot has nothing to check
         if findmnt -n "${mountpoint}" > /dev/null 2>&1; then
             sync
-            umount "${mountpoint}"
+            if ! umount "${mountpoint}" 2> /dev/null; then
+                if command -v fuser > /dev/null 2>&1; then
+                    fuser -k -TERM -m "${mountpoint}" > /dev/null 2>&1 || true
+                    sleep 2
+                fi
+                umount "${mountpoint}" 2> /dev/null ||
+                    mount -o remount,ro "${mountpoint}" ||
+                    log "cannot unmount ${mountpoint}: the next boot checks it"
+            fi
         fi
         exit 0
         ;;
@@ -140,15 +174,17 @@ fi
 
 if [ -n "${device}" ]; then
     fstype="$(lsblk -no FSTYPE "${device}" 2> /dev/null | head -n 1)"
-    # what a power cut leaves; a failure here is not one of the mount
-    if [ "${fstype}" = vfat ] && command -v fsck.vfat > /dev/null 2>&1; then
-        # 1: something was fixed, mostly the dirty bit of a shutdown without
-        # unmounting (Linux sets it while the partition is mounted)
+    # what a power cut leaves; a failure here is not one of the mount. Only
+    # when the dirty bit says so, and for two minutes at most: a whole check of
+    # a big card takes much longer, and the console's session waits for this.
+    if [ "${fstype}" = vfat ] && command -v fsck.vfat > /dev/null 2>&1 && dirty "${device}"; then
+        # 1: something was fixed, mostly the dirty bit itself
         status=0
-        fsck.vfat -a "${device}" > /dev/null 2>&1 || status=$?
+        timeout "${NXD_SDCARD_FSCK_TIMEOUT:-120}" fsck.vfat -a "${device}" > /dev/null 2>&1 || status=$?
         case "${status}" in
             0) ;;
             1) log "fsck.vfat -a ${device} fixed it (a shutdown without unmounting)" ;;
+            124) log "fsck.vfat -a ${device} took too long: mounting it anyway" ;;
             *) log "fsck.vfat -a ${device} failed (${status}): mounting it anyway" ;;
         esac
     fi

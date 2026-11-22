@@ -180,9 +180,7 @@ Unzip the installer at the root of the SD card, boot Hekate and flash the
 
 `/etc/fstab`, `/etc/hostname` and `/etc/hosts` come from
 `config/overlay/common`: they are what makes one image that image, so they
-stay out of the packages. They are copied in as root's, whoever owns the
-checkout (nxd-common gives them, and `/etc`, back to root on images built
-before that). Every other file nx-debian adds to the system is in
+stay out of the packages. Every other file nx-debian adds to the system is in
 its packages, nxd-common and nxd-<variant> (see [packages.md](packages.md)).
 The root filesystem is mounted by label, not by partition number.
 
@@ -372,8 +370,15 @@ option is ignored. If the screen is still black after that, the logs are
   - **Mount options:** `uid`/`gid` of the user, `umask=0022`, `flush` (writes go
     out early: the card is taken out and the console turned off without
     asking), `noatime`, `nosuid`, `nodev`, `quiet`, `utf8` (not `iocharset=utf8`: the L4T
-    kernel has no `nls_utf8`). `fsck.vfat -a` runs first
-    (`dosfstools`) to clean up what a power cut left.
+    kernel has no `nls_utf8`). `fsck.vfat -a` (`dosfstools`) runs first, only
+    when the FAT's dirty bit says the last shutdown did not unmount it, and for
+    two minutes at most (a whole check of a big card takes much longer, and the
+    session waits for the mount; the unit gives up after four minutes in any
+    case).
+  - **Shutdown:** the unit is ordered before `systemd-user-sessions.service`,
+    so it is unmounted after every session has ended. Whatever still holds the
+    card is asked to end (`fuser`); if it is still busy, it is made read-only,
+    which clears the dirty bit as well.
   - **FAT32 limits:** no file of 4 GiB or more (some GameCube, Wii and PS2 images:
     use a compressed format, `.rvz`, `.chd`...), no symbolic links, no Unix permissions,
     names that differ only in case are the same. Retrobox's configuration, state, themes,

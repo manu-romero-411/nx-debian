@@ -100,7 +100,37 @@ if grep -q 'deb-systemd-helper enable "${unit}"' "${NXD_ROOT}/packages/nxd-retro
 else
     bad "the package enables the unit"
 fi
-if grep -qx 'Before=display-manager.service lightdm.service graphical.target' "${unit}"; then ok "it is mounted before the session starts"; else bad "it is mounted before the session starts"; fi
+if grep -qx 'Before=systemd-user-sessions.service display-manager.service lightdm.service graphical.target' "${unit}"; then
+    ok "it is mounted before any login, and unmounted after every session"
+else
+    bad "it is mounted before any login, and unmounted after every session"
+fi
+# what left the console at the text login: lightdm waited for a whole check of
+# a 512 GB card after a shutdown that had not unmounted it
+if grep -qx 'TimeoutStartSec=4min' "${unit}"; then ok "the session never waits for ever"; else bad "the session never waits for ever"; fi
+# shellcheck disable=SC2016 # the literal text of the script
+if grep -q 'timeout "${NXD_SDCARD_FSCK_TIMEOUT:-120}" fsck.vfat -a' "${SCRIPT}"; then ok "the check has a time limit"; else bad "the check has a time limit"; fi
+# shellcheck disable=SC2016 # the literal text of the script
+if grep -q 'mount -o remount,ro "${mountpoint}"' "${SCRIPT}"; then ok "a busy card is made read-only at shutdown"; else bad "a busy card is made read-only at shutdown"; fi
+if grep -qw psmisc "${NXD_ROOT}/packages/nxd-retrobox/DEBIAN/control.in"; then ok "fuser is there for it"; else bad "fuser is there for it"; fi
+
+# the dirty bit: byte 0x41 of a FAT32 boot sector, 0x25 of a FAT16 one
+fat="$(mktemp)"
+head -c 512 /dev/zero > "${fat}"
+dirtycheck() {
+    local name="$1" want="$2"
+    shift 2
+    if "${SCRIPT}" --dirty "${fat}" "$@"; then got=0; else got=1; fi
+    if [[ "${got}" -eq "${want}" ]]; then ok "${name}"; else bad "${name}"; fi
+}
+dirtycheck "a clean FAT32 is not checked" 1 FAT32
+printf '\001' | dd of="${fat}" bs=1 seek=65 conv=notrunc status=none
+dirtycheck "a dirty FAT32 is" 0 FAT32
+dirtycheck "...and its bit is not FAT16's" 1 FAT16
+printf '\003' | dd of="${fat}" bs=1 seek=37 conv=notrunc status=none
+dirtycheck "a dirty FAT16 is" 0 FAT16
+dirtycheck "an unknown FAT is checked" 0 ""
+rm -f "${fat}"
 
 printf '%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [[ "${FAIL}" -eq 0 ]]

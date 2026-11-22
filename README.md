@@ -77,7 +77,7 @@ Common to both:
   the one Hekate, Android and a PC see too.
 * The volume buttons change the volume and show it at the top of the screen;
   the power button suspends (a long press turns the console off).
-* The picom compositor (vsync, and the overlay over a running game).
+* The picom compositor (vsync, and the overlay over a running game), closed before a suspend and reopened at the resume.
 
 ---
 

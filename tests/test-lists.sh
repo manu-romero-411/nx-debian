@@ -210,6 +210,40 @@ check_not "Openbox's rc.xml (volume and power keys) is the session's" \
     test -e "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox-system-settings/openbox/rc.xml"
 check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' \
     "${NXD_ROOT}/packages/nxd-retrobox/root/etc/systemd/logind.conf.d/10-nxd-power.conf"
+PMHOOK="${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/systemd/system-sleep/nxd-picom"
+check "the hook that closes the compositor across a suspend is executable" test -x "${PMHOOK}"
+check "the hook records the user, environment and invocation before the suspend" grep -q 'nxd-picom.env' "${PMHOOK}"
+check "the hook kills picom before the suspend" grep -q 'kill "${pid}"' "${PMHOOK}"
+check "the hook reopens picom at the resume, as the user that ran it" grep -q 'runuser -u "${user}" -- env -i' "${PMHOOK}"
+check "the hook reopens picom with its environment and invocation" grep -q 'sh -c "${cmd}"' "${PMHOOK}"
+check "the hook leaves a session without picom alone" grep -qF 'pid="$(picom_pid)" || exit 0' "${PMHOOK}"
+check "the hook leaves a resumed picom alone" grep -qF 'if [ -n "$(picom_pid)" ]; then' "${PMHOOK}"
+
+# end-to-end, with a fake picom (a process that sleeps, and the kernel
+# calls it "picom") and a runuser stub: the pre hook records the user, the
+# environment and the invocation and kills it; the post hook reopens it as
+# the recorded user, with the recorded environment and invocation.
+check "the sleep hook closes the compositor and reopens it at the resume" bash -c '
+    tmp="$(mktemp -d)"
+    trap "rm -rf \"${tmp}\"" EXIT
+    mkdir -p "${tmp}/bin" "${tmp}/state"
+    ln -s /bin/sleep "${tmp}/bin/picom"
+    printf "#!/bin/sh\necho \"$@\" >\""${tmp}"/runuser.log\"\n" > "${tmp}/bin/runuser"
+    chmod +x "${tmp}/bin/runuser"
+    PATH="${tmp}/bin:${PATH}" NXD_PICOM_STATE_DIR="${tmp}/state" bash -c "
+        env -i PATH=/usr/bin:/bin DISPLAY=:0 XAUTHORITY=x HOME=/home/user ${tmp}/bin/picom 600 &
+        pid=\$!
+        for _ in \$(seq 1 40); do [ -r /proc/\${pid}/cmdline ] && break; sleep 0.25; done
+        ${PMHOOK} pre
+        [ ! -d /proc/\${pid} ]
+        [ "\"$(cat ${tmp}/state/nxd-picom.user)\"" = "\"$(id -nu)\"" ]
+        grep -q DISPLAY=:0 ${tmp}/state/nxd-picom.env
+        grep -q . ${tmp}/state/nxd-picom.cmd
+        ${PMHOOK} post
+        grep -q "runuser" ${tmp}/runuser.log && grep -q "DISPLAY=:0" ${tmp}/runuser.log
+        ! ls ${tmp}/state/nxd-picom.* > /dev/null 2>&1
+    "
+'
 ESSET="${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/emulationstation/es_settings.cfg"
 check "the theme's text is 125 %, for a small screen" grep -q 'name="FontScale" value="1.25"' "${ESSET}"
 check "the menus' text is 125 %" grep -q 'name="MenuFontScale" value="1.25"' "${ESSET}"

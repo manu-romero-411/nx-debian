@@ -1,0 +1,92 @@
+#!/bin/bash
+# picom across a suspend: close it and reopen it the same way at the resume.
+#
+# Suspending with picom alive leaves the screen black on the resume (the
+# compositor does not survive the suspend with the X server). So picom is
+# killed before the suspend and reopened after the resume — but only when it
+# was running at the suspend: a session that never had a compositor (the
+# XFCE desktop, or [openbox] compositor: none) is left alone, and a session
+# that has no compositor at all is not given one.
+#
+# The reopening is the same as the session's: the same user, the same
+# environment and the same invocation that ran it before the suspend
+# (recorded in the markers before the suspend; the graphics environment of
+# the session that was open at the suspend is respected). The markers are
+# in /run, which is tmpfs: an interrupted suspend leaves none behind.
+#
+# The markers live in the variable NXD_PICOM_STATE_DIR (/run by default):
+# tests point it at a scratch folder.
+
+case "${1:-}" in
+pre|post) ;;
+*) exit 0 ;;
+esac
+
+STATE_DIR="${NXD_PICOM_STATE_DIR:-/run}"
+ENV="${STATE_DIR}/nxd-picom.env"
+USER="${STATE_DIR}/nxd-picom.user"
+CMD="${STATE_DIR}/nxd-picom.cmd"
+
+# The pid of the running picom, or nothing. No procps: read /proc directly.
+picom_pid() {
+    local comm pid
+    for comm in /proc/[0-9]*/comm; do
+        [ -r "${comm}" ] || continue
+        if [ "$(cat "${comm}" 2>/dev/null)" = "picom" ]; then
+            pid="$(basename "$(dirname "${comm}")")"
+            [ -n "${pid}" ] && printf '%s\n' "${pid}" && return 0
+        fi
+    done
+    return 1
+}
+
+case "${1}" in
+pre)
+    # markers from an interrupted or failed suspend: none must survive
+    rm -f "${ENV}" "${USER}" "${CMD}"
+    pid="$(picom_pid)" || exit 0
+    [ -n "${pid}" ] || exit 0
+    uid="$(awk '/^Uid:/{print $2; exit}' "/proc/${pid}/status" 2>/dev/null)"
+    [ -n "${uid}" ] || { rm -f "${ENV}" "${USER}" "${CMD}"; exit 0; }
+    echo "${uid}" > "${USER}"
+    tr '\0' '\n' < "/proc/${pid}/environ" > "${ENV}" 2>/dev/null || { rm -f "${ENV}" "${USER}" "${CMD}"; exit 0; }
+    tr '\0' ' ' < "/proc/${pid}/cmdline" > "${CMD}" 2>/dev/null || { rm -f "${ENV}" "${USER}" "${CMD}"; exit 0; }
+    kill "${pid}" 2>/dev/null || true
+    # let it die; a compositor that takes a moment is not a reason to hold
+    # the suspend off for long
+    for _ in $(seq 1 50); do
+        [ -d "/proc/${pid}" ] || break
+        sleep 0.1
+    done
+    ;;
+post)
+    [ -r "${ENV}" ] && [ -r "${USER}" ] && [ -r "${CMD}" ] || exit 0
+    if [ -n "$(picom_pid)" ]; then
+        # already reopened by whatever happened in between: leave it
+        rm -f "${ENV}" "${USER}" "${CMD}"
+        exit 0
+    fi
+    uid="$(cat "${USER}")"
+    user="$(id -nu "${uid}" 2>/dev/null)"
+    if [ -z "${user}" ]; then
+        echo "nxd-picom: cannot tell who ran picom (uid ${uid}): no compositor" >&2
+        rm -f "${ENV}" "${USER}" "${CMD}"
+        exit 0
+    fi
+    cmd="$(cat "${CMD}")"
+    # the exact environment that ran it, replayed for the reopening
+    mapfile -t env_pairs < "${ENV}"
+    env_args=()
+    for pair in "${env_pairs[@]}"; do
+        case "${pair}" in
+        *=*) env_args+=("${pair}") ;;
+        esac
+    done
+    rm -f "${ENV}" "${USER}" "${CMD}"
+    if [ -n "${cmd}" ]; then
+        runuser -u "${user}" -- env -i "${env_args[@]}" sh -c "${cmd}" || \
+            echo "nxd-picom: could not reopen picom (${cmd}): no compositor" >&2
+    fi
+    ;;
+esac
+exit 0

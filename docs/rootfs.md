@@ -262,6 +262,14 @@ retrobox-session-openbox), which first runs the steps of
 compositing for the overlay's translucency over a game; no config file, so none
 of the shadows and fades of `/etc/xdg/picom.conf`) and `retrobox &`. They are
 files of packages, not of the user's home, so an update reaches every console.
+
+The compositor does not survive a suspend: left running, the screen is black
+on the resume. `nxd-retrobox`'s `/usr/lib/systemd/system-sleep/nxd-picom` closes it
+before a suspend and reopens it after it — as the user that ran it, with the
+environment and the invocation that ran it (the graphics environment of the
+session that was open at the suspend) — but only when it was running at the
+suspend: a session without a compositor, a desktop one for example, is left
+alone.
 The image's hook `config/hooks/retrobox/30-retrobox-polkit.sh` writes the
 console's polkit rule for the user (`retrobox-polkit-rule`): power off, reboot,
 and the time zone and keyboard layout that EmulationStation's console mode sets
@@ -466,6 +474,9 @@ option is ignored. If the screen is still black after that, the logs are
     and drivers of the Switch (4.9 L4T) and has not been verified on a device;
     the suspend / resume hook of the old `build.sh` (mute audio, resync the
     backlight) is not ported yet.
+  - The compositor is closed across the suspend and reopened at the resume
+    (`/usr/lib/systemd/system-sleep/nxd-picom`, above): left running, the
+    screen is black on the resume.
   - Joy-Cons have no default mapping yet.
 - **No gamepad-as-mouse.** The mouse mode of the pad is the
   `switch-joystick-mouse` package and the `xserver-xorg-input-joystick` driver: they

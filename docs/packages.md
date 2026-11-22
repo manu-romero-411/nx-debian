@@ -98,7 +98,10 @@ the power button while it works. In order:
    and is not downloaded again.
 3. `apt-get autoremove --purge` and `apt-get clean`.
 
-Everything is non-interactive (`DEBIAN_FRONTEND=noninteractive`), and
+Like the build, it installs no Recommends (`APT::Install-Recommends=false`):
+an upgrade does not bring what the image leaves out on purpose, such as the
+L4T meta package, flatpak or the gamepad-as-mouse driver. Everything is
+non-interactive (`DEBIAN_FRONTEND=noninteractive`), and
 configuration files changed by hand are kept. `--download-only DIR` stops
 after downloading and checking the packages of step 2 (no root, no apt).
 `$GITHUB_TOKEN` (sudo keeps it) avoids GitHub's limit of 60 anonymous

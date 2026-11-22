@@ -80,7 +80,10 @@ if [[ -z "${TAG_RE}" ]]; then
 fi
 
 export DEBIAN_FRONTEND=noninteractive
-APT=(apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
+# No Recommends, as the image is built (scripts/build-rootfs.sh): without this,
+# an upgrade pulls in what the image leaves out on purpose (the L4T meta
+# package, flatpak and gnome-software, the gamepad-as-mouse driver...).
+APT=(apt-get -y -o APT::Install-Recommends=false -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
 
 api_get() {
     local -a headers=(-H "Accept: application/vnd.github+json")

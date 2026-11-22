@@ -237,6 +237,7 @@ check_not "a package that does not match SHA256SUMS stops it" \
     "${UPDATE}" --download-only "${tmp}/dl2"
 check "...saying why" bash -c "'${UPDATE}' --download-only '${tmp}/dl3' 2>&1 | grep -q 'does not match the SHA256SUMS'"
 
+check "nxd-update installs no Recommends, as the image is built" grep -q 'APT::Install-Recommends=false' "${UPDATE}"
 check "--help works without root" "${UPDATE}" --help
 check_not "an unknown option is refused" "${UPDATE}" --nope
 

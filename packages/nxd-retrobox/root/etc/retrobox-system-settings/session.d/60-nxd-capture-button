@@ -1,0 +1,14 @@
+#!/bin/sh
+# Run by retrobox-openbox-session (retrobox-session-openbox) at every start:
+# the Capture button of the Switch's controllers takes screenshots
+# (/usr/share/nxd/retrobox/capture-button, ended with the session). One at a
+# time: a session started again doesn't add a second one.
+set -eu
+
+lock="${XDG_RUNTIME_DIR:-/tmp}/nxd-capture-button.lock"
+if command -v flock > /dev/null 2>&1; then
+    # the lock stays held by the program for as long as it runs
+    nohup flock -n "${lock}" /usr/share/nxd/retrobox/capture-button > /dev/null 2>&1 &
+else
+    nohup /usr/share/nxd/retrobox/capture-button > /dev/null 2>&1 &
+fi

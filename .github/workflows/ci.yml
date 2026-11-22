@@ -29,7 +29,7 @@ jobs:
       - name: shellcheck
         run: shellcheck -x -S style nxd scripts/*.sh scripts/lib/*.sh config/hooks/*.sh config/hooks/*/*.sh config/pre-hooks/*.sh packages/*/root/usr/bin/* packages/*/root/usr/sbin/* packages/*/root/usr/lib/nxd/* packages/*/DEBIAN/p*inst packages/*/DEBIAN/p*rm packages/*/root/etc/X11/Xsession.d/* packages/*/root/etc/retrobox-system-settings/session.d/* tests/*.sh
       - name: pylint
-        run: pylint scripts/*.py
+        run: pylint scripts/*.py packages/nxd-retrobox/root/usr/share/nxd/retrobox/capture-button
       - name: Lists, variants and dry runs
         run: tests/test-lists.sh
       - name: Release packages (fake GitHub API)

@@ -1,0 +1,114 @@
+#!/usr/bin/python3
+"""The Capture button of the Switch's controllers takes a screenshot.
+
+Started by the session's step 60-nxd-capture-button (nxd-retrobox) and ended
+with the session. The Joy-Cons and the Pro Controller send their Capture
+button as BTN_Z; on each press this runs retrobox-screenshot (retrobox-core),
+in EmulationStation or in a game. Only Nintendo controllers count (their name
+says so), since on other controllers Z is a button games use. Controllers that
+come and go are picked up within a few seconds. It reads /dev/input, as the
+input group (Retrobox puts the user there).
+"""
+# pylint: disable=invalid-name  # an installed command, named like one
+
+from __future__ import annotations
+
+import selectors
+import shutil
+import signal
+import subprocess
+import sys
+import time
+
+import evdev
+from evdev import ecodes
+
+# what the name of a Nintendo controller has (lower case)
+NAMES = ("joy-con", "nintendo", "pro controller")
+# how often the devices are looked for again, in seconds
+RESCAN = 3.0
+# a second press closer than this to the last screenshot is ignored, in seconds
+DEBOUNCE = 0.5
+
+
+def is_capture_device(device: evdev.InputDevice) -> bool:
+    """Whether DEVICE is a Nintendo controller with a Capture button."""
+    name = device.name.lower()
+    if not any(part in name for part in NAMES):
+        return False
+    keys = device.capabilities().get(ecodes.EV_KEY, [])
+    return ecodes.BTN_Z in keys
+
+
+def is_press(event: evdev.InputEvent) -> bool:
+    """Whether EVENT is the Capture button going down."""
+    return event.type == ecodes.EV_KEY and event.code == ecodes.BTN_Z and event.value == 1
+
+
+def scan(known: dict[str, evdev.InputDevice], selector: selectors.BaseSelector) -> None:
+    """Add the capture devices that appeared to KNOWN and SELECTOR."""
+    for path in evdev.list_devices():
+        if path in known:
+            continue
+        try:
+            device = evdev.InputDevice(path)
+        except OSError:
+            continue
+        if is_capture_device(device):
+            known[path] = device
+            selector.register(device, selectors.EVENT_READ)
+        else:
+            device.close()
+
+
+def forget(device: evdev.InputDevice, known: dict[str, evdev.InputDevice],
+           selector: selectors.BaseSelector) -> None:
+    """A device that went away (unplugged, a Joy-Con taken off)."""
+    try:
+        selector.unregister(device)
+    except (KeyError, ValueError):
+        pass
+    known.pop(device.path, None)
+    try:
+        device.close()
+    except OSError:
+        pass
+
+
+def main() -> int:
+    """Wait for Capture presses until the session ends."""
+    command = shutil.which("retrobox-screenshot")
+    if command is None:
+        print("capture-button: retrobox-screenshot is not installed", file=sys.stderr)
+        return 1
+    # the screenshots that finish are reaped by themselves
+    signal.signal(signal.SIGCHLD, signal.SIG_IGN)
+    selector = selectors.DefaultSelector()
+    known: dict[str, evdev.InputDevice] = {}
+    last = 0.0
+    next_scan = 0.0
+    while True:
+        now = time.monotonic()
+        if now >= next_scan:
+            scan(known, selector)
+            next_scan = now + RESCAN
+        for key, _ in selector.select(timeout=max(next_scan - time.monotonic(), 0.1)):
+            device = key.fileobj
+            try:
+                events = list(device.read())
+            except OSError:
+                forget(device, known, selector)
+                continue
+            if any(is_press(event) for event in events) and time.monotonic() - last >= DEBOUNCE:
+                last = time.monotonic()
+                # not waited for: SIGCHLD is ignored
+                subprocess.Popen(  # pylint: disable=consider-using-with
+                    [command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    start_new_session=True)
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(0)

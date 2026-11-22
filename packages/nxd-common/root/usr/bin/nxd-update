@@ -142,13 +142,39 @@ select_assets() {
 release() {
     local repo="$1"
     if [[ "${PRERELEASES}" -eq 1 ]]; then
-        # the newest one with packages, pre-release or not (never a draft):
-        # nx-debian has releases of images made before it had packages
+        # the one with the newest packages, pre-release or not (never a draft):
+        # by the date of its packages, not its own, because nx-debian's
+        # nxd-latest is not made again on each push, its files are replaced;
+        # and nx-debian has releases of images made before it had packages
         api_get "${API}/repos/${repo}/releases?per_page=30" |
-            jq -c '[.[] | select(.draft != true) | select(any(.assets[]; .name | endswith(".deb")))][0] // empty'
+            jq -c '[.[] | select(.draft != true) | select(any(.assets[]; .name | endswith(".deb")))]
+                | max_by([.assets[] | select(.name | endswith(".deb")) | .updated_at // ""] | max) // empty'
     else
         api_get "${API}/repos/${repo}/releases/latest" 2> /dev/null | jq -c 'select(.tag_name != null)'
     fi
+}
+
+# newest: .deb names on stdin; prints, for each package, the one of its
+# highest version (a release whose files are being replaced has two)
+newest() {
+    local name package version
+    local -A best=() best_version=()
+    local -a order=()
+    while IFS= read -r name; do
+        package="${name%%_*}"
+        version="${name#*_}"
+        version="${version%_*}"
+        if [[ -z "${best[${package}]:-}" ]]; then
+            order+=("${package}")
+        elif ! dpkg --compare-versions "${version}" gt "${best_version[${package}]}"; then
+            continue
+        fi
+        best["${package}"]="${name}"
+        best_version["${package}"]="${version}"
+    done
+    for package in "${order[@]}"; do
+        printf '%s\n' "${best[${package}]}"
+    done
 }
 
 # sha_of FILE SUMS: the checksum SUMS gives for FILE's name
@@ -188,6 +214,7 @@ fetch() {
         log "${repo} ${tag}${kind}: none of its packages is installed"
         return 0
     fi
+    mapfile -t wanted < <(printf '%s\n' "${wanted[@]}" | newest)
     # the same release and the same files as last time: nothing to download
     if [[ -f "${STATE_DIR}/${repo//\//_}" ]] &&
         [[ "$(cat "${STATE_DIR}/${repo//\//_}")" == "$(printf '%s\n' "${tag}" "${wanted[@]}")" ]]; then
@@ -205,12 +232,19 @@ fetch() {
     sums="${dir}/${repo//\//_}/SHA256SUMS"
     curl -fsSL --retry 2 -o "${sums}" \
         "$(jq -r --arg n "${sums_name}" '.assets[] | select(.name == $n) | .browser_download_url' <<< "${json}")"
+    local complete=1
     for name in "${wanted[@]}"; do
         file="${dir}/${repo//\//_}/${name}"
+        # not in SHA256SUMS yet: the release is being updated; the next run
+        # takes it (a file that is in it and does not match stops everything)
+        if [[ -z "$(sha_of "${name}" "${sums}")" ]]; then
+            warn "${repo} ${tag}: ${name} is not in its SHA256SUMS yet (being published?): skipped"
+            complete=0
+            continue
+        fi
         curl -fsSL --retry 2 -o "${file}" \
             "$(jq -r --arg n "${name}" '.assets[] | select(.name == $n) | .browser_download_url' <<< "${json}")"
         expected="$(sha_of "${file}" "${sums}")"
-        [[ -n "${expected}" ]] || die "${name} is not in the SHA256SUMS of ${repo} ${tag}"
         [[ "$(sha256sum "${file}" | cut -d' ' -f1)" == "${expected}" ]] ||
             die "${name} does not match the SHA256SUMS of ${repo} ${tag}"
         package="$(dpkg-deb -f "${file}" Package)"
@@ -226,7 +260,8 @@ fetch() {
             log "${repo} ${tag}${kind}: ${package} ${installed} is up to date"
         fi
     done
-    printf '%s\n' "${tag}" "${wanted[@]}" > "${dir}/${repo//\//_}/state"
+    # remembered only when every package was there
+    [[ "${complete}" -eq 0 ]] || printf '%s\n' "${tag}" "${wanted[@]}" > "${dir}/${repo//\//_}/state"
 }
 
 # releases DIR: fetch for every repository of the lists

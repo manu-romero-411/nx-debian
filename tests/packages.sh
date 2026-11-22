@@ -171,7 +171,8 @@ release() {
     [[ "${badsum}" -eq 0 ]] || sed -i -E "1s/^[0-9a-f]{64}/$(printf '%064d' 0)/" "${dir}/SHA256SUMS"
     names+=(SHA256SUMS)
     for name in "${names[@]}"; do
-        assets="$(jq -c --arg n "${name}" --arg u "${BASE}/dl/${repo}/${tag}/${name}" '. + [{name: $n, browser_download_url: $u}]' <<< "${assets}")"
+        assets="$(jq -c --arg n "${name}" --arg u "${BASE}/dl/${repo}/${tag}/${name}" \
+            --arg d "$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)" '. + [{name: $n, browser_download_url: $u, updated_at: $d}]' <<< "${assets}")"
     done
     jq -n --arg tag "${tag}" --argjson pre "${pre}" --argjson assets "${assets}" --arg t "$(date +%s%N)" \
         '{tag_name: $tag, prerelease: $pre, draft: false, assets: $assets, created: $t}' \
@@ -234,6 +235,29 @@ check "a release installed before is not downloaded again" grep -q 'Me/nxd nxd-l
 printf '%s\n' "nxd-common 1.0.0" "nxd-retrobox 1.0.0" > "${NXD_UPDATE_INSTALLED}"
 check "a package the list names is installed when it is not yet" test "$(update)" = "core_2.0_arm64.deb "
 check "...and said to be new" grep -q 'Org/core v2.0: core 2.0 (new)' "${tmp}/log"
+
+# a release whose files are being replaced (nx-debian's nxd-latest on a push)
+release Org/two v1 false two_1.0_all.deb two_1.5_all.deb
+release Org/half v1 false half_2.0_all.deb
+sed -i '/half_2.0_all.deb/d' "${SITE}/dl/Org/half/v1/SHA256SUMS"
+printf '%s\n' "two 0.9" "half 1.0" > "${NXD_UPDATE_INSTALLED}"
+printf '%s\n' Org/two Org/half > "${NXD_RELEASES_DIR}/retrobox.list"
+rm -rf "${NXD_STATE_DIR}"
+check "with two versions of a package, the highest" test "$(update)" = "two_1.5_all.deb "
+check "a package not in SHA256SUMS yet is skipped, nothing stops" grep -q 'half_2.0_all.deb is not in its SHA256SUMS yet' "${tmp}/log"
+check_not "...and that release is not remembered, so the next run takes it" test -e "${tmp}/dl/Org_half/state"
+# --allow-prereleases goes by the date of the packages: a pre-release made
+# long ago whose files were just replaced wins over a release made after it
+release Org/roll rolling true roll_1.1_all.deb
+release Org/roll v1.0 false roll_1.0_all.deb
+jq --arg d "$(date -u -d '+1 hour' +%Y-%m-%dT%H:%M:%S.%NZ)" '.assets |= map(.updated_at = $d)' \
+    "${SITE}/repos/Org/roll/releases/rolling.json" > "${tmp}/rolling.json"
+mv "${tmp}/rolling.json" "${SITE}/repos/Org/roll/releases/rolling.json"
+jq -s 'sort_by(.created) | reverse' "${SITE}/repos/Org/roll/releases/"*.json > "${SITE}/repos/Org/roll/releases/index.html"
+printf '%s\n' "roll 0.5" > "${NXD_UPDATE_INSTALLED}"
+printf '%s\n' Org/roll > "${NXD_RELEASES_DIR}/retrobox.list"
+check "the release with the newest packages, not the newest release" test "$(update --allow-prereleases)" = "roll_1.1_all.deb "
+check "...while without the flag, the release" test "$(update)" = "roll_1.0_all.deb "
 
 printf '%s\n' "bad 1.0" > "${NXD_UPDATE_INSTALLED}"
 printf '%s\n' Org/bad > "${NXD_RELEASES_DIR}/retrobox.list"

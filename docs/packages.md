@@ -65,7 +65,11 @@ overrides it).
 ## Where they are published
 
 - **Every push to `main`** (`.github/workflows/packages.yml`): the
-  `nxd-latest` pre-release, replaced each time, with the `.deb` files and
+  `nxd-latest` pre-release, whose files are replaced each time (the release
+  is never deleted: its tag moves, the new packages go in, then their
+  `SHA256SUMS`, then the old packages go; `nxd-update` skips a package that is
+  not in `SHA256SUMS` yet, and takes the highest version when there are two),
+  with the `.deb` files and
   their `SHA256SUMS`.
 - **Every release** (`build.yml`, a `vX.Y.Z` tag or a manual run with
   "publish"): the release has the installers and the packages of its version.
@@ -87,8 +91,8 @@ the power button while it works. In order:
    the L4T pins of `/etc/apt/preferences.d` still decide which comes from where).
 2. The packages from GitHub releases. For each repository of
    `/usr/share/nxd/releases.d/*.list` (nx-debian, then the Retrobox
-   components), the newest release, or with `--allow-prereleases` the newest
-   one that has packages, pre-release or not; from it, the `.deb` of this
+   components), the newest release, or with `--allow-prereleases` the one
+   with the newest packages (by their upload date), pre-release or not; from it, the `.deb` of this
    machine (as the build picks them: this CPU or `all`, this Debian's build
    before a generic one, no `-dbgsym`) **of packages that are installed**, if
    they are newer than the installed version. A release without a

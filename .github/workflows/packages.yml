@@ -1,8 +1,8 @@
 name: Packages
 
 # nx-debian's own packages (nxd-common, nxd-<variant>; `nxd debs`) on every push
-# to main, published as the "nxd-latest" pre-release, which is replaced each
-# time: the consoles get them with `nxd-update --allow-prereleases`. Releases
+# to main, published as the "nxd-latest" pre-release, whose files are replaced
+# each time (the release itself stays, so that it is always there): the consoles get them with `nxd-update --allow-prereleases`. Releases
 # (a v* tag, build.yml) carry the packages of their version, and are what
 # `nxd-update` takes by default.
 on:
@@ -44,8 +44,22 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           version="$(./nxd debs --print-version)"
-          gh release delete nxd-latest --cleanup-tag --yes 2> /dev/null || true
-          gh release create nxd-latest dist/* --prerelease --latest=false \
-            --target "${GITHUB_SHA}" \
-            --title "nx-debian packages ${version} (pre-release)" \
-            --notes "nxd-common and nxd-<variant> ${version}, built from ${GITHUB_SHA}. Replaced on every push to main. On a console: \`sudo nxd-update --allow-prereleases\`."
+          title="nx-debian packages ${version} (pre-release)"
+          notes="nxd-common and nxd-<variant> ${version}, built from ${GITHUB_SHA}. Updated on every push to main. On a console: \`nxd-update --allow-prereleases\`."
+          if ! gh release view nxd-latest > /dev/null 2>&1; then
+            gh release create nxd-latest dist/* --prerelease --latest=false \
+              --target "${GITHUB_SHA}" --title "${title}" --notes "${notes}"
+            exit 0
+          fi
+          # The release is never deleted, so that a console updating meanwhile
+          # always finds one: the tag moves, the new packages go in, then
+          # SHA256SUMS (until then nxd-update skips them), then the old ones go.
+          git tag -f nxd-latest "${GITHUB_SHA}"
+          git push -f origin refs/tags/nxd-latest
+          old="$(gh release view nxd-latest --json assets --jq '.assets[].name')"
+          gh release upload nxd-latest dist/*.deb --clobber
+          gh release upload nxd-latest dist/SHA256SUMS --clobber
+          for asset in ${old}; do
+            [[ -e "dist/${asset}" ]] || gh release delete-asset nxd-latest "${asset}" --yes
+          done
+          gh release edit nxd-latest --prerelease --latest=false --title "${title}" --notes "${notes}"

@@ -98,7 +98,12 @@ the power button while it works. In order:
    and is not downloaded again.
 3. `apt-get autoremove --purge` and `apt-get clean`.
 
-Like the build, it installs no Recommends (`APT::Install-Recommends=false`):
+Switchroot's `nintendo-switch-meta` is `Essential: yes`, so any `apt-get
+dist-upgrade` would install it and its dependencies (the set of Switchroot's
+Ubuntu images: flatpak, gnome-software, the gamepad-as-mouse driver, a second
+source for the L4T repository...). nxd-common pins it, and `switch-l4t-repo`,
+below zero (`/etc/apt/preferences.d/50-nxd-no-l4t-meta.pref`), so apt never
+installs them. Like the build, `nxd-update` also installs no Recommends (`APT::Install-Recommends=false`):
 an upgrade does not bring what the image leaves out on purpose, such as the
 L4T meta package, flatpak or the gamepad-as-mouse driver. Everything is
 non-interactive (`DEBIAN_FRONTEND=noninteractive`), and

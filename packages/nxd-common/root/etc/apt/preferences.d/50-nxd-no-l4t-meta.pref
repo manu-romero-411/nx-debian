@@ -1,0 +1,9 @@
+# nxd-common: never install Switchroot's metapackage. nintendo-switch-meta is
+# "Essential: yes", which makes every apt-get dist-upgrade install it with its
+# dependencies: what the Ubuntu images of Switchroot have and nx-debian picks
+# by itself (flatpak and gnome-software, the gamepad-as-mouse driver, dconf
+# defaults for GNOME...), and switch-l4t-repo, a second source for the L4T
+# repository the image already has.
+Package: nintendo-switch-meta switch-l4t-repo
+Pin: version *
+Pin-Priority: -1

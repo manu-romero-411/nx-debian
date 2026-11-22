@@ -13,12 +13,14 @@ input group (Retrobox puts the user there).
 
 from __future__ import annotations
 
+import os
 import selectors
 import shutil
 import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import evdev
 from evdev import ecodes
@@ -38,6 +40,27 @@ def is_capture_device(device: evdev.InputDevice) -> bool:
         return False
     keys = device.capabilities().get(ecodes.EV_KEY, [])
     return ecodes.BTN_Z in keys
+
+
+def find_screenshot() -> str | None:
+    """retrobox-screenshot: in the PATH, else next to the retrobox command
+    (its bin/, which the package doesn't put in the PATH), else in
+    $RETROBOX_ROOTDIR/bin or /opt/retrobox/bin."""
+    found = shutil.which("retrobox-screenshot")
+    if found:
+        return found
+    places = []
+    retrobox = shutil.which("retrobox")
+    if retrobox:
+        places.append(Path(retrobox).resolve().parent)
+    if os.environ.get("RETROBOX_ROOTDIR"):
+        places.append(Path(os.environ["RETROBOX_ROOTDIR"]) / "bin")
+    places.append(Path("/opt/retrobox/bin"))
+    for place in places:
+        candidate = place / "retrobox-screenshot"
+        if os.access(candidate, os.X_OK):
+            return str(candidate)
+    return None
 
 
 def is_press(event: evdev.InputEvent) -> bool:
@@ -77,7 +100,7 @@ def forget(device: evdev.InputDevice, known: dict[str, evdev.InputDevice],
 
 def main() -> int:
     """Wait for Capture presses until the session ends."""
-    command = shutil.which("retrobox-screenshot")
+    command = find_screenshot()
     if command is None:
         print("capture-button: retrobox-screenshot is not installed", file=sys.stderr)
         return 1

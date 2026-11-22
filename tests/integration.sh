@@ -228,6 +228,10 @@ if [[ -f "${TAR}" ]]; then
     expect "rootfs: the mask list is consumed" \
         "$(printf '%s\n' "${LISTING}" | grep -c 'tmp/nxd-mask' || true)" '^0$'
     expect "rootfs: the hostname survives the build" "$(tar -xOf "${TAR}" ./etc/hostname)" '^nintendo-switch$'
+    # the overlay goes in as root's, not as the checkout's owner
+    NUMERIC="$(tar --numeric-owner -tvf "${TAR}")"
+    expect "rootfs: /etc is root's" "$(grep -E ' \./etc/?$' <<< "${NUMERIC}")" '^d[rwx-]{9} 0/0 '
+    expect "rootfs: the overlay's files are root's" "$(grep -E ' \./etc/(hostname|hosts|fstab)$' <<< "${NUMERIC}" | grep -vc ' 0/0 ' || true)" '^0$'
     expect "rootfs: the release package is installed" "${MANIFEST}" $'fake-release\t'
     expect "rootfs: nx-debian's own nxd-common is installed" "${MANIFEST}" $'nxd-common\t'
     expect "rootfs: the release package files are there" "${LISTING}" 'opt/fake/hello'

@@ -268,13 +268,15 @@ CMD+=(
 )
 # The files that make this image this image (hostname, fstab...):
 # config/overlay/common, then config/overlay/<variant> if a variant has one,
-# each top-level entry copied into /. Every other file is in nx-debian's
-# packages (packages/), installed below.
+# copied into /. Every other file is in nx-debian's packages (packages/),
+# installed below. They go in as root's: copy-in keeps the owner of the
+# checkout (uid 1000, the image's user), which made /etc and these files the
+# user's, and systemd's timedated and localed (root, but with no
+# CAP_DAC_OVERRIDE) could not write to /etc. The directories that are already
+# there (/etc...) keep their owner and mode.
 for overlay in "${NXD_CONFIG_DIR}/overlay/common" "${NXD_CONFIG_DIR}/overlay/${VARIANT}"; do
     [[ -d "${overlay}" ]] || continue
-    for entry in "${overlay}"/*; do
-        [[ -e "${entry}" ]] && CMD+=(--customize-hook="copy-in ${entry} /")
-    done
+    CMD+=(--customize-hook="tar -C $(printf '%q' "${overlay}") --owner=0 --group=0 --numeric-owner -cf - . | tar -C \"\$1\" --no-overwrite-dir -xpf -")
 done
 if [[ "${HAVE_DEBS}" -eq 1 ]]; then
     # shellcheck disable=SC2016

@@ -180,7 +180,9 @@ Unzip the installer at the root of the SD card, boot Hekate and flash the
 
 `/etc/fstab`, `/etc/hostname` and `/etc/hosts` come from
 `config/overlay/common`: they are what makes one image that image, so they
-stay out of the packages. Every other file nx-debian adds to the system is in
+stay out of the packages. They are copied in as root's, whoever owns the
+checkout (nxd-common gives them, and `/etc`, back to root on images built
+before that). Every other file nx-debian adds to the system is in
 its packages, nxd-common and nxd-<variant> (see [packages.md](packages.md)).
 The root filesystem is mounted by label, not by partition number.
 

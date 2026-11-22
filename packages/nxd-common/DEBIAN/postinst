@@ -1,7 +1,8 @@
 #!/bin/sh
 # nxd-common: enables nxd-nvpmodel-restore.service the first time (an upgrade
 # keeps what the administrator chose), and has the locales of
-# /usr/share/nxd/locales generated.
+# /usr/share/nxd/locales generated, and gives back to root the files of the
+# image's overlay that older images left to the user.
 #
 # The Switch's Wi-Fi/Bluetooth chip asks for firmware files under
 # other names than the ones the L4T packages ship: link them, and rebuild the
@@ -61,6 +62,18 @@ console_font() {
     fi
 }
 
+# root_owned: images built before the fix had /etc and the overlay's files
+# (hostname, hosts, fstab) owned by the image's user (uid 1000, the checkout's
+# owner), and timedated and localed (root, with no CAP_DAC_OVERRIDE) could not
+# set the time zone, the keyboard or the language. Only those, only when they
+# are the user's.
+root_owned() {
+    for path in /etc /etc/hostname /etc/hosts /etc/fstab; do
+        [ -e "${path}" ] || continue
+        [ "$(stat -c %u "${path}")" = 0 ] || chown -h root:root "${path}"
+    done
+}
+
 units() {
     unit=nxd-nvpmodel-restore.service
     deb-systemd-helper unmask "${unit}" > /dev/null || true
@@ -75,6 +88,7 @@ case "${1:-}" in
     configure)
         # $2 is the version that was installed before: none on a first install
         [ -n "${2:-}" ] || console_font
+        root_owned
         units
         locales
         firmware

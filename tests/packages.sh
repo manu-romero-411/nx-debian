@@ -189,6 +189,72 @@ check "...made again when switch-alsa-ucm2 changes it" \
 # shellcheck disable=SC2016 # the literal text of the script
 check "...and given back on remove" grep -q -- '--divert "${ucm}.switch-alsa-ucm2" --remove "${ucm}"' "${CPKG}/DEBIAN/postrm"
 
+## the headphones: Switchroot's UCM profile has them as another profile of the
+## card, which PulseAudio does not switch to when they are plugged in
+
+HPS="${CPKG}/root/usr/lib/nxd/headphones"
+mkdir -p "${tmp}/hp/bin"
+# `pactl list cards` of a Switch Lite (LC_ALL=C), with the active profile and
+# the jack to fill in
+cat > "${tmp}/hp/cards" << 'CARDS'
+Card #0
+	Name: alsa_card.platform-70030000.hda
+	Driver: module-alsa-card.c
+	Profiles:
+		off: Off (sinks: 0, sources: 0, priority: 0, available: yes)
+	Active Profile: off
+	Ports:
+		[Out] HDMI1: HDMI / DisplayPort (type: HDMI, priority: 5900, latency offset: 0 usec, not available)
+			Part of profile(s): output:hdmi-stereo
+Card #1
+	Name: alsa_card.platform-sound
+	Driver: module-alsa-card.c
+	Owner Module: 7
+	Properties:
+		alsa.card = "1"
+	Profiles:
+		HiFi (DummyMic, Speaker): Play HiFi quality Music (DummyMic, Speaker) (sinks: 1, sources: 1, priority: 40968, available: yes)
+		HiFi (DummyMic, Headphones): Play HiFi quality Music (DummyMic, Headphones) (sinks: 1, sources: 1, priority: 40968, available: yes)
+		HiFi (HeadsetMic, Speaker): Play HiFi quality Music (HeadsetMic, Speaker) (sinks: 1, sources: 1, priority: 40968, available: yes)
+		HiFi (Headphones, HeadsetMic): Play HiFi quality Music (Headphones, HeadsetMic) (sinks: 1, sources: 1, priority: 40968, available: yes)
+		off: Off (sinks: 0, sources: 0, priority: 0, available: yes)
+	Active Profile: @ACTIVE@
+	Ports:
+		[Out] Speaker: Speaker playback (type: Speaker, priority: 100, latency offset: 0 usec, availability unknown)
+			Part of profile(s): HiFi (DummyMic, Speaker), HiFi (HeadsetMic, Speaker)
+		[Out] Headphones: Headphones playback (type: Headphones, priority: 100, latency offset: 0 usec, @HP@)
+			Part of profile(s): HiFi (DummyMic, Headphones), HiFi (Headphones, HeadsetMic)
+CARDS
+cat > "${tmp}/hp/bin/pactl" << 'PACTL'
+#!/bin/sh
+case "$1" in
+    list) sed -e "s/@ACTIVE@/$(cat "${HPDIR}/active")/" -e "s/@HP@/$(cat "${HPDIR}/jack")/" "${HPDIR}/cards" ;;
+    set-card-profile) echo "$2|$3" > "${HPDIR}/set" ;;
+esac
+PACTL
+chmod +x "${tmp}/hp/bin/pactl"
+# jack ACTIVE JACK: the profile the script sets, or "none"
+jack() {
+    echo "$1" > "${tmp}/hp/active"
+    echo "$2" > "${tmp}/hp/jack"
+    rm -f "${tmp}/hp/set"
+    HPDIR="${tmp}/hp" PATH="${tmp}/hp/bin:${PATH}" "${HPS}" --once 2> /dev/null
+    cat "${tmp}/hp/set" 2> /dev/null || echo none
+}
+check "headphones plugged in: their profile" \
+    test "$(jack "HiFi (DummyMic, Speaker)" available)" = "alsa_card.platform-sound|HiFi (DummyMic, Headphones)"
+check "...keeping the input" \
+    test "$(jack "HiFi (HeadsetMic, Speaker)" available)" = "alsa_card.platform-sound|HiFi (Headphones, HeadsetMic)"
+check "taken out: the speaker's" \
+    test "$(jack "HiFi (DummyMic, Headphones)" "not available")" = "alsa_card.platform-sound|HiFi (DummyMic, Speaker)"
+check "...keeping the input" \
+    test "$(jack "HiFi (Headphones, HeadsetMic)" "not available")" = "alsa_card.platform-sound|HiFi (HeadsetMic, Speaker)"
+check "nothing when the profile is the right one already" test "$(jack "HiFi (DummyMic, Headphones)" available)" = none
+check "...nor when the card is off" test "$(jack off available)" = none
+check "run for each user" test -L "${CPKG}/root/usr/lib/systemd/user/default.target.wants/nxd-headphones.service"
+check "...again whenever PulseAudio comes back" grep -qx 'Restart=always' "${CPKG}/root/usr/lib/systemd/user/nxd-headphones.service"
+check "nxd-common needs pactl" grep -qw 'pulseaudio-utils' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
+
 # the version from git, in a repository of its own
 repo="${tmp}/repo"
 git init -q "${repo}"

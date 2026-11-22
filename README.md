@@ -46,7 +46,7 @@ Common to both:
   overlay in `retrobox`, from the panel indicator in `xfce`. The fan mode and the
   charge limit are kept across reboots.
 * **Text consoles** in Terminus 8x16, and `fastfetch`.
-* **Volume** of the speaker and the headphones kept between starts (Switchroot's sound profile no longer puts it back at 100%).
+* **Volume** of the speaker and the headphones kept between starts (Switchroot's sound profile no longer puts it back at 100%), and the **headphones** used as soon as they are plugged in.
 * **Locales** of the common languages of Europe generated (English, Spanish, Catalan, Basque, Galician, French, German, Italian, Polish, Russian, Ukrainian, Greek).
 * **A quiet boot** (no kernel or systemd text on the screen), and a reboot that
   goes back to Hekate's menu.

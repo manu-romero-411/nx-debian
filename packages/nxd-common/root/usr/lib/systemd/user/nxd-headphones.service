@@ -1,0 +1,12 @@
+[Unit]
+Description=Sound on the headphones while they are plugged in
+Documentation=https://github.com/manu-romero-411/nx-debian/blob/main/docs/packages.md
+After=pulseaudio.service pipewire-pulse.service
+
+[Service]
+ExecStart=/usr/lib/nxd/headphones
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,124 @@
+#!/usr/bin/env bash
+# headphones: puts the Switch's sound on the headphones while they are
+# plugged into the jack, and back on the speaker when they are taken out.
+#
+#   headphones [--once]
+#
+# In Switchroot's UCM profile the speaker and the headphones are different
+# profiles of the card ("HiFi (DummyMic, Speaker)", "HiFi (DummyMic,
+# Headphones)"...), and PulseAudio does not change the profile when the jack
+# says the headphones are there: it only marks their port available. This
+# does: the profile with the same input and the other output.
+#
+# It runs once at start and again on every card event of PulseAudio
+# (pactl subscribe), and acts only when the jack changes: a profile chosen by
+# hand (the overlay's audio page, pavucontrol...) stays until the headphones
+# are plugged in or taken out. Each output keeps its own volume (they are
+# different sinks to PulseAudio).
+#
+# Run for each user by nxd-headphones.service (systemd's user manager).
+# --once applies it once and exits (for the tests).
+set -uo pipefail
+
+log() { printf 'nxd-headphones: %s\n' "$*" >&2; }
+
+# What read_card finds in `pactl list cards`, for the card with a headphones
+# port: its name, its active profile, whether the headphones are plugged in,
+# and the names of its profiles.
+CARD=""
+ACTIVE=""
+PLUGGED=""
+PROFILES=()
+
+read_card() {
+    local line name="" active="" plugged="" section=""
+    local -a profiles=()
+    CARD="" ACTIVE="" PLUGGED="" PROFILES=()
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        case "${line}" in
+            "Card #"*)
+                [[ -n "${plugged}" ]] && break
+                name="" active="" plugged="" section="" profiles=()
+                ;;
+            $'\t'"Name: "*) name="${line#*Name: }" ;;
+            $'\t'"Active Profile: "*) active="${line#*Active Profile: }" ;;
+            $'\t'"Profiles:"*) section=profiles ;;
+            $'\t'"Ports:"*) section=ports ;;
+            $'\t'[A-Za-z]*) section="" ;;
+            $'\t\t'"[Out] Headphones: "*)
+                [[ "${section}" == ports ]] || continue
+                if [[ "${line}" == *"not available)" ]]; then plugged=0; else plugged=1; fi
+                ;;
+            $'\t\t'[!$'\t']*)
+                [[ "${section}" == profiles ]] || continue
+                line="${line#$'\t\t'}"
+                profiles+=("${line%%: *}")
+                ;;
+            *) ;;
+        esac
+    done < <(LC_ALL=C pactl list cards 2> /dev/null)
+    [[ -n "${plugged}" ]] || return 1
+    CARD="${name}" ACTIVE="${active}" PLUGGED="${plugged}" PROFILES=("${profiles[@]}")
+}
+
+# devices PROFILE: the devices of a profile ("HiFi (DummyMic, Speaker)"), one
+# a line, sorted
+devices() {
+    local inside="${1#*(}"
+    inside="${inside%)*}"
+    tr ',' '\n' <<< "${inside}" | sed 's/^ *//; s/ *$//' | sort
+}
+
+# swapped FROM TO: the profile of the card whose devices are those of the
+# active one with FROM replaced by TO; nothing if there is none
+swapped() {
+    local from="$1" to="$2" want profile
+    want="$(devices "${ACTIVE}" | sed "s/^${from}\$/${to}/" | sort)"
+    for profile in "${PROFILES[@]}"; do
+        [[ "${profile%% (*}" == "${ACTIVE%% (*}" ]] || continue
+        if [[ "$(devices "${profile}")" == "${want}" ]]; then
+            printf '%s\n' "${profile}"
+            return 0
+        fi
+    done
+    return 1
+}
+
+LAST=""
+
+apply() {
+    local target
+    read_card || return 0
+    # a profile of devices ("HiFi (...)"), not "off" or another one
+    [[ "${ACTIVE}" == *"("*")" ]] || return 0
+    # only when the jack changes (or at start)
+    [[ "${PLUGGED}" != "${LAST}" ]] || return 0
+    LAST="${PLUGGED}"
+    if [[ "${PLUGGED}" -eq 1 ]]; then
+        [[ "$(devices "${ACTIVE}")" != *Headphones* ]] || return 0
+        target="$(swapped Speaker Headphones)" || return 0
+    else
+        [[ "$(devices "${ACTIVE}")" == *Headphones* ]] || return 0
+        target="$(swapped Headphones Speaker)" || return 0
+    fi
+    log "${CARD}: ${ACTIVE} -> ${target}"
+    pactl set-card-profile "${CARD}" "${target}" || log "cannot set the profile ${target}"
+}
+
+if [[ "${1:-}" == --once ]]; then
+    apply
+    exit 0
+fi
+
+command -v pactl > /dev/null 2>&1 || { log "pactl is not installed"; exit 1; }
+# PulseAudio may still be starting
+for _ in $(seq 1 30); do
+    pactl info > /dev/null 2>&1 && break
+    sleep 1
+done
+apply
+# card events; when PulseAudio goes, pactl ends, and so does this (the unit
+# starts it again)
+LC_ALL=C pactl subscribe 2> /dev/null | while IFS= read -r event; do
+    [[ "${event}" == *" on card "* ]] && apply
+done

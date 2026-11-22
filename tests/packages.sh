@@ -237,8 +237,10 @@ chmod +x "${tmp}/hp/bin/pactl"
 jack() {
     echo "$1" > "${tmp}/hp/active"
     echo "$2" > "${tmp}/hp/jack"
-    rm -f "${tmp}/hp/set"
-    HPDIR="${tmp}/hp" PATH="${tmp}/hp/bin:${PATH}" "${HPS}" --once 2> /dev/null
+    rm -f "${tmp}/hp/set" "${tmp}/hp/state"
+    HPDIR="${tmp}/hp" PATH="${tmp}/hp/bin:${PATH}" \
+        NXD_HEADPHONES_STATE="${tmp}/hp/state" NXD_HEADPHONES_DEBOUNCE=0 NXD_HEADPHONES_COOLDOWN=5 \
+        "${HPS}" --once 2> /dev/null
     cat "${tmp}/hp/set" 2> /dev/null || echo none
 }
 check "headphones plugged in: their profile" \
@@ -253,6 +255,35 @@ check "nothing when the profile is the right one already" test "$(jack "HiFi (Du
 check "...nor when the card is off" test "$(jack off available)" = none
 check "run for each user" test -L "${CPKG}/root/usr/lib/systemd/user/default.target.wants/nxd-headphones.service"
 check "...again whenever PulseAudio comes back" grep -qx 'Restart=always' "${CPKG}/root/usr/lib/systemd/user/nxd-headphones.service"
+# the anti-flicker state: a state file in tmpfs (never the SD card) remembers
+# the jack so a restart of the unit does not flip the profile again, and two
+# switches are never closer than the cooldown
+echo "HiFi (DummyMic, Speaker)" > "${tmp}/hp/active"
+echo "available" > "${tmp}/hp/jack"
+rm -f "${tmp}/hp/set" "${tmp}/hp/state"
+HPDIR="${tmp}/hp" PATH="${tmp}/hp/bin:${PATH}" \
+    NXD_HEADPHONES_STATE="${tmp}/hp/state" NXD_HEADPHONES_DEBOUNCE=0 NXD_HEADPHONES_COOLDOWN=30 \
+    "${HPS}" --once 2> /dev/null
+check "at start it switches the profile" \
+    test "$(cat "${tmp}/hp/set" 2> /dev/null)" = "alsa_card.platform-sound|HiFi (DummyMic, Headphones)"
+rm -f "${tmp}/hp/set"
+HPDIR="${tmp}/hp" PATH="${tmp}/hp/bin:${PATH}" \
+    NXD_HEADPHONES_STATE="${tmp}/hp/state" NXD_HEADPHONES_DEBOUNCE=0 NXD_HEADPHONES_COOLDOWN=30 \
+    "${HPS}" --once 2> /dev/null
+check "a restart of the unit does not switch again" test -z "$(cat "${tmp}/hp/set" 2> /dev/null)"
+echo "not available" > "${tmp}/hp/jack"
+echo "HiFi (DummyMic, Headphones)" > "${tmp}/hp/active"
+rm -f "${tmp}/hp/set"
+HPDIR="${tmp}/hp" PATH="${tmp}/hp/bin:${PATH}" \
+    NXD_HEADPHONES_STATE="${tmp}/hp/state" NXD_HEADPHONES_DEBOUNCE=0 NXD_HEADPHONES_COOLDOWN=30 \
+    "${HPS}" --once 2> /dev/null
+check "a switch within the cooldown window is deferred" test -z "$(cat "${tmp}/hp/set" 2> /dev/null)"
+HPDIR="${tmp}/hp" PATH="${tmp}/hp/bin:${PATH}" \
+    NXD_HEADPHONES_STATE="${tmp}/hp/state" NXD_HEADPHONES_DEBOUNCE=0 NXD_HEADPHONES_COOLDOWN=0 \
+    "${HPS}" --once 2> /dev/null
+check "...and is applied once the cooldown is elapsed" \
+    test "$(cat "${tmp}/hp/set" 2> /dev/null)" = "alsa_card.platform-sound|HiFi (DummyMic, Speaker)"
+rm -f "${tmp}/hp/set"
 check "nxd-common needs pactl" grep -qw 'pulseaudio-utils' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
 
 # the version from git, in a repository of its own

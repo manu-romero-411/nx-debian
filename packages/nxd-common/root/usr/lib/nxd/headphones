@@ -11,16 +11,32 @@
 # does: the profile with the same input and the other output.
 #
 # It runs once at start and again on every card event of PulseAudio
-# (pactl subscribe), and acts only when the jack changes: a profile chosen by
-# hand (the overlay's audio page, pavucontrol...) stays until the headphones
-# are plugged in or taken out. Each output keeps its own volume (they are
-# different sinks to PulseAudio).
+# (pactl subscribe), and acts only when the jack changes: a profile chosen
+# by hand (the overlay's audio page, pavucontrol...) stays until the
+# headphones are plugged in or taken out. Each output keeps its own volume
+# (they are different sinks to PulseAudio).
+#
+# Anti-flicker: the driver reports the jack unstably, and the unit restarts
+# every few seconds, so every decision is checked against a state file in
+# tmpfs (${XDG_RUNTIME_DIR:-/tmp}/nxd-headphones.state): an unseen jack change
+# is confirmed stable first, two profile changes are never closer than
+# NXD_HEADPHONES_COOLDOWN seconds apart, and a switch that would come too
+# early is deferred to the next event.
+#
+# The state file is in tmpfs, not on the SD card; the log only says anything
+# when a profile actually changes.
 #
 # Run for each user by nxd-headphones.service (systemd's user manager).
 # --once applies it once and exits (for the tests).
 set -uo pipefail
 
 log() { printf 'nxd-headphones: %s\n' "$*" >&2; }
+
+# State: jack ("0"/"1"), seconds when the last profile was changed, and a
+# pending jack to switch to, deferred by the cooldown ("" when there is none).
+STATE="${NXD_HEADPHONES_STATE:-${XDG_RUNTIME_DIR:-/tmp}/nxd-headphones.state}"
+COOLDOWN="${NXD_HEADPHONES_COOLDOWN:-5}"
+DEBOUNCE="${NXD_HEADPHONES_DEBOUNCE:-0.75}"
 
 # What read_card finds in `pactl list cards`, for the card with a headphones
 # port: its name, its active profile, whether the headphones are plugged in,
@@ -84,25 +100,83 @@ swapped() {
     return 1
 }
 
-LAST=""
+STATE_JACK=""
+STATE_AT="0"
+STATE_PENDING=""
+
+read_state() {
+    STATE_JACK="" STATE_AT="0" STATE_PENDING=""
+    [[ -f "${STATE}" ]] || return 0
+    local line n=1
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        case "${n}" in
+            1) STATE_JACK="${line}" ;;
+            2) STATE_AT="${line}" ;;
+            3) STATE_PENDING="${line}" ;;
+        esac
+        n=$((n + 1))
+    done < "${STATE}"
+    [[ -z "${STATE_JACK}" ]] && STATE_AT="0" && STATE_PENDING=""
+}
+
+write_state() {
+    local tmp
+    tmp="$(mktemp "${STATE}.XXXXXX" 2> /dev/null)" || return 0
+    printf '%s\n%s\n%s\n' "${1}" "${2}" "${3}" > "${tmp}" || { rm -f "${tmp}"; return 0; }
+    chmod 644 "${tmp}" 2> /dev/null || true
+    mv -f "${tmp}" "${STATE}" 2> /dev/null || rm -f "${tmp}"
+}
 
 apply() {
     local target
     read_card || return 0
     # a profile of devices ("HiFi (...)"), not "off" or another one
     [[ "${ACTIVE}" == *"("*")" ]] || return 0
-    # only when the jack changes (or at start)
-    [[ "${PLUGGED}" != "${LAST}" ]] || return 0
-    LAST="${PLUGGED}"
-    if [[ "${PLUGGED}" -eq 1 ]]; then
-        [[ "$(devices "${ACTIVE}")" != *Headphones* ]] || return 0
-        target="$(swapped Speaker Headphones)" || return 0
-    else
-        [[ "$(devices "${ACTIVE}")" == *Headphones* ]] || return 0
-        target="$(swapped Headphones Speaker)" || return 0
+
+    read_state
+
+    # Nothing changed and nothing deferred: no work at all.
+    if [[ -n "${STATE_JACK}" && "${PLUGGED}" == "${STATE_JACK}" && -z "${STATE_PENDING}" ]]; then
+        return 0
     fi
+
+    # The jack changed (or this is the first run): the port flaps in this
+    # driver, so it must read stable over DEBOUNCE seconds before anything
+    # is decided.
+    if [[ -z "${STATE_JACK}" || "${PLUGGED}" != "${STATE_JACK}" ]]; then
+        sleep "${DEBOUNCE}"
+        read_card || return 0
+        [[ "${ACTIVE}" == *"("*")" ]] || return 0
+        # Back to the old state: a flicker, not a change.
+        [[ -n "${STATE_JACK}" && "${PLUGGED}" == "${STATE_JACK}" ]] && return 0
+    fi
+
+    local now
+    now="$(date +%s)"
+
+    # Cooldown: at most one profile change per COOLDOWN seconds. A switch
+    # that would come too early is deferred to the next event instead of
+    # flapping the profile.
+    if [[ $(( now - STATE_AT )) -lt ${COOLDOWN} ]]; then
+        write_state "${PLUGGED}" "${STATE_AT}" "${PLUGGED}"
+        return 0
+    fi
+
+    if [[ "${PLUGGED}" -eq 1 ]]; then
+        [[ "$(devices "${ACTIVE}")" != *Headphones* ]] || { write_state "${PLUGGED}" "${STATE_AT}" ""; return 0; }
+        target="$(swapped Speaker Headphones)" || { write_state "${PLUGGED}" "${STATE_AT}" ""; return 0; }
+    else
+        [[ "$(devices "${ACTIVE}")" == *Headphones* ]] || { write_state "${PLUGGED}" "${STATE_AT}" ""; return 0; }
+        target="$(swapped Headphones Speaker)" || { write_state "${PLUGGED}" "${STATE_AT}" ""; return 0; }
+    fi
+
     log "${CARD}: ${ACTIVE} -> ${target}"
-    pactl set-card-profile "${CARD}" "${target}" || log "cannot set the profile ${target}"
+    if pactl set-card-profile "${CARD}" "${target}"; then
+        write_state "${PLUGGED}" "${now}" ""
+    else
+        log "cannot set the profile ${target}"
+        write_state "${PLUGGED}" "${STATE_AT}" ""
+    fi
 }
 
 if [[ "${1:-}" == --once ]]; then
@@ -117,8 +191,10 @@ for _ in $(seq 1 30); do
     sleep 1
 done
 apply
-# card events; when PulseAudio goes, pactl ends, and so does this (the unit
-# starts it again)
+# Card events only: every other event (clients, sinks, sources, server) is
+# ignored cheaply by the same filter, so a busy session costs one line read
+# and nothing else. When PulseAudio goes, pactl ends and so does this (the
+# unit starts it again).
 LC_ALL=C pactl subscribe 2> /dev/null | while IFS= read -r event; do
     [[ "${event}" == *" on card "* ]] && apply
 done

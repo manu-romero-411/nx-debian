@@ -213,6 +213,10 @@ check "not the pre-release without the flag" grep -q 'Me/nxd v1.0.0: nxd-common'
 check "the pre-release with --allow-prereleases" \
     test "$(update --allow-prereleases)" = "core_2.0_arm64.deb nxd-common_1.0.0.git3.gabcdef0_all.deb "
 check "a repository without packages is skipped" grep -q 'Org/images: no release with packages' "${tmp}/log"
+printf '%s\n' "Org/core core" Org/missing Org/images > "${NXD_RELEASES_DIR}/retrobox.list"
+check "a repository the API cannot read does not stop the others" grep -q 'core_2.0_arm64.deb' <<< "$(update --allow-prereleases)"
+check "...and says what GitHub answered" grep -q '/repos/Org/missing/releases?per_page=30: HTTP 404' "${tmp}/log"
+printf '%s\n' "Org/core core   # only its core package" Org/images > "${NXD_RELEASES_DIR}/retrobox.list"
 
 printf '%s\n' "nxd-common 1.0.0" "nxd-retrobox 1.0.0" "core 2.0" > "${NXD_UPDATE_INSTALLED}"
 check "nothing when everything is up to date" test -z "$(update)"

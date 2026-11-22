@@ -85,12 +85,23 @@ export DEBIAN_FRONTEND=noninteractive
 # package, flatpak and gnome-software, the gamepad-as-mouse driver...).
 APT=(apt-get -y -o APT::Install-Recommends=false -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold)
 
+# api_get URL: the API's answer; when it is not one, why (GitHub's HTTP code
+# and message) on stderr, and a failure
 api_get() {
     local -a headers=(-H "Accept: application/vnd.github+json")
+    local body code
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         headers+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
     fi
-    curl -fsSL --retry 2 "${headers[@]}" "$1"
+    body="$(mktemp)"
+    code="$(curl -sSL --retry 2 -o "${body}" -w '%{http_code}' "${headers[@]}" "$1")" || code="${code:-000}"
+    if [[ "${code}" != 200 ]]; then
+        warn "${1#"${API}"}: HTTP ${code}: $(jq -r '.message? // empty' "${body}" 2> /dev/null | head -n 1)"
+        rm -f "${body}"
+        return 1
+    fi
+    cat "${body}"
+    rm -f "${body}"
 }
 
 # installed_version PACKAGE: its version if it is installed, else nothing
@@ -156,7 +167,7 @@ fetch() {
     local repo="$1" dir="$2" json tag kind sums_name sums name file package version installed expected
     shift 2
     local -a names=() chosen=() wanted=() listed=("$@")
-    json="$(release "${repo}")" || { warn "cannot read the releases of ${repo} (rate limited? set GITHUB_TOKEN)"; return 0; }
+    json="$(release "${repo}")" || { warn "cannot read the releases of ${repo} (see above; GITHUB_TOKEN lifts the limit of 60 anonymous requests an hour)"; return 0; }
     if [[ -z "${json}" ]]; then
         log "${repo}: no release with packages"
         return 0
@@ -188,7 +199,9 @@ fetch() {
         warn "${repo} ${tag} has no SHA256SUMS: its packages are not installed"
         return 0
     fi
+    # readable by apt's _apt user, which downloads from it
     mkdir -p "${dir}/${repo//\//_}"
+    chmod 755 "${dir}/${repo//\//_}"
     sums="${dir}/${repo//\//_}/SHA256SUMS"
     curl -fsSL --retry 2 -o "${sums}" \
         "$(jq -r --arg n "${sums_name}" '.assets[] | select(.name == $n) | .browser_download_url' <<< "${json}")"
@@ -244,6 +257,7 @@ log "Debian and L4T packages"
 log "packages from GitHub releases"
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
+chmod 755 "${work}"
 # into a file, not through a pipe: a package that fails its checksum stops here
 releases "${work}" > "${work}/packages"
 mapfile -t debs < "${work}/packages"

@@ -6,7 +6,7 @@ set -euo pipefail
 
 TESTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 NXD_ROOT="$(cd "${TESTS_DIR}/.." && pwd)"
-UPDATE="${NXD_ROOT}/packages/nxd-common/root/usr/sbin/nxd-update"
+UPDATE="${NXD_ROOT}/packages/nxd-common/root/usr/bin/nxd-update"
 
 for tool in curl jq dpkg-deb python3 git; do
     command -v "${tool}" > /dev/null 2>&1 || { echo "skipped: no ${tool}"; exit 0; }
@@ -48,7 +48,10 @@ check "nxd-retrobox needs the nxd-common of its version" \
 check "the files under /etc are conffiles" \
     grep -qx '/etc/retrobox/retrobox.ini.d/50-nxd.ini' <<< "$(dpkg-deb --ctrl-tarfile "${RETRO}" | tar -xO ./conffiles)"
 check "the files belong to root" test -z "$(dpkg-deb -c "${RETRO}" | awk '$2 != "root/root"')"
-check "nxd-update is executable" grep -q '^-rwxr-xr-x .*\./usr/sbin/nxd-update$' <<< "$(dpkg-deb -c "${COMMON}")"
+check "nxd-update is executable" grep -q '^-rwxr-xr-x .*\./usr/bin/nxd-update$' <<< "$(dpkg-deb -c "${COMMON}")"
+# Debian's PATH for a user (/etc/profile, /etc/login.defs) has no sbin: in
+# /usr/sbin, `nxd-update` was "command not found" for the console's user
+check_not "...and in a user's PATH, not in /usr/sbin" grep -q '\./usr/sbin/' <<< "$(dpkg-deb -c "${COMMON}")"
 check "the session's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox-system-settings/session.d/50-nxd-emulationstation$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
 check "--variant xfce builds nxd-common and nxd-xfce" bash -c \

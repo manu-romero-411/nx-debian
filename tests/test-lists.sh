@@ -63,7 +63,7 @@ RLIST="${RPKG}/root/usr/share/nxd/releases.d/retrobox.list"
 check "that session comes from retrobox-system-settings' releases" \
     grep -qx 'RetroboxProject/retrobox-system-settings retrobox-system-settings retrobox-session-openbox' "${RLIST}"
 check_not "nxd-retrobox has no session of its own any more" test -e "${RPKG}/root/usr/lib/nxd/retrobox-session"
-HOOK="${RPKG}/root/etc/retrobox-system-settings/session.d/50-nxd-emulationstation"
+HOOK="${RPKG}/root/etc/retrobox/session.d/50-nxd-emulationstation"
 check "the session's step puts EmulationStation's defaults in place" test -x "${HOOK}"
 # shellcheck disable=SC2016 # the literal text of the script
 check "...only if missing" grep -q '\[ -e "${frontend}/${file}" \] || cp' "${HOOK}"
@@ -207,7 +207,7 @@ check "retrobox ships the Switch Lite pad with Home as the hotkey" \
     grep -q 'deviceGUID="06004c277e05000023f1000000000000"' "${ESIN}"
 check "the pad has its hotkey" grep -q 'name="hotkey" type="button" id="11"' "${ESIN}"
 check_not "Openbox's rc.xml (volume and power keys) is the session's" \
-    test -e "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox-system-settings/openbox/rc.xml"
+    test -e "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/openbox/rc.xml"
 check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' \
     "${NXD_ROOT}/packages/nxd-retrobox/root/etc/systemd/logind.conf.d/10-nxd-power.conf"
 PMHOOK="${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/systemd/system-sleep/nxd-picom"
@@ -253,7 +253,8 @@ for folder in roms saves bios; do
 done
 check "they are in [paths]" bash -c "awk '/^\\[/{s=\$0} /^roms_dir = /{f=(s==\"[paths]\")} END{exit !f}' '${RBINI}'"
 check "the rest stays where Retrobox puts it" test -z "$(grep -E '^(data_dir|state_dir) *=' "${RBINI}" || true)"
-check "nothing sets RETROBOX_CONFIGDIR any more" test -z "$(grep -rl 'RETROBOX_CONFIGDIR' "${NXD_ROOT}/config" || true)"
+check "nothing sets or reads RETROBOX_CONFIGDIR any more" test -z "$(grep -rl 'RETROBOX_CONFIGDIR' "${NXD_ROOT}/config" "${NXD_ROOT}/packages" || true)"
+check "Retrobox's configuration is in /etc/retrobox only" test ! -e "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox-system-settings"
 check "the card's tools are installed" has_line "${RETROBOX}" "dosfstools"
 check "the retrobox data hook is executable" test -x "${NXD_ROOT}/config/hooks/retrobox/10-retrobox-data.sh"
 check "lightdm starts X without asking logind" \

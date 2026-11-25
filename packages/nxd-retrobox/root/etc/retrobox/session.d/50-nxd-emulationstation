@@ -7,7 +7,10 @@
 set -eu
 
 share=/usr/share/nxd/retrobox
-config="${RETROBOX_CONFIGDIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/retrobox}"
+# Retrobox's user configuration: $XDG_CONFIG_HOME/retrobox, nothing else
+base="${XDG_CONFIG_HOME:-}"
+case "${base}" in /*) ;; *) base="${HOME}/.config" ;; esac
+config="${base}/retrobox"
 frontend="${config}/frontend/.emulationstation"
 mkdir -p "${frontend}"
 for file in es_input.cfg es_settings.cfg; do

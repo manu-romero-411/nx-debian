@@ -52,9 +52,9 @@ check "nxd-update is executable" grep -q '^-rwxr-xr-x .*\./usr/bin/nxd-update$' 
 # Debian's PATH for a user (/etc/profile, /etc/login.defs) has no sbin: in
 # /usr/sbin, `nxd-update` was "command not found" for the console's user
 check_not "...and in a user's PATH, not in /usr/sbin" grep -q '\./usr/sbin/' <<< "$(dpkg-deb -c "${COMMON}")"
-check "the session's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox-system-settings/session.d/50-nxd-emulationstation$' <<< "$(dpkg-deb -c "${RETRO}")"
+check "the session's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox/session.d/50-nxd-emulationstation$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the compositor sleep hook is in nxd-retrobox, executable" grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-picom$' <<< "$(dpkg-deb -c "${RETRO}")"
-check "the Capture button's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox-system-settings/session.d/60-nxd-capture-button$' <<< "$(dpkg-deb -c "${RETRO}")"
+check "the Capture button's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox/session.d/60-nxd-capture-button$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the Capture button's program is executable" grep -q '^-rwxr-xr-x .*\./usr/share/nxd/retrobox/capture-button$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
 check "--variant xfce builds nxd-common and nxd-xfce" bash -c \

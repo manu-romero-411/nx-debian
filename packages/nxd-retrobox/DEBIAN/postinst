@@ -27,6 +27,19 @@ if [ "${1:-}" = configure ] && [ -f "${autologin}" ] &&
     sed -i 's/^autologin-session=nxd-retrobox$/autologin-session=retrobox-openbox/' "${autologin}"
 fi
 
+# The session's steps were in /etc/retrobox-system-settings/session.d, which
+# the session doesn't read any more: they are in /etc/retrobox/session.d now,
+# with the rest of Retrobox's configuration. The old copies (conffiles this
+# package no longer ships) go.
+if [ "${1:-}" = configure ]; then
+    for old in 50-nxd-emulationstation 60-nxd-capture-button; do
+        rm -f "/etc/retrobox-system-settings/session.d/${old}" \
+            "/etc/retrobox-system-settings/session.d/${old}.dpkg-old" \
+            "/etc/retrobox-system-settings/session.d/${old}.dpkg-dist"
+    done
+    rmdir /etc/retrobox-system-settings/session.d /etc/retrobox-system-settings 2> /dev/null || true
+fi
+
 # needs retrobox-system-settings: when it comes in the same update but after
 # this package, the next update writes the rule
 rule=/etc/polkit-1/rules.d/50-retrobox-console.rules

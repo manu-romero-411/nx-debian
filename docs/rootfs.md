@@ -255,7 +255,7 @@ labwc session), `retrobox-mangohud`, `retrobox-emulationstation` and
 `retrobox-overlay`. lightdm logs the user into the `retrobox-openbox` session
 (`/usr/share/xsessions/retrobox-openbox.desktop`, from
 retrobox-session-openbox), which first runs the steps of
-`/etc/retrobox-system-settings/session.d` (nxd-retrobox's
+`/etc/retrobox/session.d` (nxd-retrobox's
 `50-nxd-emulationstation`, below), then Openbox with the console's `rc.xml`
 (the volume and power keys) and, once it is up, the picom compositor (`picom -b
 --config /dev/null --backend glx --vsync`: vsync against tearing, and

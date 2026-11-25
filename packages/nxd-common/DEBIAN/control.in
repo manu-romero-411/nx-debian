@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Manuel Jesús Romero Mateos <manu4.2012@gmail.com>
 Section: admin
 Priority: optional
-Depends: bash, curl, jq, ca-certificates, apt, dpkg (>= 1.17), coreutils, pkexec, polkitd, console-setup, locales, pulseaudio-utils
+Depends: bash, curl, jq, ca-certificates, apt, dpkg (>= 1.17), coreutils, pkexec, polkitd, console-setup, locales, pulseaudio-utils, e2fsprogs, util-linux
 Homepage: https://github.com/manu-romero-411/nx-debian
 Description: Debian on the Nintendo Switch: files of every image
  The system files of the nx-debian images that no Debian or L4T package

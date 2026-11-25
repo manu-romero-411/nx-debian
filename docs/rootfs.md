@@ -154,8 +154,9 @@ It takes `rootfs.tar` and writes `<output>/<variant>/installer.zip` plus
 `SHA256SUMS`:
 
 - the tree is unpacked as root and copied into an ext4 image labelled
-  `NXDEB` (`--size`, default 5120M; the first boot expands it to the
-  partition), checked with `e2fsck`, and split in `l4t.00`, `l4t.01`... of
+  `NXDEB` (`--size`, default 5120M; on every boot `nxd-growfs.service`, from
+  nxd-common, grows it with `resize2fs` to the partition hekate made, so the
+  first boot fills it), checked with `e2fsck`, and split in `l4t.00`, `l4t.01`... of
   4092M, the most FAT32 can hold;
 - the kernel (`uImage`), `initramfs`, `nx-plat.dtimg`, `bl31.bin`, `bl33.bin`
   and `boot.scr` come from the `switch-bsp` package inside the rootfs: no

@@ -1,0 +1,11 @@
+[Unit]
+Description=Grow the root filesystem to its partition
+Documentation=https://github.com/manu-romero-411/nx-debian/blob/main/docs/packages.md
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/lib/nxd/growfs
+
+[Install]
+WantedBy=multi-user.target

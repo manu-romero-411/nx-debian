@@ -24,6 +24,26 @@ whiptail
 # The system at a glance, in a terminal or over ssh
 fastfetch
 
+# Disks and filesystems: what GParted needs and suggests, so that any
+# partition can be checked, resized or made from the console (nxd-growfs uses
+# e2fsprogs to grow the root filesystem on the first boot). Not dmraid (it
+# brings up fake RAID sets at boot) nor reiserfsprogs/reiser4progs.
+parted
+fdisk
+gdisk
+e2fsprogs
+dosfstools
+exfatprogs
+mtools
+ntfs-3g
+btrfs-progs
+xfsprogs
+f2fs-tools
+jfsutils
+udftools
+gpart
+dmsetup
+kpartx
 # Network and Bluetooth
 network-manager
 wpasupplicant

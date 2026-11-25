@@ -1,5 +1,6 @@
 #!/bin/sh
-# nxd-common: enables nxd-nvpmodel-restore.service the first time (an upgrade
+# nxd-common: enables nxd-nvpmodel-restore.service and nxd-growfs.service the
+# first time (an upgrade
 # keeps what the administrator chose), and has the locales of
 # /usr/share/nxd/locales generated, gives back to root the files of the
 # image's overlay that older images left to the user, and replaces
@@ -83,13 +84,14 @@ root_owned() {
 }
 
 units() {
-    unit=nxd-nvpmodel-restore.service
-    deb-systemd-helper unmask "${unit}" > /dev/null || true
-    if deb-systemd-helper --quiet was-enabled "${unit}"; then
-        deb-systemd-helper enable "${unit}" > /dev/null || true
-    else
-        deb-systemd-helper update-state "${unit}" > /dev/null || true
-    fi
+    for unit in nxd-nvpmodel-restore.service nxd-growfs.service; do
+        deb-systemd-helper unmask "${unit}" > /dev/null || true
+        if deb-systemd-helper --quiet was-enabled "${unit}"; then
+            deb-systemd-helper enable "${unit}" > /dev/null || true
+        else
+            deb-systemd-helper update-state "${unit}" > /dev/null || true
+        fi
+    done
 }
 
 case "${1:-}" in

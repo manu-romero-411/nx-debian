@@ -1,0 +1,43 @@
+#!/bin/sh
+# growfs: grows the root filesystem to the size of its partition.
+#
+#   growfs [DEVICE]
+#
+# The image is an ext4 filesystem of a few GB (nxd image --size), and hekate
+# writes it into a partition of the size chosen in its partition manager,
+# which is usually much bigger: until it is grown, the rest is wasted.
+# resize2fs grows a mounted ext4 while it is in use, so this runs on every
+# boot (nxd-growfs.service) and does nothing once the filesystem fills its
+# partition (less than 16 MiB left over).
+#
+# DEVICE is the filesystem to grow: by default the one mounted on /; a file
+# holding an ext4 image works too (for the tests).
+set -eu
+
+log() { printf 'nxd-growfs: %s\n' "$*"; }
+
+device="${1:-$(findmnt -n -o SOURCE /)}"
+if [ -z "${1:-}" ]; then
+    case "$(findmnt -n -o FSTYPE /)" in
+        ext2 | ext3 | ext4) ;;
+        *) exit 0 ;;
+    esac
+fi
+
+if [ -b "${device}" ]; then
+    space="$(blockdev --getsize64 "${device}")"
+else
+    space="$(stat -c %s "${device}")"
+fi
+header="$(dumpe2fs -h "${device}" 2> /dev/null)"
+blocks="$(printf '%s\n' "${header}" | sed -n 's/^Block count: *//p')"
+size="$(printf '%s\n' "${header}" | sed -n 's/^Block size: *//p')"
+[ -n "${blocks}" ] && [ -n "${size}" ] || {
+    log "${device}: cannot read its size"
+    exit 1
+}
+used=$((blocks * size))
+
+[ $((space - used)) -gt $((16 * 1024 * 1024)) ] || exit 0
+log "${device}: $((used / 1048576)) MiB of $((space / 1048576)) MiB: growing it"
+resize2fs "${device}"

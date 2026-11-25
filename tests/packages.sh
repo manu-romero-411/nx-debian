@@ -85,7 +85,7 @@ check "...and the helper" grep -q '>/usr/lib/nxd/nvpmodel-helper<' "${POLICY}"
 check "nxd-common needs pkexec" grep -q 'pkexec' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
 check "the saved settings are applied at boot" grep -qx 'ExecStart=/usr/lib/nxd/nvpmodel-helper restore' \
     "${CPKG}/root/usr/lib/systemd/system/nxd-nvpmodel-restore.service"
-check "...by a unit nxd-common enables" grep -q 'unit=nxd-nvpmodel-restore.service' "${CPKG}/DEBIAN/postinst"
+check "...by a unit nxd-common enables" grep -q 'for unit in nxd-nvpmodel-restore.service' "${CPKG}/DEBIAN/postinst"
 check_not "the helper refuses what is not a number" "${HELPER}" 10 '1; rm -rf /'
 check "...with its usage status" bash -c "'${HELPER}' 7 abc; test \$? -eq 2"
 check_not "the helper needs an action" "${HELPER}"
@@ -113,6 +113,27 @@ check "...only on a first install" grep -q '\[ -n "${2:-}" \] || console_font' "
 check "...and in debconf, so that console-setup keeps it" grep -q 'console-setup/fontface47 select Terminus' "${CPKG}/DEBIAN/postinst"
 check "nxd-common needs console-setup" grep -q 'console-setup' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
 check "fastfetch is in every image" grep -qx 'fastfetch' "${NXD_ROOT}/config/packages/base.list"
+
+## the root filesystem: grown to its partition on the first boot
+
+GROWFS="${CPKG}/root/usr/lib/nxd/growfs"
+if command -v mkfs.ext4 > /dev/null 2>&1 && command -v resize2fs > /dev/null 2>&1; then
+    truncate -s 64M "${tmp}/rootfs.ext4"
+    mkfs.ext4 -q -F "${tmp}/rootfs.ext4"
+    truncate -s 256M "${tmp}/rootfs.ext4"
+    sh "${GROWFS}" "${tmp}/rootfs.ext4" > "${tmp}/growfs.log" 2>&1
+    check "a small filesystem fills its partition" \
+        test "$(dumpe2fs -h "${tmp}/rootfs.ext4" 2> /dev/null | sed -n 's/^Block count: *//p')" -eq 65536
+    check "...saying so" grep -q 'nxd-growfs: .*: 64 MiB of 256 MiB: growing it' "${tmp}/growfs.log"
+    check_not "...and once it does, nothing more" test -n "$(sh "${GROWFS}" "${tmp}/rootfs.ext4" 2>&1)"
+    rm -f "${tmp}/rootfs.ext4"
+fi
+check "it runs on every boot" grep -qx 'WantedBy=multi-user.target' "${CPKG}/root/usr/lib/systemd/system/nxd-growfs.service"
+check "...enabled by nxd-common" grep -q 'for unit in nxd-nvpmodel-restore.service nxd-growfs.service' "${CPKG}/DEBIAN/postinst"
+check "...which needs resize2fs" grep -qw 'e2fsprogs' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
+for tool in parted fdisk gdisk e2fsprogs dosfstools exfatprogs mtools ntfs-3g btrfs-progs xfsprogs f2fs-tools jfsutils udftools gpart dmsetup kpartx; do
+    check "${tool} is in every image" grep -qx "${tool}" "${NXD_ROOT}/config/packages/base.list"
+done
 
 ## the locales: the common ones of Europe, generated
 

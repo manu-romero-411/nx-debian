@@ -14,7 +14,16 @@
 #      except the ones a list names after its repository (REPO PACKAGE...):
 #      those are installed if they are not yet, so a console gets what its
 #      image would have today.
-#   3. apt-get autoremove --purge and apt-get clean.
+#   3. Retrobox's packages, on the Retrobox image: retrobox-update --no-apt
+#      (retrobox-system-settings' updater, which reads the lists of
+#      /etc/retrobox/releases.d: nxd-retrobox's retrobox.list is there too, a
+#      link to its copy in releases.d, so step 2 leaves it to it). Without
+#      retrobox-update (an older console), step 2 does them as before.
+#   4. apt-get autoremove --purge and apt-get clean.
+#
+# On the Retrobox image, retrobox-update itself (the overlay's System page,
+# or by hand) hands over to this one: nxd-retrobox sets [advanced]
+# system_updater = /usr/bin/nxd-update in /etc/retrobox.
 #
 # Only releases GitHub does not mark as pre-releases are used, unless
 # --allow-prereleases: then the newest release of each repository, a
@@ -32,6 +41,9 @@ set -euo pipefail
 PRERELEASES=0
 DOWNLOAD_ONLY=""
 LISTS_DIR="${NXD_RELEASES_DIR:-/usr/share/nxd/releases.d}"
+# the lists retrobox-update reads; when it is there, those are its
+RETROBOX_LISTS_DIR="${NXD_RETROBOX_RELEASES_DIR:-/etc/retrobox/releases.d}"
+RETROBOX_UPDATE="${NXD_RETROBOX_UPDATE:-$(command -v retrobox-update || true)}"
 STATE_DIR="${NXD_STATE_DIR:-/var/lib/nxd/releases}"
 API="${NXD_GITHUB_API:-https://api.github.com}"
 # Release assets that must never be installed.
@@ -270,11 +282,16 @@ fetch() {
     [[ "${complete}" -eq 0 ]] || printf '%s\n' "${tag}" "${wanted[@]}" > "${dir}/${repo//\//_}/state"
 }
 
-# releases DIR: fetch for every repository of the lists
+# releases DIR: fetch for every repository of the lists (but those
+# retrobox-update has, when it does Retrobox's packages afterwards)
 releases() {
     local dir="$1" list repo
     shopt -s nullglob
     for list in "${LISTS_DIR}"/*.list; do
+        if [[ -z "${DOWNLOAD_ONLY}" && -n "${RETROBOX_UPDATE}" && -e "${RETROBOX_LISTS_DIR}/${list##*/}" ]]; then
+            log "${list##*/}: retrobox-update's"
+            continue
+        fi
         # "REPO [PACKAGE...]"
         while IFS= read -r repo; do
             repo="${repo%%#*}"
@@ -312,6 +329,13 @@ for state in "${work}"/*/state; do
     [[ -f "${state}" ]] || continue
     install -m 644 "${state}" "${STATE_DIR}/$(basename "$(dirname "${state}")")"
 done
+
+if [[ -n "${RETROBOX_UPDATE}" ]]; then
+    log "Retrobox's packages (retrobox-update)"
+    flags=(--no-apt --no-recommends)
+    [[ "${PRERELEASES}" -eq 0 ]] || flags+=(--allow-prereleases)
+    "${RETROBOX_UPDATE}" "${flags[@]}"
+fi
 
 log "cleaning up"
 "${APT[@]}" autoremove --purge

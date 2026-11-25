@@ -79,6 +79,12 @@ check "xfce logs into XFCE" test "$(variant_setting xfce NXD_AUTOLOGIN_SESSION)"
 check "retrobox has a default user" test "$(variant_setting retrobox NXD_DEFAULT_USER)" = "retrobox"
 check "retrobox has a default password" test "$(variant_setting retrobox NXD_DEFAULT_PASSWORD)" = "retrobox"
 check "retrobox installs the retrobox releases" test "$(variant_setting retrobox NXD_RELEASE_LIST)" = "retrobox"
+check "retrobox-update reads the console's release list" test "$(readlink "${RPKG}/root/etc/retrobox/releases.d/retrobox.list")" = /usr/share/nxd/releases.d/retrobox.list
+check "retrobox-update hands the system's update over to nxd-update" \
+    grep -qx 'system_updater = /usr/bin/nxd-update' "${RPKG}/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+# shellcheck disable=SC2016 # the literal text of the script
+check "nxd-update leaves Retrobox's packages to retrobox-update" \
+    grep -q 'flags=(--no-apt --no-recommends)' "${NXD_ROOT}/packages/nxd-common/root/usr/bin/nxd-update"
 check "the retrobox release list names the five components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/releases.d/retrobox.list")" -eq 5
 check "retrobox has a compositor" has_line "${RETROBOX}" picom
 check_not "picom's backend is the session's default (glx)" grep -q '^\[openbox\]' "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"

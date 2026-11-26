@@ -171,6 +171,24 @@ check "...and in debconf, so that console-setup keeps it" grep -q 'console-setup
 check "nxd-common needs console-setup" grep -q 'console-setup' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
 check "fastfetch is in every image" grep -qx 'fastfetch' "${NXD_ROOT}/config/packages/base.list"
 
+## the screen goes dark as soon as a suspend starts
+
+BLHOOK="${CPKG}/root/usr/lib/systemd/system-sleep/nxd-backlight"
+mkdir -p "${tmp}/bl/sys/panel" "${tmp}/bl/sys/plain" "${tmp}/bl/run"
+echo 0 > "${tmp}/bl/sys/panel/bl_power"
+echo 180 > "${tmp}/bl/sys/panel/brightness"
+echo 90 > "${tmp}/bl/sys/plain/brightness"
+blhook() { NXD_BACKLIGHT_DIR="${tmp}/bl/sys" NXD_BACKLIGHT_STATE_DIR="${tmp}/bl/run" sh "${BLHOOK}" "$1"; }
+blhook pre
+check "before the suspend the backlight is off" test "$(cat "${tmp}/bl/sys/panel/bl_power")" = 4
+check "...keeping its brightness" test "$(cat "${tmp}/bl/sys/panel/brightness")" = 180
+check "...or at 0 without bl_power" test "$(cat "${tmp}/bl/sys/plain/brightness")" = 0
+blhook post
+check "after the resume it is on" test "$(cat "${tmp}/bl/sys/panel/bl_power")" = 0
+check "...with the brightness it had" test "$(cat "${tmp}/bl/sys/plain/brightness")" = 90
+check "the hook is in nxd-common, executable" \
+    grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-backlight$' <<< "$(dpkg-deb -c "${COMMON}")"
+
 ## the touchscreen: a tap is a click, not a short drag (touch slop)
 
 SLOP="${CPKG}/root/usr/lib/nxd/touch-slop"

@@ -1,0 +1,46 @@
+#!/bin/sh
+# The screen goes dark as soon as a suspend starts, and comes back at the
+# resume.
+#
+# On the Switch, suspending the devices takes about a second and a half and
+# the display (tegradc) is among the last ones: until then the screen stays
+# lit, and a tap on the power button seemed to do nothing for that long.
+# Before the suspend this turns the backlight off (bl_power 4, which keeps
+# the brightness; without bl_power, brightness 0, the old value kept in
+# /run); after the resume it turns it on again.
+#
+# NXD_BACKLIGHT_DIR (/sys/class/backlight) and NXD_BACKLIGHT_STATE_DIR (/run)
+# are for the tests.
+
+dir="${NXD_BACKLIGHT_DIR:-/sys/class/backlight}"
+state="${NXD_BACKLIGHT_STATE_DIR:-/run}/nxd-backlight"
+
+case "${1:-}" in
+    pre)
+        for light in "${dir}"/*; do
+            [ -d "${light}" ] || continue
+            name="${light##*/}"
+            if [ -w "${light}/bl_power" ]; then
+                echo 4 > "${light}/bl_power" 2> /dev/null || true
+            elif [ -w "${light}/brightness" ]; then
+                mkdir -p "${state}"
+                cat "${light}/brightness" > "${state}/${name}" 2> /dev/null || continue
+                echo 0 > "${light}/brightness" 2> /dev/null || true
+            fi
+        done
+        ;;
+    post)
+        for light in "${dir}"/*; do
+            [ -d "${light}" ] || continue
+            name="${light##*/}"
+            if [ -w "${light}/bl_power" ]; then
+                echo 0 > "${light}/bl_power" 2> /dev/null || true
+            elif [ -r "${state}/${name}" ]; then
+                cat "${state}/${name}" > "${light}/brightness" 2> /dev/null || true
+                rm -f "${state}/${name}"
+            fi
+        done
+        ;;
+    *) ;;
+esac
+exit 0

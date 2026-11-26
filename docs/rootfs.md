@@ -478,10 +478,11 @@ option is ignored. If the screen is still black after that, the logs are
     is ignored. Without the session (or the inhibitor), logind does it
     (`etc/systemd/logind.conf.d/10-nxd-power.conf`, with
     `PowerKeyIgnoreInhibited=no` so that the inhibitor counts): a tap
-    suspends, five seconds power off. Standby depends on the kernel
-    and drivers of the Switch (4.9 L4T) and has not been verified on a device;
-    the suspend / resume hook of the old `build.sh` (mute audio, resync the
-    backlight) is not ported yet.
+    suspends, five seconds power off. Standby works on the Switch's 4.9
+    L4T kernel; the backlight goes off as soon as a suspend starts and comes back at the
+    resume (`/usr/lib/systemd/system-sleep/nxd-backlight`, nxd-common:
+    suspending the devices takes about 1.4 s and the display is among the
+    last ones, so the screen stayed lit that long after the tap).
   - The compositor is closed across the suspend and reopened at the resume
     (`/usr/lib/systemd/system-sleep/nxd-picom`, above): left running, the
     screen is black on the resume.

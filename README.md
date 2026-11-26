@@ -78,7 +78,8 @@ Common to both:
 * ROMs, BIOS and saves in the SD card's FAT32 partition (`/sdcard/retrobox`),
   the one Hekate, Android and a PC see too.
 * The volume buttons change the volume and show it at the top of the screen;
-  the power button suspends (a long press turns the console off).
+  a tap on the power button suspends, holding it a second opens the power menu
+  (sleep, restart, turn off).
 * The picom compositor (vsync, and the overlay over a running game), closed before a suspend and reopened at the resume.
 
 ---

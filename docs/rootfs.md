@@ -470,8 +470,15 @@ option is ignored. If the screen is still black after that, the logs are
     same steps, and the volume toast the image turns on in
     `/etc/retrobox/overlay.ini`), or else does them itself (steps of 5 %,
     `wpctl` or `pactl`), and the power key is only grabbed.
-  - `etc/systemd/logind.conf.d/10-nxd-power.conf`: a tap on the power button
-    suspends (standby), a long press powers off. Standby depends on the kernel
+  - The power button: in the session, the step `61-nxd-power-button` runs
+    `/usr/share/nxd/retrobox/power-button` under a `handle-power-key`
+    inhibitor: a tap suspends (standby), holding it one second opens the
+    overlay's power options (`retrobox-overlay --power`: sleep, restart, turn
+    off) without waiting for the release; the press that wakes the console up
+    is ignored. Without the session (or the inhibitor), logind does it
+    (`etc/systemd/logind.conf.d/10-nxd-power.conf`, with
+    `PowerKeyIgnoreInhibited=no` so that the inhibitor counts): a tap
+    suspends, five seconds power off. Standby depends on the kernel
     and drivers of the Switch (4.9 L4T) and has not been verified on a device;
     the suspend / resume hook of the old `build.sh` (mute audio, resync the
     backlight) is not ported yet.

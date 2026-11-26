@@ -1,0 +1,27 @@
+#!/bin/sh
+# Run by retrobox-openbox-session (retrobox-session-openbox) at every start:
+# the Switch's power button suspends on a tap and opens the overlay's power
+# options when held for a second (/usr/share/nxd/retrobox/power-button,
+# ended with the session). It runs under a handle-power-key inhibitor, so
+# that logind leaves the button to it; without the inhibitor (polkit says no,
+# no systemd-inhibit) it does not run, and logind suspends on a tap as before
+# (/etc/systemd/logind.conf.d/10-nxd-power.conf). One at a time: a session
+# started again doesn't add a second one.
+set -eu
+
+program=/usr/share/nxd/retrobox/power-button
+lock="${XDG_RUNTIME_DIR:-/tmp}/nxd-power-button.lock"
+why="Retrobox: a tap on the power button suspends, a hold opens the power menu"
+
+command -v systemd-inhibit > /dev/null 2>&1 || exit 0
+systemd-inhibit --what=handle-power-key --mode=block --who=nx-debian --why="${why}" \
+    true > /dev/null 2>&1 || exit 0
+
+if command -v flock > /dev/null 2>&1; then
+    # the lock stays held by the program for as long as it runs
+    nohup flock -n "${lock}" systemd-inhibit --what=handle-power-key --mode=block \
+        --who=nx-debian --why="${why}" "${program}" > /dev/null 2>&1 &
+else
+    nohup systemd-inhibit --what=handle-power-key --mode=block \
+        --who=nx-debian --why="${why}" "${program}" > /dev/null 2>&1 &
+fi

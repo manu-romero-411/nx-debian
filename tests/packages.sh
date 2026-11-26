@@ -56,6 +56,63 @@ check "the session's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox/
 check "the compositor sleep hook is in nxd-retrobox, executable" grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-picom$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the Capture button's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox/session.d/60-nxd-capture-button$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the Capture button's program is executable" grep -q '^-rwxr-xr-x .*\./usr/share/nxd/retrobox/capture-button$' <<< "$(dpkg-deb -c "${RETRO}")"
+check "the power button's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox/session.d/61-nxd-power-button$' <<< "$(dpkg-deb -c "${RETRO}")"
+check "the power button's program is executable" grep -q '^-rwxr-xr-x .*\./usr/share/nxd/retrobox/power-button$' <<< "$(dpkg-deb -c "${RETRO}")"
+check "...run under a handle-power-key inhibitor" grep -q 'systemd-inhibit --what=handle-power-key --mode=block' \
+    "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/session.d/61-nxd-power-button"
+check "...which logind respects" grep -qx 'PowerKeyIgnoreInhibited=no' \
+    "${NXD_ROOT}/packages/nxd-retrobox/root/etc/systemd/logind.conf.d/10-nxd-power.conf"
+cat > "${tmp}/power-test.py" << 'PY'
+"""Button: taps, holds and the press that wakes the console up."""
+import importlib.machinery
+import importlib.util
+import sys
+
+loader = importlib.machinery.SourceFileLoader("power_button", sys.argv[1])
+spec = importlib.util.spec_from_loader("power_button", loader)
+module = importlib.util.module_from_spec(spec)
+sys.modules["power_button"] = module
+loader.exec_module(module)
+
+
+def button():
+    """A button that has not slept yet."""
+    return module.Button(hold=1.0, guard=1.0, slept=0.0)
+
+
+results = {}
+b = button()
+b.press(10.0)
+results["tap"] = (b.tick(10.3), b.release(10.3)) == (None, "suspend")
+b = button()
+b.press(10.0)
+results["hold"] = (b.tick(10.99), b.tick(11.0), b.release(12.5)) == (None, "menu", None)
+b = button()
+b.press(10.0)
+b.tick(11.2)
+results["once"] = b.tick(11.5) is None
+b = button()
+b.woke(20.0, 300.0)
+b.press(20.1)
+results["wake"] = b.release(20.2) is None
+b = button()
+b.woke(20.0, 300.0)
+b.press(21.5)
+results["after-wake"] = b.release(21.7) == "suspend"
+b = button()
+b.press(10.0)
+b.woke(10.5, 60.0)
+results["slept-while-down"] = b.release(10.6) is None and b.tick(12.0) is None
+for name, passed in results.items():
+    print(f"{name} {'ok' if passed else 'FAIL'}")
+PY
+python3 -I "${tmp}/power-test.py" "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/power-button" > "${tmp}/power.log" 2>&1
+check "a tap on the power button suspends" grep -qx 'tap ok' "${tmp}/power.log"
+check "holding it a second opens the power menu, without waiting for the release" grep -qx 'hold ok' "${tmp}/power.log"
+check "...once" grep -qx 'once ok' "${tmp}/power.log"
+check "the press that wakes the console up does not suspend it again" grep -qx 'wake ok' "${tmp}/power.log"
+check "...but a tap after it does" grep -qx 'after-wake ok' "${tmp}/power.log"
+check "a press cut by a suspend is forgotten" grep -qx 'slept-while-down ok' "${tmp}/power.log"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
 check "--variant xfce builds nxd-common and nxd-xfce" bash -c \
     "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant xfce '${tmp}/xfce' && test \"\$(ls '${tmp}/xfce' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-xfce_1_all.deb '"

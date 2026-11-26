@@ -23,10 +23,10 @@
 #      retrobox-update has too (nxd-retrobox's retrobox.list) is left to it.
 #   3. apt-get autoremove --purge and apt-get clean.
 #
-# On the Retrobox image, retrobox-update (the overlay's System page, or by hand)
-# hands over to this one: nxd-retrobox sets [advanced] system_updater =
-# /usr/bin/nxd-update in /etc/retrobox. This one runs retrobox-update with
-# RETROBOX_UPDATE_NO_HANDOVER=1, so it does not come back here.
+# retrobox-update knows nothing of this one. On the Switch the overlay's
+# System page runs this one (as root, through pkexec: nxd-common's polkit
+# action org.nxd.update), and on the Retrobox image this one runs
+# retrobox-update for the apt part and Retrobox's packages.
 #
 # Only releases GitHub does not mark as pre-releases are used, unless
 # --allow-prereleases: then the newest release of each repository, a
@@ -46,11 +46,11 @@ DOWNLOAD_ONLY=""
 LISTS_DIR="${NXD_RELEASES_DIR:-/usr/share/nxd/releases.d}"
 # the lists retrobox-update reads; when it is there, those are its
 RETROBOX_LISTS_DIR="${NXD_RETROBOX_RELEASES_DIR:-/etc/retrobox/releases.d}"
-# Whether this is the Retrobox image: retrobox-update is there and hands the
-# system's update over to this script (nxd-retrobox's 50-nxd.ini).
+# Whether this is the Retrobox image: nxd-retrobox and retrobox-update are
+# installed.
 retrobox_image() {
     command -v retrobox-update > /dev/null 2>&1 &&
-        grep -rqs '^[[:space:]]*system_updater[[:space:]]*=.*nxd-update' /etc/retrobox
+        dpkg-query -W -f='${db:Status-Status}' nxd-retrobox 2> /dev/null | grep -qx installed
 }
 # retrobox-update is called only on that image
 RETROBOX_UPDATE="${NXD_RETROBOX_UPDATE:-}"
@@ -89,12 +89,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${DOWNLOAD_ONLY}" && "${EUID}" -ne 0 ]]; then
-    # On the Retrobox image the console's user has no password to type for
-    # retrobox-update (retrobox-system-settings' sudoers rule), which hands
-    # over to this very script as root: it gets root through it.
-    if retrobox_image; then
-        exec retrobox-update "${ARGS[@]}"
-    fi
     exec sudo -- "$0" "${ARGS[@]}"
 fi
 if [[ -z "${DOWNLOAD_ONLY}" && -z "${NXD_UPDATE_INHIBITED:-}" && -d /run/systemd/system ]] &&
@@ -328,8 +322,8 @@ if [[ -n "${RETROBOX_UPDATE}" ]]; then
     log "Debian, the L4T packages and Retrobox's (retrobox-update)"
     flags=(--no-recommends)
     [[ "${PRERELEASES}" -eq 0 ]] || flags+=(--allow-prereleases)
-    # it hands over to this one otherwise, and it inhibits sleep here already
-    RETROBOX_UPDATE_NO_HANDOVER=1 RETROBOX_UPDATE_INHIBITED=1 "${RETROBOX_UPDATE}" "${flags[@]}"
+    # sleep is held off here already
+    RETROBOX_UPDATE_INHIBITED=1 "${RETROBOX_UPDATE}" "${flags[@]}"
 else
     log "Debian and L4T packages"
     "${APT[@]}" update

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN" "http://www.freedesktop.org/software/polkit/policyconfig-1.dtd">
+<!-- nxd-common: the system's update (nxd-update), through pkexec, for the
+     user at the console (the active session): the Retrobox overlay's
+     Update system runs it without asking. A session that is not the active
+     one (ssh, another seat) needs an administrator's password. -->
+<policyconfig>
+  <action id="org.nxd.update">
+    <description>Update the system</description>
+    <message>Authentication is required to update the system</message>
+    <defaults>
+      <allow_any>auth_admin</allow_any>
+      <allow_inactive>auth_admin</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/bin/nxd-update</annotate>
+  </action>
+</policyconfig>

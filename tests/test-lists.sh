@@ -81,11 +81,12 @@ check "retrobox has a default user" test "$(variant_setting retrobox NXD_DEFAULT
 check "retrobox has a default password" test "$(variant_setting retrobox NXD_DEFAULT_PASSWORD)" = "retrobox"
 check "retrobox installs the retrobox releases" test "$(variant_setting retrobox NXD_RELEASE_LIST)" = "retrobox"
 check "retrobox-update reads the console's release list" test "$(readlink "${RPKG}/root/etc/retrobox/releases.d/retrobox.list")" = /usr/share/nxd/releases.d/retrobox.list
-check "retrobox-update hands the system's update over to nxd-update" \
-    grep -qx 'system_updater = /usr/bin/nxd-update' "${RPKG}/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
+check_not "retrobox-update knows nothing of nxd-update" grep -q 'system_updater' "${RPKG}/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 # shellcheck disable=SC2016 # the literal text of the script
-check "nxd-update runs retrobox-update whole, without it handing back" \
-    grep -q 'RETROBOX_UPDATE_NO_HANDOVER=1 RETROBOX_UPDATE_INHIBITED=1 "${RETROBOX_UPDATE}" "${flags\[@\]}"' "${NXD_ROOT}/packages/nxd-common/root/usr/bin/nxd-update"
+check "nxd-update runs retrobox-update whole on the Retrobox image" \
+    grep -q 'RETROBOX_UPDATE_INHIBITED=1 "${RETROBOX_UPDATE}" "${flags\[@\]}"' "${NXD_ROOT}/packages/nxd-common/root/usr/bin/nxd-update"
+check "the overlay may run nxd-update as root" \
+    grep -q '<annotate key="org.freedesktop.policykit.exec.path">/usr/bin/nxd-update</annotate>' "${NXD_ROOT}/packages/nxd-common/root/usr/share/polkit-1/actions/org.nxd.update.policy"
 check "the retrobox release list names the five components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/releases.d/retrobox.list")" -eq 5
 check "retrobox has a compositor" has_line "${RETROBOX}" picom
 check_not "picom's backend is the session's default (glx)" grep -q '^\[openbox\]' "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"

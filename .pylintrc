@@ -1,0 +1,4 @@
+# evdev.ecodes is filled in by a C extension (Ubuntu's python3-evdev 1.7), so
+# pylint cannot see EV_KEY, BTN_Z... and reports no-member for them.
+[TYPECHECK]
+ignored-modules=evdev,evdev.ecodes

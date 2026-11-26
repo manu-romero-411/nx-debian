@@ -219,16 +219,22 @@ check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' 
 PMHOOK="${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/systemd/system-sleep/nxd-picom"
 check "the hook that closes the compositor across a suspend is executable" test -x "${PMHOOK}"
 check "the hook records the user, environment and invocation before the suspend" grep -q 'nxd-picom.env' "${PMHOOK}"
+# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook kills picom before the suspend" grep -q 'kill "${pid}"' "${PMHOOK}"
+# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook reopens picom at the resume, as the user that ran it" grep -q 'runuser -u "${user}" -- env -i' "${PMHOOK}"
+# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook reopens picom with its environment and invocation" grep -q 'sh -c "${cmd}"' "${PMHOOK}"
+# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook leaves a session without picom alone" grep -qF 'pid="$(picom_pid)" || exit 0' "${PMHOOK}"
+# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook leaves a resumed picom alone" grep -qF 'if [ -n "$(picom_pid)" ]; then' "${PMHOOK}"
 
 # end-to-end, with a fake picom (a process that sleeps, and the kernel
 # calls it "picom") and a runuser stub: the pre hook records the user, the
 # environment and the invocation and kills it; the post hook reopens it as
 # the recorded user, with the recorded environment and invocation.
+# shellcheck disable=SC2016 # the literal text of the hook
 check "the sleep hook closes the compositor and reopens it at the resume" bash -c '
     tmp="$(mktemp -d)"
     trap "rm -rf \"${tmp}\"" EXIT

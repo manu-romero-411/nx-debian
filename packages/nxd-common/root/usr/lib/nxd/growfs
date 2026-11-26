@@ -32,10 +32,10 @@ fi
 header="$(dumpe2fs -h "${device}" 2> /dev/null)"
 blocks="$(printf '%s\n' "${header}" | sed -n 's/^Block count: *//p')"
 size="$(printf '%s\n' "${header}" | sed -n 's/^Block size: *//p')"
-[ -n "${blocks}" ] && [ -n "${size}" ] || {
+if [ -z "${blocks}" ] || [ -z "${size}" ]; then
     log "${device}: cannot read its size"
     exit 1
-}
+fi
 used=$((blocks * size))
 
 [ $((space - used)) -gt $((16 * 1024 * 1024)) ] || exit 0

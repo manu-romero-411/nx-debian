@@ -4,30 +4,34 @@
 #   nxd-update [--allow-prereleases]
 #   nxd-update [--allow-prereleases] --download-only DIR
 #
-#   1. apt-get update and apt-get dist-upgrade: Debian and the L4T packages.
-#   2. The packages that come from GitHub releases (the repositories listed in
-#      /usr/share/nxd/releases.d/*.list: nx-debian's own nxd-common and
-#      nxd-<variant>, the Retrobox packages...): for each repository, the
-#      newest release, and from it the .deb files of packages that are
-#      installed here and newer than what is installed, checked against the
-#      release's SHA256SUMS. Packages that are not installed are not added,
-#      except the ones a list names after its repository (REPO PACKAGE...):
-#      those are installed if they are not yet, so a console gets what its
-#      image would have today.
-#   3. Retrobox's packages, on the Retrobox image: retrobox-update --no-apt
-#      (retrobox-system-settings' updater, which reads the lists of
-#      /etc/retrobox/releases.d: nxd-retrobox's retrobox.list is there too, a
-#      link to its copy in releases.d, so step 2 leaves it to it). Without
-#      retrobox-update (an older console), step 2 does them as before.
-#   4. apt-get autoremove --purge and apt-get clean.
+#   1. Debian, the L4T packages and Retrobox's: retrobox-update (retrobox-system-
+#      settings' updater: apt-get update and dist-upgrade, then Retrobox's
+#      packages from the lists of /etc/retrobox/releases.d, then apt's
+#      clean-up). nxd-update is retrobox-update plus what only the Switch
+#      has, so it does not redo any of it. Without retrobox-update (an image
+#      that has no Retrobox), it does the apt part itself, and the Retrobox
+#      packages in step 2 if it has their list.
+#   2. The packages that come from GitHub releases and are not in apt's
+#      repositories (the repositories listed in /usr/share/nxd/releases.d/*.list:
+#      nx-debian's own nxd-common and nxd-<variant>, Switchroot's...): for
+#      each repository, the newest release, and from it the .deb files of
+#      packages that are installed here and newer than what is installed,
+#      checked against the release's SHA256SUMS. Packages that are not
+#      installed are not added, except the ones a list names after its
+#      repository (REPO PACKAGE...): those are installed if they are not yet,
+#      so a console gets what its image would have today. A list that
+#      retrobox-update has too (nxd-retrobox's retrobox.list) is left to it.
+#   3. apt-get autoremove --purge and apt-get clean.
 #
-# On the Retrobox image, retrobox-update itself (the overlay's System page,
-# or by hand) hands over to this one: nxd-retrobox sets [advanced]
-# system_updater = /usr/bin/nxd-update in /etc/retrobox.
+# On the Retrobox image, retrobox-update (the overlay's System page, or by hand)
+# hands over to this one: nxd-retrobox sets [advanced] system_updater =
+# /usr/bin/nxd-update in /etc/retrobox. This one runs retrobox-update with
+# RETROBOX_UPDATE_NO_HANDOVER=1, so it does not come back here.
 #
 # Only releases GitHub does not mark as pre-releases are used, unless
 # --allow-prereleases: then the newest release of each repository, a
-# pre-release or not (nx-debian publishes one on every push to main).
+# pre-release or not (nx-debian publishes one on every push to main), here
+# and in retrobox-update.
 #
 # --download-only DIR stops after downloading and checking the packages of
 # step 2 into DIR: no apt, nothing installed, root not needed.
@@ -59,7 +63,7 @@ die() {
 }
 
 usage() {
-    sed -n '2,25p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 # the arguments as given, for running again through sudo and systemd-inhibit
@@ -311,9 +315,17 @@ if [[ -n "${DOWNLOAD_ONLY}" ]]; then
     exit 0
 fi
 
-log "Debian and L4T packages"
-"${APT[@]}" update
-"${APT[@]}" dist-upgrade
+if [[ -n "${RETROBOX_UPDATE}" ]]; then
+    log "Debian, the L4T packages and Retrobox's (retrobox-update)"
+    flags=(--no-recommends)
+    [[ "${PRERELEASES}" -eq 0 ]] || flags+=(--allow-prereleases)
+    # it hands over to this one otherwise, and it inhibits sleep here already
+    RETROBOX_UPDATE_NO_HANDOVER=1 RETROBOX_UPDATE_INHIBITED=1 "${RETROBOX_UPDATE}" "${flags[@]}"
+else
+    log "Debian and L4T packages"
+    "${APT[@]}" update
+    "${APT[@]}" dist-upgrade
+fi
 
 log "packages from GitHub releases"
 work="$(mktemp -d)"
@@ -332,13 +344,6 @@ for state in "${work}"/*/state; do
     [[ -f "${state}" ]] || continue
     install -m 644 "${state}" "${STATE_DIR}/$(basename "$(dirname "${state}")")"
 done
-
-if [[ -n "${RETROBOX_UPDATE}" ]]; then
-    log "Retrobox's packages (retrobox-update)"
-    flags=(--no-apt --no-recommends)
-    [[ "${PRERELEASES}" -eq 0 ]] || flags+=(--allow-prereleases)
-    "${RETROBOX_UPDATE}" "${flags[@]}"
-fi
 
 log "cleaning up"
 "${APT[@]}" autoremove --purge

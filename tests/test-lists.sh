@@ -83,8 +83,8 @@ check "retrobox-update reads the console's release list" test "$(readlink "${RPK
 check "retrobox-update hands the system's update over to nxd-update" \
     grep -qx 'system_updater = /usr/bin/nxd-update' "${RPKG}/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
 # shellcheck disable=SC2016 # the literal text of the script
-check "nxd-update leaves Retrobox's packages to retrobox-update" \
-    grep -q 'flags=(--no-apt --no-recommends)' "${NXD_ROOT}/packages/nxd-common/root/usr/bin/nxd-update"
+check "nxd-update runs retrobox-update whole, without it handing back" \
+    grep -q 'RETROBOX_UPDATE_NO_HANDOVER=1 RETROBOX_UPDATE_INHIBITED=1 "${RETROBOX_UPDATE}" "${flags\[@\]}"' "${NXD_ROOT}/packages/nxd-common/root/usr/bin/nxd-update"
 check "the retrobox release list names the five components" test "$(grep -c '^RetroboxProject/' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/releases.d/retrobox.list")" -eq 5
 check "retrobox has a compositor" has_line "${RETROBOX}" picom
 check_not "picom's backend is the session's default (glx)" grep -q '^\[openbox\]' "${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/retrobox.ini.d/50-nxd.ini"
@@ -219,22 +219,16 @@ check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' 
 PMHOOK="${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/systemd/system-sleep/nxd-picom"
 check "the hook that closes the compositor across a suspend is executable" test -x "${PMHOOK}"
 check "the hook records the user, environment and invocation before the suspend" grep -q 'nxd-picom.env' "${PMHOOK}"
-# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook kills picom before the suspend" grep -q 'kill "${pid}"' "${PMHOOK}"
-# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook reopens picom at the resume, as the user that ran it" grep -q 'runuser -u "${user}" -- env -i' "${PMHOOK}"
-# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook reopens picom with its environment and invocation" grep -q 'sh -c "${cmd}"' "${PMHOOK}"
-# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook leaves a session without picom alone" grep -qF 'pid="$(picom_pid)" || exit 0' "${PMHOOK}"
-# shellcheck disable=SC2016 # the literal text of the hook
 check "the hook leaves a resumed picom alone" grep -qF 'if [ -n "$(picom_pid)" ]; then' "${PMHOOK}"
 
 # end-to-end, with a fake picom (a process that sleeps, and the kernel
 # calls it "picom") and a runuser stub: the pre hook records the user, the
 # environment and the invocation and kills it; the post hook reopens it as
 # the recorded user, with the recorded environment and invocation.
-# shellcheck disable=SC2016 # the literal text of the hook
 check "the sleep hook closes the compositor and reopens it at the resume" bash -c '
     tmp="$(mktemp -d)"
     trap "rm -rf \"${tmp}\"" EXIT

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016
 # Offline tests of the package lists, the config and the mmdebstrap command.
 # No network, no root, no mmdebstrap needed.
 set -euo pipefail

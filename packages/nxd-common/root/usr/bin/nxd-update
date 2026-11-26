@@ -8,9 +8,9 @@
 #      settings' updater: apt-get update and dist-upgrade, then Retrobox's
 #      packages from the lists of /etc/retrobox/releases.d, then apt's
 #      clean-up). nxd-update is retrobox-update plus what only the Switch
-#      has, so it does not redo any of it. Without retrobox-update (an image
-#      that has no Retrobox), it does the apt part itself, and the Retrobox
-#      packages in step 2 if it has their list.
+#      has, so it does not redo any of it. Outside the Retrobox image (the
+#      other variants, or a system without retrobox-update), it does the apt
+#      part itself, and the Retrobox packages in step 2 if it has their list.
 #   2. The packages that come from GitHub releases and are not in apt's
 #      repositories (the repositories listed in /usr/share/nxd/releases.d/*.list:
 #      nx-debian's own nxd-common and nxd-<variant>, Switchroot's...): for
@@ -46,7 +46,17 @@ DOWNLOAD_ONLY=""
 LISTS_DIR="${NXD_RELEASES_DIR:-/usr/share/nxd/releases.d}"
 # the lists retrobox-update reads; when it is there, those are its
 RETROBOX_LISTS_DIR="${NXD_RETROBOX_RELEASES_DIR:-/etc/retrobox/releases.d}"
-RETROBOX_UPDATE="${NXD_RETROBOX_UPDATE:-$(command -v retrobox-update || true)}"
+# Whether this is the Retrobox image: retrobox-update is there and hands the
+# system's update over to this script (nxd-retrobox's 50-nxd.ini).
+retrobox_image() {
+    command -v retrobox-update > /dev/null 2>&1 &&
+        grep -rqs '^[[:space:]]*system_updater[[:space:]]*=.*nxd-update' /etc/retrobox
+}
+# retrobox-update is called only on that image
+RETROBOX_UPDATE="${NXD_RETROBOX_UPDATE:-}"
+if [[ -z "${RETROBOX_UPDATE}" ]] && retrobox_image; then
+    RETROBOX_UPDATE="$(command -v retrobox-update)"
+fi
 STATE_DIR="${NXD_STATE_DIR:-/var/lib/nxd/releases}"
 API="${NXD_GITHUB_API:-https://api.github.com}"
 # Release assets that must never be installed.
@@ -82,8 +92,7 @@ if [[ -z "${DOWNLOAD_ONLY}" && "${EUID}" -ne 0 ]]; then
     # On the Retrobox image the console's user has no password to type for
     # retrobox-update (retrobox-system-settings' sudoers rule), which hands
     # over to this very script as root: it gets root through it.
-    if command -v retrobox-update > /dev/null 2>&1 &&
-        grep -rqs '^[[:space:]]*system_updater[[:space:]]*=.*nxd-update' /etc/retrobox; then
+    if retrobox_image; then
         exec retrobox-update "${ARGS[@]}"
     fi
     exec sudo -- "$0" "${ARGS[@]}"

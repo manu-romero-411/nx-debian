@@ -1,7 +1,7 @@
 #!/bin/sh
-# nxd-common: enables nxd-nvpmodel-restore.service and nxd-growfs.service the
-# first time (an upgrade
-# keeps what the administrator chose), and has the locales of
+# nxd-common: enables nxd-nvpmodel-restore.service, nxd-growfs.service and
+# nxd-touch-slop.service the first time (an upgrade keeps what the
+# administrator chose), and has the locales of
 # /usr/share/nxd/locales generated, gives back to root the files of the
 # image's overlay that older images left to the user, and replaces
 # Switchroot's UCM profile with one that leaves the volume alone.
@@ -84,7 +84,7 @@ root_owned() {
 }
 
 units() {
-    for unit in nxd-nvpmodel-restore.service nxd-growfs.service; do
+    for unit in nxd-nvpmodel-restore.service nxd-growfs.service nxd-touch-slop.service; do
         deb-systemd-helper unmask "${unit}" > /dev/null || true
         if deb-systemd-helper --quiet was-enabled "${unit}"; then
             deb-systemd-helper enable "${unit}" > /dev/null || true

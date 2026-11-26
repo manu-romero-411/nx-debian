@@ -114,6 +114,96 @@ check "...and in debconf, so that console-setup keeps it" grep -q 'console-setup
 check "nxd-common needs console-setup" grep -q 'console-setup' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
 check "fastfetch is in every image" grep -qx 'fastfetch' "${NXD_ROOT}/config/packages/base.list"
 
+## the touchscreen: a tap is a click, not a short drag (touch slop)
+
+SLOP="${CPKG}/root/usr/lib/nxd/touch-slop"
+cat > "${tmp}/slop-test.py" << 'PY'
+"""Feeds SlopFilter the frames of taps, drags and two fingers."""
+import importlib.machinery
+import importlib.util
+import sys
+
+loader = importlib.machinery.SourceFileLoader("touch_slop", sys.argv[1])
+spec = importlib.util.spec_from_loader("touch_slop", loader)
+module = importlib.util.module_from_spec(spec)
+sys.modules["touch_slop"] = module
+loader.exec_module(module)
+ABS, MTX, MTY, TID, SLOT = 3, 0x35, 0x36, 0x39, 0x2F
+
+
+def touch(slop, frames):
+    """The (x, y) each frame passes on for slot 0 and ABS_X/ABS_Y."""
+    filt, shown, single = module.SlopFilter(slop), [], []
+    x = y = sx = sy = None
+    for frame in frames:
+        out = filt.feed(frame + [(0, 0, 0)])
+        slot = 0
+        for kind, code, value in out:
+            if kind == ABS and code == SLOT:
+                slot = value
+            elif kind == ABS and code == MTX and slot == 0:
+                x = value
+            elif kind == ABS and code == MTY and slot == 0:
+                y = value
+            elif kind == ABS and code == 0:
+                sx = value
+            elif kind == ABS and code == 1:
+                sy = value
+        shown.append((x, y))
+        single.append((sx, sy))
+    return shown, single
+
+
+def down(x, y, tid=1):
+    """A finger landing on slot 0."""
+    return [(ABS, TID, tid), (ABS, MTX, x), (ABS, MTY, y), (ABS, 0, x), (ABS, 1, y)]
+
+
+def move(x, y):
+    """The finger of slot 0 moving."""
+    return [(ABS, MTX, x), (ABS, MTY, y), (ABS, 0, x), (ABS, 1, y)]
+
+
+results = {}
+# a tap that wanders 20 px: it stays where it landed
+shown, single = touch(32, [down(500, 300), move(495, 290), move(488, 284), move(490, 286)])
+results["tap"] = set(shown) == {(500, 300)} and set(single) == {(500, 300)}
+# a drag: held until 32 px, then it follows, ending where the finger is
+shown, single = touch(32, [down(500, 300)] + [move(500 + 10 * i, 300) for i in range(1, 11)])
+results["drag-held"] = shown[3] == (500, 300)
+results["drag-follows"] = shown[4] == (540, 300) and shown[-1] == (600, 300) and single[-1] == (600, 300)
+# only one axis moving still moves both, when let go
+shown, _ = touch(32, [down(500, 300), [(ABS, MTY, 340), (ABS, 1, 340)]])
+results["one-axis"] = shown[-1] == (500, 340)
+# a second finger: every finger follows at once
+frames = [down(500, 300), move(505, 302),
+          [(ABS, SLOT, 1), (ABS, TID, 2), (ABS, MTX, 800), (ABS, MTY, 400)],
+          [(ABS, SLOT, 0), (ABS, MTX, 506), (ABS, MTY, 303)]]
+shown, _ = touch(32, frames)
+results["two-fingers"] = shown[-1] == (506, 303)
+# off: everything as it comes
+shown, _ = touch(0, [down(500, 300), move(495, 290)])
+results["off"] = shown[-1] == (495, 290)
+# a new tap is held at its own place
+shown, _ = touch(32, [down(500, 300), [(ABS, TID, -1)], down(100, 100, 2), move(104, 98)])
+results["next-tap"] = shown[-1] == (100, 100)
+for name, passed in results.items():
+    print(f"{name} {'ok' if passed else 'FAIL'}")
+PY
+python3 -I "${tmp}/slop-test.py" "${SLOP}" > "${tmp}/slop.log" 2>&1
+check "a tap that wanders stays where it landed" grep -qx 'tap ok' "${tmp}/slop.log"
+check "a drag is held for the first pixels" grep -qx 'drag-held ok' "${tmp}/slop.log"
+check "...and then follows the finger" grep -qx 'drag-follows ok' "${tmp}/slop.log"
+check "...on both axes, even if only one moved" grep -qx 'one-axis ok' "${tmp}/slop.log"
+check "two fingers follow at once" grep -qx 'two-fingers ok' "${tmp}/slop.log"
+check "0 turns it off" grep -qx 'off ok' "${tmp}/slop.log"
+check "each tap is held at its own place" grep -qx 'next-tap ok' "${tmp}/slop.log"
+check "it runs at boot" grep -qx 'WantedBy=multi-user.target' "${CPKG}/root/usr/lib/systemd/system/nxd-touch-slop.service"
+check "...enabled by nxd-common" grep -q 'nxd-touch-slop.service; do' "${CPKG}/DEBIAN/postinst"
+check "...with the tolerance in /etc/default" grep -qx 'NXD_TOUCH_SLOP=32' "${CPKG}/root/etc/default/nxd-touch-slop"
+check "...a conffile" bash -c "dpkg-deb --ctrl-tarfile '${COMMON}' | tar -xO ./conffiles | grep -qx /etc/default/nxd-touch-slop"
+check "nxd-common needs python3-evdev" grep -qw 'python3-evdev' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
+
 ## the root filesystem: grown to its partition on the first boot
 
 GROWFS="${CPKG}/root/usr/lib/nxd/growfs"

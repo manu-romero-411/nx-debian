@@ -1,17 +1,17 @@
 #!/bin/sh
-# nxd-common: forgets nxd-nvpmodel-restore.service and nxd-growfs.service,
-# and gives the UCM profile back to switch-alsa-ucm2; on purge, the firmware
+# nxd-common: forgets nxd-nvpmodel-restore.service, nxd-growfs.service and
+# nxd-touch-slop.service, and gives the UCM profile back to switch-alsa-ucm2; on purge, the firmware
 # names postinst made (they belong to no package) go too.
 set -eu
 
 case "${1:-}" in
     remove)
-        for unit in nxd-nvpmodel-restore.service nxd-growfs.service; do
+        for unit in nxd-nvpmodel-restore.service nxd-growfs.service nxd-touch-slop.service; do
             deb-systemd-helper mask "${unit}" > /dev/null || true
         done
         ;;
     purge)
-        for unit in nxd-nvpmodel-restore.service nxd-growfs.service; do
+        for unit in nxd-nvpmodel-restore.service nxd-growfs.service nxd-touch-slop.service; do
             deb-systemd-helper purge "${unit}" > /dev/null || true
             deb-systemd-helper unmask "${unit}" > /dev/null || true
         done

@@ -1,0 +1,5 @@
+# How far, in pixels, a finger may move on the touchscreen and still be a tap
+# (a click where it landed) rather than a drag; see /usr/lib/nxd/touch-slop.
+# Taps measured on a Switch Lite moved 3 to 24 pixels. 0 turns it off.
+# Applied by: sudo systemctl restart nxd-touch-slop
+NXD_TOUCH_SLOP=32

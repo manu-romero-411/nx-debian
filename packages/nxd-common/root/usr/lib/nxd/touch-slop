@@ -1,0 +1,251 @@
+#!/usr/bin/python3
+"""A tap on the touchscreen is a click, not a short drag.
+
+A finger is never still on a capacitive panel: from the moment it touches the
+Switch's screen to the moment it leaves, its position moves 3 to 25 pixels,
+mostly in the first tens of milliseconds. libinput passes each of those moves
+on as the pointer moving with the button held, so X applications see nearly
+every tap as a drag, a selection or nothing at all; and libinput has no
+tolerance of its own for touchscreens.
+
+This adds one, as phones do ("touch slop"): it takes the touchscreen for
+itself (EVIOCGRAB) and offers X an identical copy (uinput) where each finger
+stays where it first touched until it has moved more than SLOP pixels away;
+from then on, it follows the finger. A tap is then a click right where the
+finger landed, and drags and scrolls still work: they start after SLOP
+pixels. When a second finger touches, every finger follows at once, so
+gestures are untouched.
+
+Run by nxd-touch-slop.service. NXD_TOUCH_SLOP (/etc/default/nxd-touch-slop)
+is the tolerance in pixels of the panel (1:1 with the screen's); 0 turns it
+off.
+
+    touch-slop [--slop PIXELS] [--device PATH]
+"""
+# pylint: disable=invalid-name  # an installed command, named like one
+
+from __future__ import annotations
+
+import argparse
+import math
+import os
+import sys
+import time
+from dataclasses import dataclass
+
+# The kernel's input event codes (linux/input-event-codes.h), so that the
+# filter itself does not need python3-evdev (the tests run without it).
+EV_SYN = 0x00
+EV_ABS = 0x03
+SYN_REPORT = 0
+ABS_X = 0x00
+ABS_Y = 0x01
+ABS_MT_SLOT = 0x2F
+ABS_MT_POSITION_X = 0x35
+ABS_MT_POSITION_Y = 0x36
+ABS_MT_TRACKING_ID = 0x39
+INPUT_PROP_DIRECT = 0x01
+
+DEFAULT_SLOP = 32
+# how long the touchscreen is waited for at boot, in seconds
+WAIT = 30.0
+
+Event = tuple[int, int, int]
+
+
+@dataclass
+class Contact:
+    """A finger on the panel: where it really is, and where it touched."""
+
+    x: int | None = None
+    y: int | None = None
+    down_x: int | None = None
+    down_y: int | None = None
+    held: bool = False
+    since: int = 0
+
+
+class SlopFilter:  # pylint: disable=too-few-public-methods  # one frame in, one out
+    """Rewrites the frames of a multi-touch (type B) touchscreen.
+
+    feed() takes the events of one frame, up to and including its
+    SYN_REPORT, and returns the events to pass on instead.
+    """
+
+    def __init__(self, slop: int) -> None:
+        self.slop = slop
+        self.slot = 0
+        self.contacts: dict[int, Contact] = {}
+        self.order = 0
+
+    def _contact(self, slot: int) -> Contact:
+        return self.contacts.setdefault(slot, Contact())
+
+    def _primary(self) -> int | None:
+        """The slot of the oldest finger: the one ABS_X/ABS_Y follow."""
+        live = [(c.since, s) for s, c in self.contacts.items() if c.since]
+        return min(live)[1] if live else None
+
+    def _shown(self, contact: Contact, axis: str) -> int | None:
+        if contact.held:
+            return contact.down_x if axis == "x" else contact.down_y
+        return contact.x if axis == "x" else contact.y
+
+    def _update(self, frame: list[Event]) -> set[int]:
+        """Takes in the frame; returns the slots whose finger is new."""
+        new: set[int] = set()
+        slot = self.slot
+        for kind, code, value in frame:
+            if kind != EV_ABS:
+                continue
+            if code == ABS_MT_SLOT:
+                slot = value
+            elif code == ABS_MT_TRACKING_ID:
+                if value < 0:
+                    self.contacts.pop(slot, None)
+                    new.discard(slot)
+                else:
+                    self.order += 1
+                    self.contacts[slot] = Contact(since=self.order)
+                    new.add(slot)
+            elif code == ABS_MT_POSITION_X:
+                self._contact(slot).x = value
+            elif code == ABS_MT_POSITION_Y:
+                self._contact(slot).y = value
+        self.slot = slot
+        return new
+
+    def _release(self, new: set[int]) -> set[int]:
+        """Decides which fingers stay held; returns those let go now."""
+        for slot in new:
+            contact = self.contacts[slot]
+            contact.down_x, contact.down_y = contact.x, contact.y
+            contact.held = self.slop > 0 and None not in (contact.x, contact.y)
+        released: set[int] = set()
+        several = len(self.contacts) > 1
+        for slot, contact in self.contacts.items():
+            if not contact.held or slot in new and not several:
+                continue
+            moved = math.hypot((contact.x or 0) - (contact.down_x or 0),
+                               (contact.y or 0) - (contact.down_y or 0))
+            if several or moved > self.slop:
+                contact.held = False
+                released.add(slot)
+        return released
+
+    def feed(self, frame: list[Event]) -> list[Event]:
+        """The frame to pass on for FRAME (which ends with SYN_REPORT)."""
+        start_slot = self.slot
+        new = self._update(frame)
+        released = self._release(new)
+        primary = self._primary()
+
+        out: list[Event] = []
+        slot = start_slot
+        for kind, code, value in frame:
+            if kind == EV_SYN and code == SYN_REPORT:
+                break
+            if kind == EV_ABS:
+                if code == ABS_MT_SLOT:
+                    slot = value
+                elif code in (ABS_MT_POSITION_X, ABS_MT_POSITION_Y):
+                    contact = self.contacts.get(slot)
+                    if contact is not None and contact.held:
+                        axis = "x" if code == ABS_MT_POSITION_X else "y"
+                        value = self._shown(contact, axis) or value
+                elif code in (ABS_X, ABS_Y) and primary is not None:
+                    contact = self.contacts[primary]
+                    shown = self._shown(contact, "x" if code == ABS_X else "y")
+                    value = shown if shown is not None else value
+            out.append((kind, code, value))
+
+        # a finger let go jumps to where it really is, both axes, even if only
+        # one of them moved in this frame
+        if released:
+            for each in sorted(released):
+                contact = self.contacts[each]
+                out.append((EV_ABS, ABS_MT_SLOT, each))
+                out.append((EV_ABS, ABS_MT_POSITION_X, contact.x or 0))
+                out.append((EV_ABS, ABS_MT_POSITION_Y, contact.y or 0))
+                if each == primary:
+                    out.append((EV_ABS, ABS_X, contact.x or 0))
+                    out.append((EV_ABS, ABS_Y, contact.y or 0))
+            # the device goes on from its own current slot
+            out.append((EV_ABS, ABS_MT_SLOT, self.slot))
+        out.append((EV_SYN, SYN_REPORT, 0))
+        return out
+
+
+def find_touchscreen(path: str | None):
+    """The touchscreen's evdev device: PATH, or the first direct one."""
+    import evdev  # pylint: disable=import-outside-toplevel
+    from evdev import ecodes  # pylint: disable=import-outside-toplevel
+
+    if path:
+        return evdev.InputDevice(path)
+    deadline = time.monotonic() + WAIT
+    while True:
+        for candidate in evdev.list_devices():
+            try:
+                device = evdev.InputDevice(candidate)
+            except OSError:
+                continue
+            axes = dict(device.capabilities().get(ecodes.EV_ABS, []))
+            if (INPUT_PROP_DIRECT in device.input_props()
+                    and ABS_MT_POSITION_X in axes
+                    and not device.name.endswith("(nxd)")):
+                return device
+            device.close()
+        if time.monotonic() > deadline:
+            return None
+        time.sleep(1)
+
+
+def main() -> int:
+    """Copies the touchscreen to uinput, with the tolerance, until it goes."""
+    parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    parser.add_argument("--slop", type=int,
+                        default=int(os.environ.get("NXD_TOUCH_SLOP", DEFAULT_SLOP)))
+    parser.add_argument("--device")
+    args = parser.parse_args()
+    if args.slop <= 0:
+        print("touch-slop: off (NXD_TOUCH_SLOP=0)", file=sys.stderr)
+        return 0
+
+    import evdev  # pylint: disable=import-outside-toplevel
+    from evdev import ecodes  # pylint: disable=import-outside-toplevel
+
+    device = find_touchscreen(args.device)
+    if device is None:
+        print("touch-slop: no touchscreen", file=sys.stderr)
+        return 0
+    copy = evdev.UInput.from_device(device, name=f"{device.name} (nxd)",
+                                    input_props=device.input_props())
+    device.grab()
+    print(f"touch-slop: {device.path} ({device.name}): {args.slop} px",
+          file=sys.stderr)
+    slop = SlopFilter(args.slop)
+    frame: list[Event] = []
+    try:
+        for event in device.read_loop():
+            frame.append((event.type, event.code, event.value))
+            if event.type == ecodes.EV_SYN and event.code == ecodes.SYN_REPORT:
+                for kind, code, value in slop.feed(frame):
+                    copy.write(kind, code, value)
+                copy.syn()
+                frame = []
+    except OSError as error:
+        # the touchscreen went (suspend, driver reload): the unit starts again
+        print(f"touch-slop: {error}", file=sys.stderr)
+        return 1
+    finally:
+        try:
+            device.ungrab()
+        except OSError:
+            pass
+        copy.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

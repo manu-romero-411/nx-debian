@@ -1,0 +1,16 @@
+[Unit]
+Description=Taps on the touchscreen as clicks, not short drags
+Documentation=https://github.com/manu-romero-411/nx-debian/blob/main/docs/packages.md
+After=systemd-udevd.service
+Before=display-manager.service
+
+[Service]
+EnvironmentFile=-/etc/default/nxd-touch-slop
+ExecStartPre=-/usr/sbin/modprobe uinput
+ExecStart=/usr/lib/nxd/touch-slop
+# the touchscreen goes away on suspend or when its driver reloads
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

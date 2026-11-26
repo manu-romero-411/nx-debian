@@ -46,6 +46,7 @@ Common to both:
   overlay in `retrobox`, from the panel indicator in `xfce`. The fan mode and the
   charge limit are kept across reboots.
 * **Text consoles** in Terminus 8x16, and `fastfetch`.
+* **Taps on the touchscreen are clicks**, not the short drags libinput makes of them (a tolerance of 32 px before a touch starts to move: `/etc/default/nxd-touch-slop`).
 * **The root filesystem fills its partition** on the first boot, and the tools to check, resize or make any partition (everything GParted needs or suggests: `parted`, `e2fsprogs`, `dosfstools`, `exfatprogs`, `ntfs-3g`, `btrfs-progs`, `xfsprogs`...).
 * **Volume** of the speaker and the headphones kept between starts (Switchroot's sound profile no longer puts it back at 100%), and the **headphones** used as soon as they are plugged in.
 * **Locales** of the common languages of Europe generated (English, Spanish, Catalan, Basque, Galician, French, German, Italian, Polish, Russian, Ukrainian, Greek).

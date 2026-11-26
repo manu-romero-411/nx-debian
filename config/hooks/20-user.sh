@@ -24,6 +24,11 @@ for group in sudo adm systemd-journal audio video input render plugdev netdev bl
     fi
 done
 
+# The group whose members sudo lets update the system and install packages
+# without a password (retrobox-system-settings' sudoers.d/retrobox-nopasswd).
+groupadd --system --force retrobox
+usermod --append --groups retrobox "${name}"
+
 # Straight into the session of the variant, when there is a display manager.
 if [ -n "${session}" ] && [ -d /etc/lightdm ]; then
     if [ ! -e "/usr/share/xsessions/${session}.desktop" ]; then

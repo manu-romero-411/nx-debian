@@ -34,8 +34,7 @@
 #
 # Runs itself through sudo when it is not root. Sleep, shutdown and the power
 # button are held off while it runs. Configuration files changed by hand are
-# kept (dpkg's --force-confold). $GITHUB_TOKEN avoids GitHub's rate limit for
-# anonymous requests (sudo keeps it).
+# kept (dpkg's --force-confold). GitHub is read without a token.
 set -euo pipefail
 
 PRERELEASES=0
@@ -76,7 +75,14 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [[ -z "${DOWNLOAD_ONLY}" && "${EUID}" -ne 0 ]]; then
-    exec sudo --preserve-env=GITHUB_TOKEN -- "$0" "${ARGS[@]}"
+    # On the Retrobox image the console's user has no password to type for
+    # retrobox-update (retrobox-system-settings' sudoers rule), which hands
+    # over to this very script as root: it gets root through it.
+    if command -v retrobox-update > /dev/null 2>&1 &&
+        grep -rqs '^[[:space:]]*system_updater[[:space:]]*=.*nxd-update' /etc/retrobox; then
+        exec retrobox-update "${ARGS[@]}"
+    fi
+    exec sudo -- "$0" "${ARGS[@]}"
 fi
 if [[ -z "${DOWNLOAD_ONLY}" && -z "${NXD_UPDATE_INHIBITED:-}" && -d /run/systemd/system ]] &&
     command -v systemd-inhibit > /dev/null 2>&1; then
@@ -105,9 +111,6 @@ APT=(apt-get -y -o APT::Install-Recommends=false -o Dpkg::Options::=--force-conf
 api_get() {
     local -a headers=(-H "Accept: application/vnd.github+json")
     local body code
-    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-        headers+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
-    fi
     body="$(mktemp)"
     code="$(curl -sSL --retry 2 -o "${body}" -w '%{http_code}' "${headers[@]}" "$1")" || code="${code:-000}"
     if [[ "${code}" != 200 ]]; then
@@ -207,7 +210,7 @@ fetch() {
     local repo="$1" dir="$2" json tag kind sums_name sums name file package version installed expected
     shift 2
     local -a names=() chosen=() wanted=() listed=("$@")
-    json="$(release "${repo}")" || { warn "cannot read the releases of ${repo} (see above; GITHUB_TOKEN lifts the limit of 60 anonymous requests an hour)"; return 0; }
+    json="$(release "${repo}")" || { warn "cannot read the releases of ${repo} (see above; GitHub allows 60 anonymous requests an hour per address: try again later)"; return 0; }
     if [[ -z "${json}" ]]; then
         if [[ "${PRERELEASES}" -eq 1 ]]; then
             log "${repo}: no release with packages"

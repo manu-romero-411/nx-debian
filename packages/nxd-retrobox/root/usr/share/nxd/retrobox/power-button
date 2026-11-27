@@ -21,8 +21,14 @@ which tells logind to leave the button to it. What it finds and does goes to
 the session's log (the step sends it to
 ~/.local/state/retrobox/logs/power-button.log).
 
-The press that wakes the console up is not a new tap: whatever the button
-does in the second after a resume is ignored. It reads /dev/input, as the
+The press that wakes the console up is not a new tap: after a suspend this
+asked for, the next press is the one that woke the console and is ignored
+(CLOCK_MONOTONIC stops while it sleeps, so "next" is within WAKE_WINDOW of
+it); whatever the button does in the second after a resume that the clocks
+show (CLOCK_BOOTTIME or CLOCK_REALTIME jumping ahead of CLOCK_MONOTONIC) is
+ignored too. The Switch's L4T kernel does not move CLOCK_BOOTTIME on a
+suspend, so the clocks alone missed it: the press that woke it suspended it
+again. It reads /dev/input, as the
 input group (Retrobox puts the user there).
 """
 # pylint: disable=invalid-name  # an installed command, named like one
@@ -43,6 +49,9 @@ from pathlib import Path
 HOLD = 0.65
 # what the button does this long after a resume is ignored, in seconds
 WAKE_GUARD = 1.0
+# the first press this long (CLOCK_MONOTONIC, which stops while the console
+# sleeps) after a suspend this asked for is the one that woke it, in seconds
+WAKE_WINDOW = 30.0
 # how often the devices are looked for again, in seconds
 RESCAN = 5.0
 # a device with more keys than this is a keyboard, not the console's button
@@ -55,9 +64,11 @@ BUTTON_KEYS = (KEY_SLEEP, KEY_POWER)
 
 
 def suspended_for() -> float:
-    """How long the machine has been suspended since it booted, in seconds
-    (CLOCK_MONOTONIC stops while it sleeps, CLOCK_BOOTTIME does not)."""
-    return time.clock_gettime(time.CLOCK_BOOTTIME) - time.monotonic()
+    """How far CLOCK_BOOTTIME and CLOCK_REALTIME are ahead of CLOCK_MONOTONIC,
+    in seconds: it grows with each suspend where either of them goes on while
+    the machine sleeps (CLOCK_MONOTONIC stops)."""
+    mono = time.monotonic()
+    return (time.clock_gettime(time.CLOCK_BOOTTIME) - mono) + (time.time() - mono)
 
 
 @dataclass
@@ -65,24 +76,31 @@ class Button:
     """What the button is doing: when it went down, and what is decided.
 
     press() and release() take the button's events, tick() the passing of
-    time; each returns "suspend", "menu" or None, the action to take.
+    time; each returns "suspend", "menu", "woke" (the press that woke the
+    console up: light the screen) or None, the action to take.
     """
 
     hold: float = HOLD
-    guard: float = WAKE_GUARD
     down_at: float | None = None
     fired: bool = False
     ignore_until: float = 0.0
     slept: float = field(default_factory=suspended_for)
+    asleep_at: float | None = None
+    swallow: bool = False
+
+    def sleeping(self, now: float) -> None:
+        """A suspend was asked for: the next press is the one that wakes."""
+        self.asleep_at = now
 
     def woke(self, now: float, slept: float) -> bool:
         """A resume (SLEPT grew): the button is ignored for a while.
         Whether there was one."""
         resumed = slept - self.slept > 0.5
         if resumed:
-            self.ignore_until = now + self.guard
+            self.ignore_until = now + WAKE_GUARD
             self.down_at = None
             self.fired = False
+            self.asleep_at = None
         self.slept = slept
         return resumed
 
@@ -90,6 +108,12 @@ class Button:
         """The button went down."""
         if now < self.ignore_until:
             return None
+        if self.asleep_at is not None:
+            woke = now - self.asleep_at < WAKE_WINDOW
+            self.asleep_at = None
+            if woke:
+                self.swallow = True
+                return "woke"
         self.down_at = now
         self.fired = False
         return None
@@ -99,6 +123,9 @@ class Button:
         down_at, fired = self.down_at, self.fired
         self.down_at = None
         self.fired = False
+        if self.swallow:
+            self.swallow = False
+            return None
         if down_at is None or fired or now < self.ignore_until:
             return None
         return "suspend" if now - down_at < self.hold else "menu"
@@ -176,9 +203,12 @@ class Screen:
 
 
 def act(action: str, overlay: str | None, screen: Screen) -> None:
-    """Does ACTION: suspends, or opens the overlay's power options."""
+    """Does ACTION: suspends, opens the overlay's power options, or lights the
+    screen after the press that woke the console up."""
     print(f"power-button: {action}", file=sys.stderr, flush=True)
-    if action == "menu" and overlay:
+    if action == "woke":
+        screen.on()
+    elif action == "menu" and overlay:
         run([overlay, "--power"])
     elif action == "suspend" or not overlay:
         screen.off()
@@ -243,6 +273,14 @@ def main() -> int:
     devices = Devices()
     button = Button()
     screen = Screen()
+
+    def handle(action: str | None) -> None:
+        if not action:
+            return
+        act(action, overlay, screen)
+        if action == "suspend" or (action == "menu" and not overlay):
+            button.sleeping(time.monotonic())
+
     while True:
         now = time.monotonic()
         if button.woke(now, suspended_for()):
@@ -254,12 +292,8 @@ def main() -> int:
             now = time.monotonic()
             if button.woke(now, suspended_for()):
                 screen.on()
-            action = {1: button.press, 0: button.release}.get(value, lambda _: None)(now)
-            if action:
-                act(action, overlay, screen)
-        action = button.tick(time.monotonic())
-        if action:
-            act(action, overlay, screen)
+            handle({1: button.press, 0: button.release}.get(value, lambda _: None)(now))
+        handle(button.tick(time.monotonic()))
 
 
 if __name__ == "__main__":

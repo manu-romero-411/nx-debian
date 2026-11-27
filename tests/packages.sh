@@ -86,7 +86,7 @@ loader.exec_module(module)
 
 def button():
     """A button that has not slept yet."""
-    return module.Button(hold=1.0, guard=1.0, slept=0.0)
+    return module.Button(hold=1.0, slept=0.0)
 
 
 results = {}
@@ -113,6 +113,17 @@ b.press(10.0)
 b.woke(10.5, 60.0)
 results["slept-while-down"] = b.release(10.6) is None and b.tick(12.0) is None
 results["hold-time"] = module.HOLD == 0.65
+# the press that wakes the console up after a suspend asked for, when the
+# clocks do not show the sleep (the Switch's kernel): not a new tap
+b = button()
+b.press(10.0)
+results["asked-tap"] = b.release(10.2) == "suspend"
+b.sleeping(10.2)
+results["asked-wake"] = (b.press(11.8), b.release(11.9)) == ("woke", None)
+results["asked-after"] = (b.press(15.0), b.release(15.1)) == (None, "suspend")
+b = button()
+b.sleeping(10.0)
+results["asked-stale"] = (b.press(45.0), b.release(45.1)) == (None, "suspend")
 # the screen: dark before the suspend, lit at the resume, DPMS as it was
 os.environ["DISPLAY"] = ":0"
 os.environ["PATH"] = sys.argv[2] + ":" + os.environ["PATH"]
@@ -137,6 +148,10 @@ check "the press that wakes the console up does not suspend it again" grep -qx '
 check "...but a tap after it does" grep -qx 'after-wake ok' "${tmp}/power.log"
 check "a press cut by a suspend is forgotten" grep -qx 'slept-while-down ok' "${tmp}/power.log"
 check "the menu opens after 0.65 s" grep -qx 'hold-time ok' "${tmp}/power.log"
+check "after a suspend it asked for, the press that wakes the console up is not a tap" \
+    bash -c "grep -qx 'asked-tap ok' \"\$1\" && grep -qx 'asked-wake ok' \"\$1\"" _ "${tmp}/power.log"
+check "...the next one is" grep -qx 'asked-after ok' "${tmp}/power.log"
+check "...and a suspend that never came is forgotten" grep -qx 'asked-stale ok' "${tmp}/power.log"
 check "the screen goes dark before the suspend, and DPMS is as it was after it" grep -qx 'screen ok' "${tmp}/power.log"
 check "nxd-retrobox needs xset" grep -qw 'x11-xserver-utils' <<< "$(dpkg-deb -f "${RETRO}" Depends)"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"

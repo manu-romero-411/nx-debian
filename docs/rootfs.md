@@ -274,7 +274,9 @@ alone. It reopens it in a transient service of its own, `nxd-picom-resume`
 (as the user, without `-b`, a second after the resume): started by the hook
 itself, picom was in `systemd-suspend.service`'s cgroup, which systemd empties
 when that service ends, a moment after the resume, and the session was left
-without a compositor (no vsync: tearing).
+without a compositor (no vsync: tearing). Before the suspend it gets 0.2 s to
+end after SIGTERM and is then killed: it took half a second to end, all of it
+added to the suspend.
 The image's hook `config/hooks/retrobox/30-retrobox-polkit.sh` writes the
 console's polkit rule for the user (`retrobox-polkit-rule`): power off, reboot,
 and the time zone and keyboard layout that EmulationStation's console mode sets
@@ -487,7 +489,12 @@ option is ignored. If the screen is still black after that, the logs are
     `PowerKeyIgnoreInhibited=no` and `SuspendKeyIgnoreInhibited=no` so that
     the inhibitor counts): a tap
     suspends, five seconds power off. Standby works on the Switch's 4.9
-    L4T kernel; the backlight goes off as soon as a suspend starts and comes back at the
+    L4T kernel; the Wi-Fi driver (`brcmfmac`) is unloaded before a suspend
+    and loaded again after it, in a unit of its own
+    (`/usr/lib/systemd/system-sleep/nxd-wifi`, nxd-common;
+    `NXD_SUSPEND_UNLOAD_WIFI` in `/etc/default/nxd-suspend`): suspending the
+    devices took 1.41 s, 0.95 s of it the Wi-Fi's (0.46 s without it), and the
+    Wi-Fi takes a few seconds longer to come back; the backlight goes off as soon as a suspend starts and comes back at the
     resume (`/usr/lib/systemd/system-sleep/nxd-backlight`, nxd-common:
     suspending the devices takes about 1.4 s and the display is among the
     last ones, so the screen stayed lit that long after the tap).

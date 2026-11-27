@@ -28,6 +28,12 @@ ENV="${STATE_DIR}/nxd-picom.env"
 USER="${STATE_DIR}/nxd-picom.user"
 CMD="${STATE_DIR}/nxd-picom.cmd"
 
+# running PID: whether the process is there and not a zombie (one that has
+# ended and is not reaped yet)
+running() {
+    [ -d "/proc/$1" ] && ! grep -q '^State:[[:space:]]*Z' "/proc/$1/status" 2>/dev/null
+}
+
 # The pid of the running picom (not a zombie), or nothing. No procps: read
 # /proc directly.
 picom_pid() {
@@ -55,12 +61,18 @@ pre)
     echo "${uid}" > "${USER}"
     tr '\0' '\n' < "/proc/${pid}/environ" > "${ENV}" 2>/dev/null || { rm -f "${ENV}" "${USER}" "${CMD}"; exit 0; }
     tr '\0' ' ' < "/proc/${pid}/cmdline" > "${CMD}" 2>/dev/null || { rm -f "${ENV}" "${USER}" "${CMD}"; exit 0; }
+    # a moment to end by itself, then killed: picom took half a second to
+    # end after SIGTERM, all of it added to the suspend (the X server and
+    # the kernel free what it held either way)
     kill "${pid}" 2>/dev/null || true
-    # let it die; a compositor that takes a moment is not a reason to hold
-    # the suspend off for long
-    for _ in $(seq 1 50); do
-        [ -d "/proc/${pid}" ] || break
+    for _ in 1 2; do
+        running "${pid}" || exit 0
         sleep 0.1
+    done
+    kill -KILL "${pid}" 2>/dev/null || true
+    for _ in 1 2 3 4 5; do
+        running "${pid}" || exit 0
+        sleep 0.05
     done
     ;;
 post)

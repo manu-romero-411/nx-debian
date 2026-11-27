@@ -1,0 +1,15 @@
+# What the L4T Megascript (https://github.com/cobalt2727/L4T-Megascript) checks
+# for every time it starts. When one is missing, its first step is an
+# `apt-get dist-upgrade` as root and the install of the list, so they are in
+# the image. software-properties-common is no longer in Debian 13: it comes
+# from the compat suite (NXD_COMPAT_PACKAGES in config/nxd.conf).
+bash
+dialog
+gnutls-bin
+curl
+wget
+yad
+zenity
+lsb-release
+software-properties-common
+git

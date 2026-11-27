@@ -791,5 +791,43 @@ check "nxd-update installs no Recommends, as the image is built" grep -q 'APT::I
 check "--help works without root" "${UPDATE}" --help
 check_not "an unknown option is refused" "${UPDATE}" --nope
 
+## Moonlight and the L4T Megascript ------------------------------------------
+
+check "the Megascript's runner is executable" grep -q '^-rwxr-xr-x .*\./usr/lib/nxd/megascript$' <<< "$(dpkg-deb -c "${COMMON}")"
+check "...in the menu, in a terminal, with its icon" bash -c "dpkg-deb -c '${COMMON}' | grep -q './usr/share/applications/L4T-Megascript.desktop' && dpkg-deb -c '${COMMON}' | grep -q './usr/share/icons/hicolor/256x256/apps/L4T-Megascript.png'"
+DESKTOP="${NXD_ROOT}/packages/nxd-common/root/usr/share/applications/L4T-Megascript.desktop"
+check "...the file name of the Megascript's own launcher (it replaces this one, not a second entry)" \
+    bash -c "grep -qx 'Exec=/usr/lib/nxd/megascript' '${DESKTOP}' && grep -qx 'Terminal=true' '${DESKTOP}' && grep -qx 'Icon=L4T-Megascript' '${DESKTOP}'"
+mkdir -p "${tmp}/ms/bin"
+# a wget that "downloads" a Megascript printing its arguments
+cat > "${tmp}/ms/bin/wget" << 'FAKE'
+#!/bin/sh
+echo 'echo "ran $1"'
+FAKE
+chmod 755 "${tmp}/ms/bin/wget"
+check "it runs the downloaded Megascript with its menus" \
+    bash -c "PATH='${tmp}/ms/bin:${PATH}' '${NXD_ROOT}/packages/nxd-common/root/usr/lib/nxd/megascript' | grep -qx 'ran gui'"
+printf '#!/bin/sh\nexit 4\n' > "${tmp}/ms/bin/wget"
+check_not "...and stops, saying why, when it cannot download it" \
+    bash -c "PATH='${tmp}/ms/bin:${PATH}' '${NXD_ROOT}/packages/nxd-common/root/usr/lib/nxd/megascript' < /dev/null"
+
+check "the Ports launchers are in nxd-retrobox" bash -c "dpkg-deb -c '${RETRO}' | grep -q './usr/share/nxd/retrobox/ports/Moonlight.sh' && dpkg-deb -c '${RETRO}' | grep -q './usr/share/nxd/retrobox/ports/L4T Megascript.sh'"
+check "...the step that puts them in the Ports folder is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox/session.d/55-nxd-ports$' <<< "$(dpkg-deb -c "${RETRO}")"
+PORTS_STEP="${NXD_ROOT}/packages/nxd-retrobox/root/etc/retrobox/session.d/55-nxd-ports"
+PORTS_ENV=(env "HOME=${tmp}/ph" XDG_STATE_HOME= "NXD_PORTS_DIR=${tmp}/roms/ports"
+    "NXD_PORTS_SRC=${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/ports")
+check "without the ROMs folder it does nothing" "${PORTS_ENV[@]}" "${PORTS_STEP}"
+check "...and makes no folder" test ! -e "${tmp}/roms"
+mkdir -p "${tmp}/roms"
+"${PORTS_ENV[@]}" "${PORTS_STEP}"
+check "Moonlight and the Megascript go into Ports" test -f "${tmp}/roms/ports/Moonlight.sh" -a -f "${tmp}/roms/ports/L4T Megascript.sh"
+rm "${tmp}/roms/ports/Moonlight.sh"
+printf 'mine\n' > "${tmp}/roms/ports/L4T Megascript.sh"
+"${PORTS_ENV[@]}" "${PORTS_STEP}"
+check "a launcher the user deleted stays deleted" test ! -e "${tmp}/roms/ports/Moonlight.sh"
+check "...and one the user changed is left as it is" grep -qx mine "${tmp}/roms/ports/L4T Megascript.sh"
+check "Moonlight starts moonlight-qt" grep -qx 'exec moonlight-qt' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/ports/Moonlight.sh"
+check "the Megascript opens in a terminal" grep -q 'exec xterm .*-e /usr/lib/nxd/megascript$' "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/ports/L4T Megascript.sh"
+
 printf '\n%d passed, %d failed\n' "${PASS}" "${FAIL}"
 [[ "${FAIL}" -eq 0 ]]

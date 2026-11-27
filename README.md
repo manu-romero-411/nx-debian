@@ -1,157 +1,213 @@
-# es-theme-imago (working name)
+# Debian 13 (Trixie) for the Nintendo Switch
 
-EmulationStation theme for Batocera / RetroBat / Retrobox, inspired by Cocoon (Android) and the 3DS home screen.
-Format version 7 (batocera-emulationstation).
+[![Build images](https://github.com/manu-romero-411/nx-debian/actions/workflows/build.yml/badge.svg)](https://github.com/manu-romero-411/nx-debian/actions/workflows/build.yml)
+[![CI](https://github.com/manu-romero-411/nx-debian/actions/workflows/ci.yml/badge.svg)](https://github.com/manu-romero-411/nx-debian/actions/workflows/ci.yml)
+[![Debian Version](https://img.shields.io/badge/Debian-13%20(Trixie)-crimson.svg)](https://www.debian.org/)
+[![Kernel](https://img.shields.io/badge/Kernel-4.9.140--l4t-blue.svg)](https://developer.nvidia.com/embedded/linux-tegra)
+[![Architecture](https://img.shields.io/badge/Arch-arm64-green.svg)](https://wiki.debian.org/Arm64Port)
 
-## Layout
+Debian 13 for the Nintendo Switch, booted by Hekate, with Switchroot's L4T
+kernel and NVIDIA's Tegra drivers. Two images: an XFCE desktop and Retrobox, a
+console made of EmulationStation and RetroArch.
+
+Everything in the images is installed by apt, from Debian and the L4T
+repository. What nx-debian adds itself is in its own packages (`nxd-common`,
+`nxd-xfce`, `nxd-retrobox`), so a console that is already installed is
+updated with `nxd-update` instead of being flashed again.
+
+---
+
+<p align="center">
+  <img src="screenshots/xfce4.png" alt="The XFCE desktop" width="850">
+</p>
+
+---
+
+## The images
+
+| Image | What it starts | User | Password |
+| :--- | :--- | :--- | :--- |
+| **`xfce`** | the XFCE desktop | `switch` | `switch` (a build at a terminal asks for the user name and the password) |
+| **`retrobox`** | [Retrobox](https://github.com/RetroboxProject), as a console | `retrobox` | `retrobox` |
+
+Both log the user in automatically, the hostname is `nintendo-switch`, the
+user can `sudo` and `root` has no password. Change the password before the
+console joins a network you do not trust: `ssh` is on in `retrobox` (to work
+on it from a computer), and installed but off in `xfce` (`sudo systemctl
+enable --now ssh` turns it on).
+
+Common to both:
+
+* **The hardware**: the L4T 4.9 kernel and boot files of Switchroot's
+  `switch-bsp`, NVIDIA's Tegra X1 drivers and the Xorg server they are built
+  for, Wi-Fi and Bluetooth, the integrated pad and the Joy-Cons, PulseAudio.
+* **Performance profiles** (`nvpmodel`), fan modes and a battery charge limit,
+  which the user at the console can change without a password: from the
+  overlay in `retrobox`, from the panel indicator in `xfce`. The fan mode and the
+  charge limit are kept across reboots.
+* **Text consoles** in Terminus 8x16, and `fastfetch`.
+* **Taps on the touchscreen are clicks**, not the short drags libinput makes of them (a tolerance of 32 px before a touch starts to move: `/etc/default/nxd-touch-slop`).
+* **The root filesystem fills its partition** on the first boot, and the tools to check, resize or make any partition (everything GParted needs or suggests: `parted`, `e2fsprogs`, `dosfstools`, `exfatprogs`, `ntfs-3g`, `btrfs-progs`, `xfsprogs`...).
+* **Volume** of the speaker and the headphones kept between starts (Switchroot's sound profile no longer puts it back at 100%), and the **headphones** used as soon as they are plugged in.
+* **Locales** of the common languages of Europe generated (English, Spanish, Catalan, Basque, Galician, French, German, Italian, Polish, Russian, Ukrainian, Greek).
+* **A quiet boot** (no kernel or systemd text on the screen), and a reboot that
+  goes back to Hekate's menu.
+* **Moonlight** (`moonlight-qt`), to stream games from a PC (Sunshine,
+  GeForce Experience): the build of the Moonlight project's L4T repository,
+  which decodes the stream with the Tegra's hardware decoder, updated by apt
+  with the rest of the system.
+* **The [L4T Megascript](https://github.com/cobalt2727/L4T-Megascript)**, the
+  installer of programs for the Switch (emulators, games, tools), with what it
+  needs when it starts already there, so it goes straight to its menu. It is
+  not installed: every start downloads the latest one. It asks for the
+  user's password when it installs something, so it needs a keyboard. Its
+  Moonlight entry is not needed (and fails on Debian): Moonlight is already
+  installed.
+* **Installers for Hekate**: the system is an ext4 image in parts that fit
+  FAT32 (`l4t.00`, `l4t.01`), which Hekate's partition manager flashes; the
+  first boot grows the file system to the size of the partition.
+
+**`xfce`** adds, through `nxd-xfce`:
+
+* `switch-rotate`, which turns the screen and the touchscreen together, at
+  once, and keeps the choice for the next login (button in the top panel).
+* A top panel with the applications menu, windows, rotation, volume, battery,
+  the SoC temperature and the fan (`switch-sensors`), the performance indicator,
+  Wi-Fi (nm-applet), Bluetooth (Blueman), the clock and the session actions; a bottom launcher bar,
+  hidden until the pointer gets there (terminal, files, Firefox ESR, finder).
+* The Adwaita theme, Firefox ESR and Thunar as default applications, and
+  Onboard, the on-screen keyboard, in the menu.
+* Moonlight and the L4T Megascript in the applications menu.
+
+**`retrobox`** adds, through `nxd-retrobox`:
+
+* EmulationStation as a console: no way to quit to a desktop, the Nintendo
+  button layout (the east button confirms), the Switch Lite's pad with Home as
+  the hotkey, larger text for the small screen.
+* RetroArch and a base set of cores already installed (more from the Content
+  Downloader), with the theme, bezels and shaders Retrobox would download at
+  its first start.
+* ROMs, BIOS and saves in the SD card's FAT32 partition (`/sdcard/retrobox`),
+  the one Hekate, Android and a PC see too.
+* The volume buttons change the volume and show it at the top of the screen;
+  a tap on the power button suspends, holding it a second opens the power menu
+  (sleep, restart, turn off).
+* The picom compositor (vsync, and the overlay over a running game), closed before a suspend and reopened at the resume.
+* Moonlight and the L4T Megascript in EmulationStation's **Ports**
+  (`/sdcard/retrobox/roms/ports`, put there once: delete one and it stays
+  deleted). Moonlight is driven with the controller; the Megascript opens in a
+  terminal.
+
+---
+
+## Hardware
+
+The images are built for every model the L4T kernel of `switch-bsp` supports
+(Erista and Mariko: the first Switch, the V2, the Lite and the OLED); a
+Mariko needs a modchip to run Hekate. They have been tested on a **Switch
+Lite**; reports from other models are welcome.
+
+---
+
+## Installation (Hekate)
+
+1. **Partition the SD card.** In Hekate: *Tools* → *Partition SD Card*, and
+   give *Linux (EXT4)* at least 6 GB (the image is 5 GiB; 16 GB or more leaves
+   room for your files). Then *Next Step* and *Start*.
+2. **Copy the installer.** Download the installer of the image you want
+   (`switch-debian-13-trixie-xfce-installer.zip` or
+   `switch-debian-13-trixie-retrobox-installer.zip`) from the
+   [Releases](https://github.com/manu-romero-411/nx-debian/releases), check it
+   against `SHA256SUMS`, and unzip it at the root of the SD card's FAT32
+   partition: it has `bootloader/` and `switchroot/` (`switchroot/install/`
+   holds `l4t.00` and `l4t.01`).
+3. **Flash it.** In Hekate: *Tools* → *Partition SD Card* → *Flash Linux*.
+4. **Boot it.** From Hekate's *More Configs*, pick **Debian 13 Trixie**.
+
+Hekate is not in the installers: install or update it as you usually do.
+
+---
+
+## Updating
+
+```bash
+nxd-update                       # Debian, L4T, nx-debian and Retrobox (releases)
+nxd-update --allow-prereleases   # ...including pre-releases
 ```
-theme.xml                        entry point; declares the options (subsets)
-_inc/colorsets/*.xml             6 palettes (variables: bg, tile, accent, text, subText, dimText, box, tone, scheme)
-_inc/branding/*.xml              brand logo selection (variables only)
-_inc/options/                    option variable files (banner on/off + height, rows, logo region, wallpaper, tiles, list, geometry)
-_inc/options/geometry.xml        every icon-view coordinate derived from bOn / bannerPct / rows (ordered variables: edit with care)
-_inc/layout/common.xml           background, help bar, game tiles, menu
-_inc/layout/chrome.xml           top-right status capsule (network, battery, clock; iconic icons) + brand logo on its left
-_inc/layout/system-grid.xml      system view: optional banner + cartel + icon grid (parametric)
-_inc/layout/system-carousel.xml  system view: single-row carousel (guarded by `if="${sysCarousel} == 1"`)
-_inc/layout/gamelist-grid.xml    "Icons" view of the game list: banner (console art + game/console logo) / cartel / icon grid
-_inc/layout/gamelist-common.xml  built-in `basic` (centred list) + `detailed`: background, console logo, list card (shadow + body + sheen), iconic-style rows, hidden metadata
-_inc/layout/gamelist-detailed.xml  built-in `detailed` view (default): list on the right; image, info card and description card on the left
-_inc/options/fontscale.xml       esFontScale (ES "Theme Font Scale", same logic as es-theme-iconic)
-_inc/options/listrows-*.xml      "List rows" option (auto from the font scale, or 7-17)
-_inc/options/list.xml            list geometry, row font size / corner radius, card captions (en + es)
-_inc/system_icons/               <system>.svg         square icon of each system (system view tiles)
-_inc/system_bg/                  <system>.png|svg|jpg Carbon console art (system view; fallback for games without image)
-_inc/system_logos/               console logo, ordered <path> chain (see README.txt there)
-assets/ui/                       white.png, round.png, shadow.png (card shadow nine-patch), sheen.png (card gloss), neon.png, box-<set>-*.svg
-assets/branding/                 retrobat.svg, batocera.svg, retrobox.svg (PLACEHOLDERS)
+
+The console's user needs no password for it (the `nxd` group: a sudo rule and
+a polkit one).
+
+It upgrades Debian and the L4T packages, then nx-debian's packages and the
+Retrobox ones from their GitHub releases, and cleans up. Files you changed
+under `/etc` are kept. See [docs/packages.md](docs/packages.md).
+
+---
+
+## Troubleshooting
+
+### A broken Joy-Con (`joycon_serdev: Received pkt has wrong magic`)
+
+Messages like these, over and over, come from a Joy-Con on a rail that sends
+corrupt data (a damaged controller, ribbon cable or rail pins):
+
+```text
+joycon_serdev serial0-0: Received pkt has wrong magic
+joycon_serdev serial0-0: Received pkt is malformed
 ```
 
-## Options (UI Settings > Theme Configuration)
-Color set / Help icons / Branding / Console logo region / **Banner** (off [default], on) / **Banner height** (30-50 %, default 40) /
-**System view** (icons 1-4 rows [default 3], carousel) / **Game icons** (1-4 rows [default 3]) / List rows (auto, 7-17). Default game view:
-`detailed`; `basic` and the custom **Icons** view are in the same menu (Game list view style).
+Take that Joy-Con off. To keep it attached and ignore the rails instead, set
+`jc_rail_disable=1` in `bootloader/ini/debian.ini` on the SD card (it is `0` by
+default).
 
-## Icon views (system view and the "Icons" game view)
-- **Banner** (optional, at most 2 rows of icons below it): console art (`_inc/system_bg`) as the background (in the game view: the selected game main image, cropped, when it has one); the logo goes on a tinted plate:
-  the console logo in the system view, the game logo (`md_marquee`) in the game view, falling back to the console logo.
-  The bottom corners are rounded (the art is drawn taller, top edge off screen, `roundCorners` = `heroRad`). Height = `bannerPct` % of the screen **height** (30-50). `bannerK` in `geometry.xml` switches the basis to the screen width (`${screen.ratio}`,
-  which at 16:9 means 53-89 % of the height: only usable with 4:3 or similar).
-- **Console name**: without banner it is plain text at the top-left (no plate), left-aligned with the info row below it. With the banner it goes on a centred
-  *cartel* (name plate), but only when there is no logo to show (system view: no console logo; game view: neither game logo nor console logo). It depends on the LOGO only, never on the console art.
-- **Info row** above the grid (always, with or without banner): system view = manufacturer . year at the left end, game count (`systemInfo`) at the right end;
-  game view = game name at the left, developer and year at the right. `rowY` / `rowH` in `geometry.xml`; the grid zone starts under it.
-- **Logo drop shadow**: ES has no per-image shadow, so each logo (banner logos, console logo of the list views) gets thirteen black translucent copies of it
-  with zero net offset: one centre copy, a ring of 8 and 4 outer points (3 px steps `lsDx`, `lsDy`) = a soft blur right under the logo (`logo_shadow` in the generator). The stock `:/shaders/shadow.glsl` shader was not used because it cannot be tested here.
-- Up to 4 rows without banner (default 3), 2 with it. Row count -> tile height (capped at 34 % of the screen height); columns = floor(width / tile height),
-  so the cells fill the whole width and the icon is as big as the row allows. All of it is computed in `geometry.xml` (variables evaluate in order).
-- ES `MathExpr` notes: plain variables are strings, so a sum must start with a number (`0 + ${x} + ...`) or ES concatenates; `screen.ratio` is a NAME
-  ("16:9"), use `${screen.width} / ${screen.height}`; `${}` inside quotes is NOT expanded in `if` (use `${a} + '/x'`) but is in `<visible>`;
-  `min/max/clamp` and `a ? b : c` exist. Round/floor are written with comparisons here.
-- (old note) ES `MathExpr` has no round/min: they are written with comparisons. `<visible>` is dynamic only when it contains a binding (`{game:name}`);
-  static conditions use the `if` attribute (works on views, includes and elements).
+---
 
-## Game count: ES drives the `systemInfo` text (not a per-system extra). In the icon system view it is the right end of the info row.
-`system.releaseYear` is the localized word "Unknown" when the year is missing: test it with `> 0`, never with `!= ''`.
+## Building from source
 
-## Status capsule
-`chrome.xml`: the native clock / battery+wifi indicators belong to the `screen` view (hidden there, as iconic does); a stackpanel with `clock`, `batteryText`, `batteryIcon` and `networkIcon` inside a rounded card, top right. The built-in clock is moved off screen
-and the built-in battery indicator hidden (same approach as es-theme-iconic). Icons are iconic's (`assets/icons/battery-*.svg`, `network-icon-*.svg`).
+Everything goes through `nxd` (`./nxd --help`). The build is done by Debian's
+`mmdebstrap`, so any host works, even one that is not arm64 (qemu) or not
+Debian: `nxd container` runs the same steps in a Debian trixie container.
 
-## Artwork lookup
-- icon: _inc/system_icons/<system.theme>.svg
-- console art: _inc/system_bg/<system.theme>.jpg
-- console logo: ordered list of `<path>` in the layouts (last existing file wins), same logic as es-theme-iconic. Variables `logoRegion`
-  (eu/us/jp, option "Console logo region") and `logoColorScheme` (dark/light, set per colour set). Full order in `_inc/system_logos/README.txt`.
-  No generated folders. NOTE: `firstfile()` only works inside expressions (`<visible>`), never as a `<path>` value.
-- `python3 tools/build_assets.py` only copies system_bg/collections, creates icon aliases and the wallpaper crops.
+```bash
+./nxd variants                                              # what can be built
+sudo ./nxd container build --variant retrobox --clean       # one image
+sudo ./nxd container build                                  # every image
+```
 
-## List views (Basic / Detailed)
-- Look: Cocoon + es-theme-iconic. Cards (list, info, description, cartel, plate) = soft shadow (`shadow.png` nine-patch, 24 px margin) + flat body
-  tinted by the colour set (`panelTop`, 1 px `panelEdge`) + vertical gloss (`sheen.png`, tinted `panelBot`). Every colour set defines the texture
-  variables (`panelTop/Bot/Edge`, `shadowColor`, `rowSel/rowSelEdge`, `rowSep`, `thumb`). `python3 tools/make_shadow.py` regenerates the shadow.
-- Rows: item template with a flat rounded pill + hairline for the selected row and hairline separators; `roundCorners` of a rectangle is in PIXELS.
-- Scrollbar: 0.45 % wide, `${thumb}`, drawn in the right padding of the card. ES quirk (not fixable from a theme): with an item template the thumb
-  follows the cursor about two rows late, and it hides 1.5 s after the last move.
-- `rectangle` and `ninepatch` ignore `origin`: give explicit top-left positions .
-- A variable whose value contains `${` is evaluated as a math expression (`${tile}E6` would become a number): colours with alpha are written inline.
-- `detailed`: console logo centred over the game image, image on its own card (same shadow as the others); the left column (logo, image card + info card side by side, description card) spans exactly the height of the list card (0.13-0.93); gaps between cards are >= 0.03 so shadows do not stack.
-- In `detailed` ES draws every metadata label/field the theme does not define: `gamelist-common.xml` hides them all and each view re-enables its own.
-- Entries without game data (the `. .` parent folder) skip the item template and use the built-in selector.
+The Retrobox packages come from their GitHub releases, only from the ones that
+are not pre-releases unless `--prereleases` is given (the newest of each,
+which is what you want while Retrobox is still gaining features). The
+installers end up in `dist/`, with the package list of each one and a
+`SHA256SUMS`.
 
-## Known limits / to verify
-- System grid: in Batocera ES the system-view grid is `<imagegrid name="imagegrid">` (confirmed in es-theme-tiled, systemview/grid.xml;
-  `systemgrid` and `systemcarousel` do NOT work: the latter logs "mismatched theme type ... expected carousel").
-  Still unverified: tile image source (assumed `<image name="logo">`), `autoLayout`/`scrollDirection` support in this view.
-  Carousel stays as fallback.
-- Nothing here could be run in a real ES: check F5 reload on a Batocera build (`firstfile()` inside `if`/`<visible>`, `clipRect` of the banner,
-  ninepatch `cornerSize` in px, `exists({game:marquee})`, `imagegrid` column count as an integer).
-- No fonts are bundled (default ES font). Add a TTF and a `<fontPath>` if wanted.
-- Logos in assets/branding are placeholders; use the official artwork you are allowed to use.
+[docs/rootfs.md](docs/rootfs.md) documents the steps (`nxd rootfs`,
+`nxd inspect`, `nxd image`), the variants and the tests;
+[docs/packages.md](docs/packages.md) nx-debian's packages and `nxd-update`;
+[docs/decisions.md](docs/decisions.md) why the images run the 4.9 kernel of
+`switch-bsp`; [docs/legacy-inventory.md](docs/legacy-inventory.md) what became
+of the old build script.
 
-Renaming the theme = renaming the folder; all paths use `${themePath}` or are relative.
+### Continuous integration
 
-## Wallpapers (assets/wallpapers/)
-- `<name>.svg` 16:9 (p. ej. 1280x720) = fondo a pantalla completa, capa `e_wallpaper` (z 1, sobre el color plano `bg`). **Debe estar aplanado** (sin `<use>`, `<clipPath>`, filtros ni capas ocultas: NanoSVG no los soporta). Si lo exportas de Inkscape: `python3 tools/flatten_svg.py original.svg assets/wallpapers/<nombre>.svg`.
-- Cada colorset elige el suyo en `_inc/colorsets/*.xml` (`wallpaper`, `wallpaperB1`, `wallpaperB2`). Hoy: Black -> `dark.svg`; el resto -> `<colorset>.svg` (la misma rejilla de cuadrados que Black, recoloreada: base = `bg` oscurecido por `dim` (rojo, azul y morado van mas oscuros que el `bg` plano), cuadrados = base aclarada, vineta = base oscurecida). Se regeneran con `python3 tools/make_wallpapers.py` (paletas en el diccionario `SETS` del script).
-- `-b1`/`-b2` crops are no longer used (the banner is clipped with `clipRect`, nothing is drawn under it).
-- Opcion de tema `Wallpaper: on/off` (off = usa `none.png`).
-- Para anadir otro: copia `assets/wallpapers/<name>.svg`, ejecuta el script y apunta las 3 variables del colorset a `<name>.svg`, `<name>-b1.svg`, `<name>-b2.svg`.
+* `ci.yml`: the linters and the tests, on every push.
+* `packages.yml`: nx-debian's packages, on every push to `main`, published as
+  the continuous pre-release (tag `continuous`, version `<last release>.<UTC
+  time>`), as in the Retrobox repositories.
+* `build.yml`: the images, on an arm64 runner; a pushed `vX.Y` or `vX.Y.Z` tag
+  publishes the release of that tag (installers and packages of its version;
+  `vX.Y` and `vX.Y.0` full releases, other `vX.Y.Z` pre-releases). Run by hand
+  (*Actions* → *Build images* → *Run workflow*) it only builds.
 
-## Iconos de sistema (_inc/system_icons/)
-- `_folder.svg` es la carpeta generica que se usa cuando un sistema no tiene icono propio (el tema pone primero `_folder.svg` y despues `<system>.svg`; ES se queda con el ultimo `<path>` que existe).
-- The icons in this folder are GENERATED: `python3 tools/make_system_icons.py [--mix 0.18] [--sat 1.05]`. Do not edit them by hand.
-  - `_inc/system_glyphs/<system>.svg`: the glyph only (white shapes), drawn in the 0 0 135.46666 135.46667 frame that the folder fills. To add a system, draw its glyph in that frame (Inkscape) and save it here.
-  - `_inc/system_glyphs/folders.xml`: the folder colour of every system (`<system name="snes" color="spring-green"/>`), the palette (original saturated top/bottom colours) and the colour of the generic folder. Not read by ES.
-  - The script draws the folder in that colour (pastel: blended with white by `--mix`, saturation scaled by `--sat`), puts the glyph on top and writes `_inc/system_icons/<system>.svg` and `_folder.svg` (generic folder, now the same size as the others).
-  - ES draws a grid tile from ONE image, so folder and glyph cannot be combined while the theme runs; that is why they are merged at generation time.
-  - `--shadow-pad N` bakes a soft 0,0 shadow and widens the viewBox, but it is off: the neon selector hugs the image bounds, so a padded icon gets its frame away from the folder.
-  - `app_j2me_loader.svg` is a hand-made icon (own shape and gradient); the script does not touch it. `_template_app.svg` is its template.
+---
 
-## Selector neon y tiles (assets/ui/neon.png, _inc/options/tiles.xml)
-- Los tiles ya no tienen placa: icono/caratula a todo el ancho o alto del tile (`imageSizeMode=maxSize`). El seleccionado lleva un contorno neon que rodea
-  solo la imagen (`selectionMode=image`), tenido con `${neon}` (variable de cada color set). Si tu ES ignora `selectionMode`, el neon rodeara el tile entero.
-- `neon.png` es un nine-patch (nucleo + resplandor solo hacia fuera). Se regenera con `python3 tools/make_neon.py [BAND] [STROKE]`;
-  `BAND` debe ser igual a `tPad` (px entre la imagen y el borde del tile = `backgroundCornerSize`).
-- `tiles.xml`: `tPad` (20), `tZoom` (1.06, zoom del seleccionado) y `gPad` (holgura izq/arriba/dcha/abajo del grid, relativa a la pantalla).
-  Si el zoom o el neon se cortan en los bordes del grid, sube `gPad`; si quieres iconos mas grandes, baja `tPad` (y regenera el PNG con el mismo BAND).
-- El grid ocupa el 100 % del ancho (`pos 0`, `size 1`) y, en vertical, `gPad` extra arriba y abajo (la zona util es la de antes). Geometria: `geometry.xml`.
+## Credits
 
-## Fonts (assets/fonts/, _inc/options/fonts.xml)
-Poppins, all 18 files. Elements never hard-code a file: they use a **role variable** from `_inc/options/fonts.xml`, so a weight can be changed in one place.
-
-| Role variable | Weight | Used by |
-|---|---|---|
-| `fontMenuItem` | Light | main menu selectable entries (`menutext`) |
-| `fontMenuGroup` | Medium | menu group names (`menugroup`, coloured with `${neon}`) |
-| `fontMenuTitle` | Medium | menu title (`menutitle`) |
-| `fontMenuSmall` | Regular | menu small text and footer (`menutextsmall`, `menufooter`) |
-| `fontTitle` | Bold | console and game titles: info strip, name over the banner box, carousel title |
-| `fontInfo` | Regular | maker, developer, year, game count |
-| `fontUI` | Medium | clock, help bar |
-
-Raw weights (`fontThin` ... `fontBlack`) are also defined for new elements. Poppins is much wider than the default ES font, so sizes were reduced
-(titles 0.030, info 0.024, help 0.026, banner box name 0.040 via `bFS1/bFS2` in `banner-on/off.xml`, menu 0.021-0.036). Poppins is released under the SIL Open Font License:
-keep its license text if you redistribute the theme.
-
-## Menu icons (assets/icons/)
-The 14 menu icons come from es-theme-iconic (white SVG, 24x24; ES tints them with the menu text colour, so they work on dark and light colour sets),
-wired in the `menu` view of `_inc/layout/common.xml` (`menuIcons` + `menuTextEdit`). `menu-icon-controller.svg` and `gamepad.svg` are the custom controller icon
-(glyph scaled to 22/24 of the box so it matches the others). Use that same icon for anything related to controllers/gamepads
-(`gamepad.svg`, `gun.svg`, `wheel.svg` are the native controller indicator: without `imagePath` ES draws a plain grey square per pad at the top-left; the `screen` view places it in the footer.)
-
-## Help icons (_inc/help/, option "Help icons")
-Same option and logic as es-theme-recalboxy (subset `helpicons`): Default (Batocera) / Xbox / PlayStation / SNES / Generic 4, 6 and 8 buttons / SNES alt / Xbox One / Arcade.
-`default.xml` is an empty preset (Batocera's own icons, tinted with the help colour). The others override the `helpsystem name="help"` icons and are included in `theme.xml`
-AFTER `common.xml`. Xbox, PlayStation and SNES map the *physical position* of Batocera's buttons (A = east, B = south, X = north, Y = west) and are full-colour icons
-(`iconColor` FFFFFFFF, not tinted); the generic sets keep the theme tint (`${subText}`). Font and size of the help bar stay in `common.xml`.
-
-**Licence:** the package mixes licences (own work, CC BY-SA 4.0 from Wikimedia Commons, CC BY-NC-SA from Recalbox/Carbon/Iconic). Read `NOTICE.md`, `_inc/help/NOTICE.md` and `_inc/help/CREDITS-wikimedia.txt` before redistributing: the package is non-commercial because of its third-party parts.
-
-- Sums that reach ES as `0 + ...` must contain at least one `${}`: a variable whose value has no `${` is NOT evaluated, so `0 + 0.5 + (0)` stays a literal string and the position falls back to 0. Use numbers directly instead.
-
-## Loading and game launch screens (`splash.xml`, `gamesplash.xml`, `assets/splash/`)
-- `splash.xml` is the loading screen. ES loads it without `theme.xml`, so it re-declares the `branding` and `colorset` subsets (keep the order in sync with `theme.xml`). Default branding: **Retrobox** (also RetroBat, Batocera). `assets/splash/<brand>[-dark|-light].png|svg` come from es-theme-iconic (CC0), without its `_default.png`; `Light gray` uses the light variants, the other colour sets the dark ones. Assets of brands not selectable yet (knulli, recalbox, emuelec) are kept for later.
-- `gamesplash.xml` is what ES shows while a game launches: plain black, the game image (replaced by a transparent PNG) and name (alpha 0) are hidden.
-- The launch *transition* ("GAME LAUNCH TRANSITION") is a user setting of ES, not a theme property: a theme cannot default it to `instant`. Set it once in the UI settings.
-- Untested in a real ES: nothing here has been run in EmulationStation (validated with xmllint and rendered previews only).
+* **Debian**: [Software in the Public Interest, Inc.](https://www.debian.org/)
+* **Switchroot**: the L4T kernel, device trees and boot files (`switch-bsp`).
+* **CTCaer and contributors**: Hekate and Nyx.
+* **NVIDIA**: Linux for Tegra and its drivers.
+* **Retrobox**: [RetroboxProject](https://github.com/RetroboxProject).
+* **Moonlight**: [moonlight-stream](https://github.com/moonlight-stream), whose
+  L4T packages are hosted by [Cloudsmith](https://cloudsmith.com).
+* **L4T Megascript**: [cobalt2727, theofficialgman and contributors](https://github.com/cobalt2727/L4T-Megascript)
+  (GPL-3.0; its logo is the icon of its launcher).

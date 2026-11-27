@@ -137,7 +137,7 @@ check "file: URLs pin the empty origin" \
 
 # The compat suite
 check "compat pins allow the listed packages" \
-    grep -q -A2 '^Package: libpcre3$' <(render_compat_pins)
+    grep -Eq '^Package: libpcre3( |$)' <(render_compat_pins)
 check "compat pins never pick anything else" \
     grep -q 'Pin-Priority: -1' <(render_compat_pins)
 check "compat source file names the suite" \
@@ -182,6 +182,26 @@ check "L4T source file has the key and the component" \
 check "L4T source file honours the component" \
     grep -q 'Components: jammy' <(l4t_sources_file arm64 /etc/apt/keyrings/k.asc jammy)
 check "dry run runs the hooks" grep -q '10-machine-id.sh' <<< "${DRY}"
+check "dry run adds Moonlight's repository, with its key and pins" \
+    bash -c "grep -q 'nxd-moonlight-l4t.sources' <<< \"\$1\" && grep -q 'moonlight-l4t.asc' <<< \"\$1\" && grep -q '20-nxd-moonlight-l4t.pref' <<< \"\$1\"" _ "${DRY}"
+ML_SOURCES="$(repo_sources_file moonlight-l4t arm64)"
+ML_PINS="$(repo_pins moonlight-l4t)"
+check "Moonlight's source is the noble one" grep -qx 'Suites: noble' <<< "${ML_SOURCES}"
+check "...signed by its key" grep -qx 'Signed-By: /etc/apt/keyrings/moonlight-l4t.asc' <<< "${ML_SOURCES}"
+check "...and it only gives what Debian has not" grep -qx 'Pin: origin "dl.cloudsmith.io"' <<< "${ML_PINS}"
+check "...at priority 100" grep -qx 'Pin-Priority: 100' <<< "${ML_PINS}"
+check "Moonlight's key is in git and is the expected one" \
+    bash -c ". '${NXD_ROOT}/scripts/lib/common.sh'; verify_repo_key moonlight-l4t"
+check_not "an unknown repository is refused" \
+    bash -c ". '${NXD_ROOT}/scripts/lib/common.sh'; repo_setting nope REPO_URL"
+for variant in retrobox xfce; do
+    check "${variant} has Moonlight and the Megascript's tools" \
+        bash -c "grep -qx moonlight-qt <<< \"\$1\" && grep -qx yad <<< \"\$1\" && grep -qx software-properties-common <<< \"\$1\"" _ "$(variant_packages "${variant}")"
+    check "${variant} adds Moonlight's repository" test "$(variant_setting "${variant}" NXD_APT_REPOS)" = moonlight-l4t
+done
+check "software-properties-common comes from the compat suite" \
+    grep -q -A1 '^Package: .*software-properties-common' <(render_compat_pins)
+
 check "retrobox does not ship docs or kernel headers" grep -q 'dpkg.cfg.d' <<< "${DRY}"
 check "dpkg excludes list the headers" grep -q 'path-exclude=/usr/src/linux-headers-\*' <(dpkg_excludes_file retrobox)
 check "retrobox masks the apt timers" grep -q 'apt-daily.timer' <(variant_setting retrobox NXD_MASK_UNITS)

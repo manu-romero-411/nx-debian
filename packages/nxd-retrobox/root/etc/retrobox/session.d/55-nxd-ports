@@ -1,0 +1,30 @@
+#!/bin/sh
+# Run by retrobox-openbox-session (retrobox-session-openbox) at every start,
+# before Openbox: the launchers of /usr/share/nxd/retrobox/ports (Moonlight,
+# the L4T Megascript) are copied into Retrobox's Ports folder, so they show in
+# EmulationStation. Once each: a launcher the user deletes or changes is left
+# as it is, and one already there is never replaced.
+#
+# The folder is the one of the image (roms_dir in
+# /etc/retrobox/retrobox.ini.d/50-nxd.ini); NXD_PORTS_DIR names another.
+set -eu
+
+src="${NXD_PORTS_SRC:-/usr/share/nxd/retrobox/ports}"
+ports="${NXD_PORTS_DIR:-/sdcard/retrobox/roms/ports}"
+state="${XDG_STATE_HOME:-}"
+case "${state}" in /*) ;; *) state="${HOME}/.local/state" ;; esac
+record="${state}/nxd/ports-seeded"
+
+# without the ROMs folder (nxd-sdcard makes it) there is nowhere to put them
+[ -d "$(dirname "${ports}")" ] || exit 0
+mkdir -p "${ports}" "$(dirname "${record}")"
+touch "${record}"
+for file in "${src}"/*.sh; do
+    [ -f "${file}" ] || continue
+    name="$(basename "${file}")"
+    ! grep -qxF "${name}" "${record}" || continue
+    if [ ! -e "${ports}/${name}" ]; then
+        cp "${file}" "${ports}/${name}"
+    fi
+    printf '%s\n' "${name}" >> "${record}"
+done

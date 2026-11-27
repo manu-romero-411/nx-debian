@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=L4T Megascript
+Comment=Install and update programs for the Switch (emulators, games, tools)
+Exec=/usr/lib/nxd/megascript
+Icon=L4T-Megascript
+Terminal=true
+Categories=System;
+StartupWMClass=L4T-Megascript

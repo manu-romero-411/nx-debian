@@ -1,0 +1,4 @@
+# Moonlight, the game streaming client (Sunshine, GeForce Experience), from
+# the Moonlight project's L4T repository (config/apt/repos/moonlight-l4t.conf):
+# its build decodes the stream with the Tegra's hardware decoder.
+moonlight-qt

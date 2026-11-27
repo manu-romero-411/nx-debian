@@ -125,6 +125,58 @@ Signed-By: $2
 EOF
 }
 
+# Extra apt repositories (config/apt/repos/NAME.conf), added to the variants
+# that name them in NXD_APT_REPOS. A repository's file sets REPO_URL,
+# REPO_SUITE, REPO_COMPONENTS, REPO_KEY (a file of config/keys, kept in git
+# like the L4T key), REPO_KEY_FPR, REPO_KEY_URL (where the key was taken
+# from, for whoever refreshes it) and REPO_LIST (the package list of what it
+# brings, which `nxd spike` does not look for in Debian).
+
+# repo_setting NAME VAR: the value of VAR in config/apt/repos/NAME.conf.
+repo_setting() {
+    local file="${NXD_CONFIG_DIR}/apt/repos/$1.conf"
+    [[ -f "${file}" ]] || die "unknown apt repository: $1 (no ${file})"
+    (
+        # shellcheck source=/dev/null
+        . "${file}"
+        printf '%s' "${!2:-}"
+    )
+}
+
+# repo_key_file NAME: the path of the repository's key in the checkout.
+repo_key_file() {
+    printf '%s/keys/%s' "${NXD_CONFIG_DIR}" "$(repo_setting "$1" REPO_KEY)"
+}
+
+# verify_repo_key NAME: abort unless the repository's key is there and is the
+# expected one (the message says where to get it).
+verify_repo_key() {
+    local file
+    file="$(repo_key_file "$1")"
+    [[ -f "${file}" ]] ||
+        die "$1: no key at ${file}; fetch it with: curl -1sLf '$(repo_setting "$1" REPO_KEY_URL)' -o '${file}'"
+    verify_key "${file}" "$(repo_setting "$1" REPO_KEY_FPR)"
+}
+
+# repo_sources_file NAME ARCH: the repository as a deb822 file for the rootfs,
+# with its key in /etc/apt/keyrings.
+repo_sources_file() {
+    cat << EOF
+Types: deb
+URIs: $(repo_setting "$1" REPO_URL)
+Suites: $(repo_setting "$1" REPO_SUITE)
+Components: $(repo_setting "$1" REPO_COMPONENTS)
+Architectures: $2
+Signed-By: /etc/apt/keyrings/$(repo_setting "$1" REPO_KEY)
+EOF
+}
+
+# repo_pins NAME: what may come from the repository: only what Debian and the
+# L4T repository do not have (it is built for Ubuntu).
+repo_pins() {
+    printf 'Package: *\nPin: origin "%s"\nPin-Priority: 100\n' "$(url_host "$(repo_setting "$1" REPO_URL)")"
+}
+
 # render_compat_pins: pins of the compat suite. The listed packages may be
 # installed from it, everything else in it never is. Prints nothing when the
 # compat suite is off.

@@ -77,6 +77,12 @@ need_cmd apt-cache "run this on a Debian or Ubuntu host, or in a container (nxd 
 need_cmd dpkg-deb "install dpkg"
 [[ -f "${KEYRING}" ]] || die "archive keyring not found: ${KEYRING} (apt install debian-archive-keyring, or pass --keyring)"
 verify_key "${NXD_L4T_KEY}" "${NXD_L4T_KEY_FPR}"
+# The variant's extra repositories (config/apt/repos) are in every scenario
+# that has the L4T repository, as in the image.
+read -r -a APT_REPOS <<< "$(variant_setting "${VARIANT}" NXD_APT_REPOS)"
+for repo in "${APT_REPOS[@]}"; do
+    verify_repo_key "${repo}"
+done
 
 if [[ -z "${WORKDIR}" ]]; then
     WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/nxd-spike.XXXXXX")"
@@ -88,6 +94,12 @@ fi
 
 mapfile -t ALL_PKGS < <(variant_packages "${VARIANT}")
 mapfile -t L4T_PKGS < <(read_list "${NXD_CONFIG_DIR}/packages/l4t.list")
+# What the extra repositories bring (REPO_LIST) is not looked for in Debian
+# either.
+for repo in "${APT_REPOS[@]}"; do
+    list="$(repo_setting "${repo}" REPO_LIST)"
+    [[ -z "${list}" ]] || mapfile -t -O "${#L4T_PKGS[@]}" L4T_PKGS < <(read_list "${NXD_CONFIG_DIR}/packages/${list}.list")
+done
 DEBIAN_PKGS=()
 for pkg in "${ALL_PKGS[@]}"; do
     keep=1
@@ -120,6 +132,11 @@ make_env() {
                 printf 'deb [arch=%s signed-by=%s] %s %s %s\n' \
                     "${NXD_ARCH}" "${KEYRING}" "${NXD_MIRROR}" "${NXD_COMPAT_SUITE}" "${NXD_COMPONENTS}"
             fi
+            for repo in "${APT_REPOS[@]}"; do
+                printf 'deb [arch=%s signed-by=%s] %s %s %s\n' "${NXD_ARCH}" "$(repo_key_file "${repo}")" \
+                    "$(repo_setting "${repo}" REPO_URL)" "$(repo_setting "${repo}" REPO_SUITE)" \
+                    "$(repo_setting "${repo}" REPO_COMPONENTS)"
+            done
         fi
     } > "${dir}/sources.list"
     mkdir -p "${dir}/empty"
@@ -127,6 +144,10 @@ make_env() {
     if [[ -n "${component}" ]]; then
         render_compat_pins >> "${dir}/preferences"
         printf '\n' >> "${dir}/preferences"
+        for repo in "${APT_REPOS[@]}"; do
+            repo_pins "${repo}" >> "${dir}/preferences"
+            printf '\n' >> "${dir}/preferences"
+        done
     fi
     if [[ "${pins}" == "pin" ]]; then
         render_pins "${L4T_HOST}" >> "${dir}/preferences"

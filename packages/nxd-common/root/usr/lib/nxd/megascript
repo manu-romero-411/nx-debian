@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# megascript: run the L4T Megascript (https://github.com/cobalt2727/L4T-Megascript),
+# the installer and updater of programs for the Switch, with its menus (yad).
+#
+#   megascript
+#
+# The Megascript is not installed: like its own launcher, this downloads the
+# latest one from GitHub and runs it, every time. What it checks for when it
+# starts is in the image (config/packages/megascript.list), so it goes
+# straight to its menu instead of upgrading the whole system first. It asks for
+# the password of the user (sudo, pkexec) when it installs something: in a
+# terminal, so a keyboard is needed. NXD_MEGASCRIPT_URL runs another copy.
+set -uo pipefail
+
+url="${NXD_MEGASCRIPT_URL:-https://raw.githubusercontent.com/cobalt2727/L4T-Megascript/master/core_refactor2.sh}"
+
+if ! script="$(wget -q -O - "${url}")" || [[ -z "${script}" ]]; then
+    echo "megascript: cannot download ${url}: is the console online?" >&2
+    if [[ -t 0 ]]; then
+        read -r -n 1 -s -p $'Press any key to close...\n'
+    fi
+    exit 1
+fi
+bash <(printf '%s\n' "${script}") gui

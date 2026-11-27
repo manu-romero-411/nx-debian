@@ -129,6 +129,12 @@ elif [[ -n "${USER_HASH}" || "${NO_PASSWORD}" -eq 1 ]]; then
 fi
 
 verify_key "${NXD_L4T_KEY}" "${NXD_L4T_KEY_FPR}"
+# The extra apt repositories of the variant (config/apt/repos), checked as
+# early as the L4T key.
+read -r -a APT_REPOS <<< "$(variant_setting "${VARIANT}" NXD_APT_REPOS)"
+for repo in "${APT_REPOS[@]}"; do
+    verify_repo_key "${repo}"
+done
 mapfile -t PACKAGES < <(variant_packages "${VARIANT}")
 [[ ${#PACKAGES[@]} -gt 0 ]] || die "variant '${VARIANT}' has no packages"
 
@@ -141,8 +147,9 @@ fi
 export NXD_MANIFEST="${OUT_DIR}/manifest.txt"
 
 # What goes into the rootfs besides the packages: the L4T key, source and pins
-# (they stay in the image, so apt keeps working with both repositories after
-# the first boot), the package list and the hooks of config/hooks.
+# and those of the extra repositories (they stay in the image, so apt keeps
+# working with every repository after the first boot), the package list and
+# the hooks of config/hooks.
 STAGE="${OUT_DIR}/stage"
 KEY_NAME="$(basename "${NXD_L4T_KEY}")"
 rm -rf "${STAGE}"
@@ -156,6 +163,11 @@ cp "${NXD_L4T_KEY}" "${STAGE}/${KEY_NAME}"
 compat_sources_file "${NXD_ARCH}" > "${STAGE}/nxd-compat.sources"
 l4t_sources_file "${NXD_ARCH}" "/etc/apt/keyrings/${KEY_NAME}" "${NXD_L4T_COMPONENT}" \
     > "${STAGE}/nxd-l4t.sources"
+for repo in "${APT_REPOS[@]}"; do
+    cp "$(repo_key_file "${repo}")" "${STAGE}/$(repo_setting "${repo}" REPO_KEY)"
+    repo_sources_file "${repo}" "${NXD_ARCH}" > "${STAGE}/nxd-${repo}.sources"
+    repo_pins "${repo}" > "${STAGE}/20-nxd-${repo}.pref"
+done
 printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
 dpkg_excludes_file "${VARIANT}" > "${STAGE}/nxd-excludes"
 # One unit name per line, for config/hooks/30-services.sh.
@@ -246,6 +258,13 @@ CMD=(
 if [[ -s "${STAGE}/nxd-compat.sources" ]]; then
     CMD+=(--customize-hook="copy-in ${STAGE}/nxd-compat.sources /etc/apt/sources.list.d")
 fi
+for repo in "${APT_REPOS[@]}"; do
+    CMD+=(
+        --customize-hook="copy-in ${STAGE}/$(repo_setting "${repo}" REPO_KEY) /etc/apt/keyrings"
+        --customize-hook="copy-in ${STAGE}/20-nxd-${repo}.pref /etc/apt/preferences.d"
+        --customize-hook="copy-in ${STAGE}/nxd-${repo}.sources /etc/apt/sources.list.d"
+    )
+done
 if [[ -s "${STAGE}/nxd-excludes" ]]; then
     # The bootstrap (apt and the essential set) goes in before any hook can
     # write a dpkg config file, so it gets the excludes as options; the file

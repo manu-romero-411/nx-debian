@@ -219,6 +219,34 @@ started at all.
 The hostname of every variant is `nintendo-switch`
 (`config/overlay/common/etc/hostname` and `hosts`).
 
+## Extra apt repositories
+
+Besides Debian, the compat suite and the L4T repository, a variant can add apt
+repositories of its own: `NXD_APT_REPOS` in its `config/variants/<name>.conf`
+names files of `config/apt/repos/` (both images add `moonlight-l4t`, for
+`moonlight-qt`). Each file sets:
+
+| setting | what it is |
+| :--- | :--- |
+| `REPO_URL`, `REPO_SUITE`, `REPO_COMPONENTS` | the apt source |
+| `REPO_KEY` | its key, a file of `config/keys`, kept in git like the L4T key |
+| `REPO_KEY_FPR` | the key's fingerprint, checked before every build and spike |
+| `REPO_KEY_URL` | where the key comes from: a build without the key stops with the `curl` command that fetches it |
+| `REPO_LIST` | the package list of what it brings (`nxd spike` does not look for those in Debian) |
+
+The image keeps the source (`/etc/apt/sources.list.d/nxd-<name>.sources`), the
+key (`/etc/apt/keyrings`) and the pins (`/etc/apt/preferences.d/20-nxd-<name>.pref`),
+so `apt` updates what came from it. The pins give the repository priority 100:
+it only provides what Debian and the L4T repository do not have.
+
+Moonlight's repository is built for L4T Ubuntu, and its `setup.deb.sh` has
+nothing for Debian, so the source is written by hand for Ubuntu 24.04
+(`noble`), whose `moonlight-qt` depends on libraries Debian 13 has (the `t64`
+names, Qt 5.15 for OpenGL ES). The L4T Megascript (`megascript.list`, the
+tools it checks for at every start) needs `software-properties-common`, which
+Debian 13 dropped: it comes from the compat suite, with
+`python3-software-properties` (`NXD_COMPAT_PACKAGES`).
+
 ## Packages from GitHub releases
 
 Some components are not in any apt repository. A variant names a list of them

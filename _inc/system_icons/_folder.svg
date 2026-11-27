@@ -1,0 +1,19 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 135.46666 135.46666" version="1.1">
+  <defs id="defs1">
+    <linearGradient id="folderBack" x1="55.033333" y1="6.3499999" x2="55.033333" y2="18.520824" gradientUnits="userSpaceOnUse">
+      <stop offset="0" style="stop-color:#41a5ee;stop-opacity:1" />
+      <stop offset="1" style="stop-color:#3b84bb;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="folderFront" x1="67.73333" y1="18.520832" x2="67.73333" y2="129.11667" gradientUnits="userSpaceOnUse">
+      <stop offset="0" style="stop-color:#41a5ee;stop-opacity:1" />
+      <stop offset="1" style="stop-color:#3b84bb;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  <g id="layer1">
+    <g id="folder" transform="matrix(1.1034493,0,0,1.1034493,-7.0069641,-7.0069641)">
+      <path id="folder-back" d="M 23.283333,6.3499999 C 13.931311,6.3499993 6.3499993,13.931311 6.3499999,23.283333 v 88.899997 c -4.4e-6,9.35202 7.5813081,16.93334 16.9333331,16.93334 h 88.899997 c 9.35203,0 16.93334,-7.58131 16.93334,-16.93334 V 35.454166 c 0,-9.352025 -7.58132,-16.933337 -16.93334,-16.933333 H 81.206412 c -4.481648,-0.007 -8.777898,-1.79035 -11.947074,-4.959387 h -5.17e-4 L 67.006245,11.309904 C 64.232581,8.5501252 60.588767,6.836045 56.694213,6.4590372 56.143566,6.3864125 55.588748,6.3499885 55.033333,6.3499999 h -0.0088 z" style="display:inline;fill:url(#folderBack)" />
+      <path id="folder-front" d="m 23.283333,18.520833 c -9.352022,-1e-6 -16.9333337,7.581311 -16.9333331,16.933333 v 76.729104 c -4.4e-6,9.35202 7.5813081,16.93334 16.9333331,16.93334 h 88.899997 c 9.35203,0 16.93334,-7.58131 16.93334,-16.93334 V 35.454166 c 0,-9.352025 -7.58132,-16.933337 -16.93334,-16.933333 z" style="display:inline;fill:url(#folderFront)" />
+    </g>
+  </g>
+</svg>

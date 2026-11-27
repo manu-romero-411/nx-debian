@@ -1,0 +1,18 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="512" height="512" viewBox="0 0 135.46666 135.46667" version="1.1" id="svg1" xml:space="preserve" inkscape:version="1.4.4 (dcaf3e7, 2026-05-05)">
+  <defs id="defs1">
+    <radialGradient id="SVGID_5_" cx="253.3672" cy="766.10449" r="33.058399" gradientTransform="matrix(1.3930257,0,0,1.3930257,-285.88988,-992.07803)" gradientUnits="userSpaceOnUse">
+      <stop offset="0.0011" style="stop-color: rgb(209, 231, 238);" id="stop9" />
+      <stop offset="0.0979" style="stop-color: rgb(205, 228, 236);" id="stop10" />
+      <stop offset="0.203" style="stop-color: rgb(192, 220, 232);" id="stop11" />
+      <stop offset="0.2985" style="stop-color: rgb(173, 208, 225);" id="stop12" />
+      <stop offset="0.6504" style="stop-color: rgb(57, 130, 177);" id="stop13" />
+      <stop offset="0.7203" style="stop-color: rgb(52, 116, 170);" id="stop14" />
+      <stop offset="0.899" style="stop-color: rgb(40, 86, 153);" id="stop15-5" />
+      <stop offset="1" style="stop-color: rgb(36, 75, 147);" id="stop16-7" />
+    </radialGradient>
+  </defs>
+  <g inkscape:label="Capa 1" inkscape:groupmode="layer" id="layer1">
+    <path id="path16" style="fill:#ffffff;stroke-width:1.39302" d="m 57.605338,34.650228 c -4.445439,0.0686 -9.737011,1.187879 -16.305478,3.904283 l -8.624789,29.898357 c 6.96374,-2.875206 12.448342,-4.188092 17.053684,-4.151869 6.983242,0.05159 11.898267,2.930224 16.465999,6.007421 L 74.822262,40.548821 C 70.079878,37.34138 65.014394,34.535904 57.605338,34.650228 Z m 21.768751,9.032903 -8.627512,29.925562 c 7.566914,5.130517 16.710947,9.336621 33.481593,1.833786 L 112.8448,45.620305 C 95.352573,52.848717 86.946574,48.78439 79.374089,43.683131 Z M 47.533111,69.987372 c -4.441642,0.108028 -9.720863,1.253986 -16.267386,3.950535 l -0.103398,0.0437 -8.540443,29.713333 c 17.527043,-7.249298 25.783419,-3.04177 33.3782,2.06507 L 64.739133,75.722887 C 60.009812,72.511964 54.935826,69.807451 47.533092,69.98754 Z m 21.785063,8.638393 -8.632946,29.716075 c 7.580849,5.14027 15.990364,9.2407 33.497915,1.99974 L 102.50865,81.379163 C 84.670955,87.477829 76.907384,83.7326 69.318174,78.625765 Z" />
+  </g>
+</svg>

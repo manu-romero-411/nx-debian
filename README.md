@@ -77,7 +77,8 @@ Common to both:
   hidden until the pointer gets there (terminal, files, Firefox ESR, finder).
 * The Adwaita theme, Firefox ESR and Thunar as default applications, and
   Onboard, the on-screen keyboard, in the menu.
-* Moonlight and the L4T Megascript in the applications menu.
+* Moonlight and the L4T Megascript (Switchroot's launcher, from
+  `switch-l4t-configs`) in the applications menu.
 
 **`retrobox`** adds, through `nxd-retrobox`:
 
@@ -210,4 +211,4 @@ of the old build script.
 * **Moonlight**: [moonlight-stream](https://github.com/moonlight-stream), whose
   L4T packages are hosted by [Cloudsmith](https://cloudsmith.com).
 * **L4T Megascript**: [cobalt2727, theofficialgman and contributors](https://github.com/cobalt2727/L4T-Megascript)
-  (GPL-3.0; its logo is the icon of its launcher).
+  (GPL-3.0).

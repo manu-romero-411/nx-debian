@@ -806,10 +806,8 @@ check "...and not another variant's" test ! -e "${tmp}/vdebs/nxd-xfce_1.2.3_all.
 
 
 check "the Megascript's runner is executable" grep -q '^-rwxr-xr-x .*\./usr/lib/nxd/megascript$' <<< "$(dpkg-deb -c "${COMMON}")"
-check "...in the menu, in a terminal, with its icon" bash -c "dpkg-deb -c '${COMMON}' | grep -q './usr/share/applications/L4T-Megascript.desktop' && dpkg-deb -c '${COMMON}' | grep -q './usr/share/icons/hicolor/256x256/apps/L4T-Megascript.png'"
-DESKTOP="${NXD_ROOT}/packages/nxd-common/root/usr/share/applications/L4T-Megascript.desktop"
-check "...the file name of the Megascript's own launcher (it replaces this one, not a second entry)" \
-    bash -c "grep -qx 'Exec=/usr/lib/nxd/megascript' '${DESKTOP}' && grep -qx 'Terminal=true' '${DESKTOP}' && grep -qx 'Icon=L4T-Megascript' '${DESKTOP}'"
+check_not "...but no menu entry: switch-l4t-configs (Switchroot) has the Megascript's own" \
+    grep -q 'L4T-Megascript' <<< "$(dpkg-deb -c "${COMMON}")"
 mkdir -p "${tmp}/ms/bin"
 # a wget that "downloads" a Megascript printing its arguments
 cat > "${tmp}/ms/bin/wget" << 'FAKE'

@@ -5,7 +5,7 @@ Maintainer: Manuel Jesús Romero Mateos <manu4.2012@gmail.com>
 Section: libs
 Priority: optional
 Depends: libqt6gui6 (>= 6.8.2), libqt6network6 (>= 6.8.2)
-Provides: libqt6gui6t64 (= 6.8.2), libqt6network6t64 (= 6.8.2)
+Provides: libqt6gui6t64 (= 6.8.2+nxd), libqt6network6t64 (= 6.8.2+nxd)
 Homepage: https://github.com/manu-romero-411/nx-debian
 Description: Debian on the Nintendo Switch: Ubuntu's names of two Qt 6 libraries
  Packages built for Ubuntu 24.04, like the moonlight-qt of the Moonlight
@@ -14,3 +14,7 @@ Description: Debian on the Nintendo Switch: Ubuntu's names of two Qt 6 libraries
  (libQt6Gui.so.6, libQt6Network.so.6, which Qt 6 keeps binary compatible) as
  libqt6gui6 and libqt6network6. This package depends on those and provides
  the Ubuntu names, so such packages install and update with apt.
+ .
+ The names are provided as version 6.8.2+nxd: above every 6.8.2+dfsg-N of
+ Debian 13, whose libqt6gui6 and libqt6network6 break the t64 packages below
+ their own version.

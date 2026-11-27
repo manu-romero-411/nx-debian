@@ -795,7 +795,9 @@ check_not "an unknown option is refused" "${UPDATE}" --nope
 QT6="${tmp}/debs/nxd-qt6-compat_1.2.3_all.deb"
 check "nxd-qt6-compat is built" test -f "${QT6}"
 check "...with Ubuntu's names of the Qt 6 libraries Moonlight asks for" \
-    test "$(dpkg-deb -f "${QT6}" Provides)" = "libqt6gui6t64 (= 6.8.2), libqt6network6t64 (= 6.8.2)"
+    test "$(dpkg-deb -f "${QT6}" Provides)" = "libqt6gui6t64 (= 6.8.2+nxd), libqt6network6t64 (= 6.8.2+nxd)"
+check "...above the versions Debian's libraries break" \
+    dpkg --compare-versions 6.8.2+nxd gt 6.8.2+dfsg-99+deb13u99
 check "...on top of Debian's" test "$(dpkg-deb -f "${QT6}" Depends)" = "libqt6gui6 (>= 6.8.2), libqt6network6 (>= 6.8.2)"
 "${NXD_ROOT}/scripts/build-packages.sh" --version 1.2.3 --variant retrobox "${tmp}/vdebs" > /dev/null 2>&1
 check "a variant's build has the packages of every image" test -f "${tmp}/vdebs/nxd-qt6-compat_1.2.3_all.deb" -a -f "${tmp}/vdebs/nxd-common_1.2.3_all.deb"

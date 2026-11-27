@@ -7,10 +7,14 @@ console (systemctl suspend); held for HOLD seconds, it opens the Retrobox
 overlay's power options (retrobox-overlay --power: sleep, restart, turn off)
 at once, without waiting for the release.
 
-logind handles the button by itself (HandlePowerKey=suspend in
+The Switch's button is a suspend key to the kernel (KEY_SUSPEND), not a power
+key; KEY_POWER and KEY_SLEEP count as the same button too. logind handles it
+by itself (HandleSuspendKey=suspend, HandlePowerKey=suspend in
 /etc/systemd/logind.conf.d/10-nxd-power.conf) whenever this is not running:
-the step runs it under a handle-power-key inhibitor, which tells logind to
-leave the button to it.
+the step runs it under a handle-power-key and handle-suspend-key inhibitor,
+which tells logind to leave the button to it. What it finds and does goes to
+the session's log (the step sends it to
+~/.local/state/retrobox/logs/power-button.log).
 
 The press that wakes the console up is not a new tap: whatever the button
 does in the second after a resume is ignored. It reads /dev/input, as the
@@ -39,7 +43,11 @@ RESCAN = 5.0
 # a device with more keys than this is a keyboard, not the console's button
 MAX_KEYS = 8
 
+# the codes the console's button may send (linux/input-event-codes.h)
 KEY_POWER = 116
+KEY_SLEEP = 142
+KEY_SUSPEND = 205
+BUTTON_KEYS = (KEY_POWER, KEY_SLEEP, KEY_SUSPEND)
 
 
 def suspended_for() -> float:
@@ -128,6 +136,7 @@ def run(command: list[str]) -> None:
 
 def act(action: str, overlay: str | None) -> None:
     """Does ACTION: suspends, or opens the overlay's power options."""
+    print(f"power-button: {action}", file=sys.stderr, flush=True)
     if action == "menu" and overlay:
         run([overlay, "--power"])
     elif action == "suspend" or not overlay:
@@ -158,15 +167,16 @@ class Devices:
             except OSError:
                 continue
             keys = device.capabilities().get(ecodes.EV_KEY, [])
-            if KEY_POWER in keys and len(keys) <= MAX_KEYS:
+            if any(key in keys for key in BUTTON_KEYS) and len(keys) <= MAX_KEYS:
                 self.known[path] = device
                 self.selector.register(device, selectors.EVENT_READ)
+                print(f"power-button: {path} ({device.name})", file=sys.stderr, flush=True)
             else:
                 device.close()
 
     def values(self, timeout: float) -> list[int]:
-        """The values of the power key's events (1 down, 0 up, 2 repeat)
-        that come within TIMEOUT seconds."""
+        """The values of the button's events (1 down, 0 up, 2 repeat) that
+        come within TIMEOUT seconds."""
         values: list[int] = []
         for key, _ in self.selector.select(timeout=max(timeout, 0.01)):
             device = key.fileobj
@@ -177,7 +187,7 @@ class Devices:
                 self.known.pop(device.path, None)
                 continue
             values += [event.value for event in events
-                       if event.type == self.evdev.ecodes.EV_KEY and event.code == KEY_POWER]
+                       if event.type == self.evdev.ecodes.EV_KEY and event.code in BUTTON_KEYS]
         return values
 
 

@@ -476,12 +476,14 @@ option is ignored. If the screen is still black after that, the logs are
     `wpctl` or `pactl`), and the power key is only grabbed.
   - The power button: in the session, the step `61-nxd-power-button` runs
     `/usr/share/nxd/retrobox/power-button` under a `handle-power-key`
-    inhibitor: a tap suspends (standby), holding it one second opens the
+    and `handle-suspend-key` inhibitor (the Switch's button is a suspend key,
+    `KEY_SUSPEND`): a tap suspends (standby), holding it one second opens the
     overlay's power options (`retrobox-overlay --power`: sleep, restart, turn
     off) without waiting for the release; the press that wakes the console up
     is ignored. Without the session (or the inhibitor), logind does it
     (`etc/systemd/logind.conf.d/10-nxd-power.conf`, with
-    `PowerKeyIgnoreInhibited=no` so that the inhibitor counts): a tap
+    `PowerKeyIgnoreInhibited=no` and `SuspendKeyIgnoreInhibited=no` so that
+    the inhibitor counts): a tap
     suspends, five seconds power off. Standby works on the Switch's 4.9
     L4T kernel; the backlight goes off as soon as a suspend starts and comes back at the
     resume (`/usr/lib/systemd/system-sleep/nxd-backlight`, nxd-common:

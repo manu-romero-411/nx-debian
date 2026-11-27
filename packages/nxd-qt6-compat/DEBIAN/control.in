@@ -1,0 +1,16 @@
+Package: nxd-qt6-compat
+Version: @VERSION@
+Architecture: all
+Maintainer: Manuel Jesús Romero Mateos <manu4.2012@gmail.com>
+Section: libs
+Priority: optional
+Depends: libqt6gui6 (>= 6.8.2), libqt6network6 (>= 6.8.2)
+Provides: libqt6gui6t64 (= 6.8.2), libqt6network6t64 (= 6.8.2)
+Homepage: https://github.com/manu-romero-411/nx-debian
+Description: Debian on the Nintendo Switch: Ubuntu's names of two Qt 6 libraries
+ Packages built for Ubuntu 24.04, like the moonlight-qt of the Moonlight
+ project's L4T repository, ask for libqt6gui6t64 and libqt6network6t64: the
+ names Ubuntu gives Qt 6.4. Debian 13's Qt 6.8 ships the same libraries
+ (libQt6Gui.so.6, libQt6Network.so.6, which Qt 6 keeps binary compatible) as
+ libqt6gui6 and libqt6network6. This package depends on those and provides
+ the Ubuntu names, so such packages install and update with apt.

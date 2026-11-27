@@ -184,6 +184,9 @@ check "L4T source file honours the component" \
 check "dry run runs the hooks" grep -q '10-machine-id.sh' <<< "${DRY}"
 check "dry run adds Moonlight's repository, with its key and pins" \
     bash -c "grep -q 'nxd-moonlight-l4t.sources' <<< \"\$1\" && grep -q 'moonlight-l4t.asc' <<< \"\$1\" && grep -q '20-nxd-moonlight-l4t.pref' <<< \"\$1\"" _ "${DRY}"
+check "Moonlight is installed with nx-debian's packages (it needs nxd-qt6-compat)" \
+    grep -qx moonlight-qt "${tmp}/out/retrobox/stage/nxd-late-packages"
+check_not "...not before them" grep -qx moonlight-qt "${tmp}/out/retrobox/stage/nxd-packages"
 ML_SOURCES="$(repo_sources_file moonlight-l4t arm64)"
 ML_PINS="$(repo_pins moonlight-l4t)"
 check "Moonlight's source is the noble one" grep -qx 'Suites: noble' <<< "${ML_SOURCES}"

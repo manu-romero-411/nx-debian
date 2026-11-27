@@ -168,7 +168,18 @@ for repo in "${APT_REPOS[@]}"; do
     repo_sources_file "${repo}" "${NXD_ARCH}" > "${STAGE}/nxd-${repo}.sources"
     repo_pins "${repo}" > "${STAGE}/20-nxd-${repo}.pref"
 done
-printf '%s\n' "${PACKAGES[@]}" > "${STAGE}/nxd-packages"
+# What the extra repositories bring (their REPO_LIST) is installed with
+# nx-debian's packages, not before them: it may need one of them
+# (moonlight-qt, built for Ubuntu, needs nxd-qt6-compat's names).
+LATE=()
+for repo in "${APT_REPOS[@]}"; do
+    list="$(repo_setting "${repo}" REPO_LIST)"
+    [[ -z "${list}" ]] || mapfile -t -O "${#LATE[@]}" LATE < <(read_list "${NXD_CONFIG_DIR}/packages/${list}.list")
+done
+for pkg in "${PACKAGES[@]}"; do
+    printf '%s\n' "${pkg}"
+done | grep -vxF -f <(printf '%s\n' "${LATE[@]}") > "${STAGE}/nxd-packages" || true
+printf '%s\n' "${LATE[@]}" | sed '/^$/d' > "${STAGE}/nxd-late-packages"
 dpkg_excludes_file "${VARIANT}" > "${STAGE}/nxd-excludes"
 # One unit name per line, for config/hooks/30-services.sh.
 variant_setting "${VARIANT}" NXD_MASK_UNITS | tr -s '[:space:]' '\n' | sed '/^$/d' > "${STAGE}/nxd-mask"
@@ -301,8 +312,9 @@ if [[ "${HAVE_DEBS}" -eq 1 ]]; then
     # shellcheck disable=SC2016
     CMD+=(
         --customize-hook="copy-in ${STAGE}/nxd-debs /tmp"
-        --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends /tmp/nxd-debs/*.deb"'
-        --customize-hook='rm -rf "$1/tmp/nxd-debs"'
+        --customize-hook="copy-in ${STAGE}/nxd-late-packages /tmp"
+        --customize-hook='chroot "$1" env DEBIAN_FRONTEND=noninteractive sh -c "apt-get install -y --no-install-recommends /tmp/nxd-debs/*.deb \$(cat /tmp/nxd-late-packages)"'
+        --customize-hook='rm -rf "$1/tmp/nxd-debs" "$1/tmp/nxd-late-packages"'
     )
 fi
 if [[ -s "${STAGE}/nxd-mask" ]]; then

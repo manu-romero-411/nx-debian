@@ -237,12 +237,17 @@ names files of `config/apt/repos/` (both images add `moonlight-l4t`, for
 The image keeps the source (`/etc/apt/sources.list.d/nxd-<name>.sources`), the
 key (`/etc/apt/keyrings`) and the pins (`/etc/apt/preferences.d/20-nxd-<name>.pref`),
 so `apt` updates what came from it. The pins give the repository priority 100:
-it only provides what Debian and the L4T repository do not have.
+it only provides what Debian and the L4T repository do not have. What it
+brings (`REPO_LIST`) is installed with nx-debian's own packages, after the
+rest, since it may need one of them.
 
 Moonlight's repository is built for L4T Ubuntu, and its `setup.deb.sh` has
 nothing for Debian, so the source is written by hand for Ubuntu 24.04
 (`noble`), whose `moonlight-qt` depends on libraries Debian 13 has (the `t64`
-names, Qt 5.15 for OpenGL ES). The L4T Megascript (`megascript.list`, the
+names), except two Qt 6 libraries that Ubuntu names after its Qt 6.4
+(`libqt6gui6t64`, `libqt6network6t64`): `nxd-qt6-compat` provides those
+names on top of Debian's Qt 6.8 (`nxd spike` does not install nx-debian's
+packages, so it reports them missing). The L4T Megascript (`megascript.list`, the
 tools it checks for at every start) needs `software-properties-common`, which
 Debian 13 dropped: it comes from the compat suite, with
 `python3-software-properties` (`NXD_COMPAT_PACKAGES`).

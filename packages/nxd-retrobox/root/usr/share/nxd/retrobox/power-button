@@ -105,21 +105,15 @@ class Button:
 def find_overlay() -> str | None:
     """retrobox-overlay: in the PATH, else next to the retrobox command (its
     bin/), else in $RETROBOX_ROOTDIR/bin or /opt/retrobox/bin."""
-    found = shutil.which("retrobox-overlay")
-    if found:
-        return found
-    places = []
     retrobox = shutil.which("retrobox")
-    if retrobox:
-        places.append(Path(retrobox).resolve().parent)
-    if os.environ.get("RETROBOX_ROOTDIR"):
-        places.append(Path(os.environ["RETROBOX_ROOTDIR"]) / "bin")
-    places.append(Path("/opt/retrobox/bin"))
-    for place in places:
-        candidate = place / "retrobox-overlay"
-        if os.access(candidate, os.X_OK):
-            return str(candidate)
-    return None
+    root = os.environ.get("RETROBOX_ROOTDIR")
+    candidates = [
+        shutil.which("retrobox-overlay"),
+        str(Path(retrobox).resolve().parent / "retrobox-overlay") if retrobox else None,
+        str(Path(root) / "bin" / "retrobox-overlay") if root else None,
+        "/opt/retrobox/bin/retrobox-overlay",
+    ]
+    return next((c for c in candidates if c and os.access(c, os.X_OK)), None)
 
 
 def run(command: list[str]) -> None:
@@ -214,7 +208,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except KeyboardInterrupt:
-        sys.exit(0)
+    signal.signal(signal.SIGINT, signal.SIG_DFL)
+    sys.exit(main())

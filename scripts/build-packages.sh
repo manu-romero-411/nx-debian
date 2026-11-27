@@ -10,10 +10,13 @@
 # triggers, copied as they are). Every file under root/etc is a conffile.
 #
 # Without --variant, every package is built; with it, nxd-common and
-# nxd-NAME (if there is one). The version, unless --version gives one, comes
-# from git: X.Y.Z on a vX.Y.Z tag, X.Y.Z.gitN.gSHA after it (N commits later,
-# so newer than X.Y.Z and older than the next release), 0.0.0.gitN.gSHA before
-# the first tag, 0.0.0 outside a git checkout.
+# nxd-NAME (if there is one). The version, unless --version gives one, is the
+# one of a continuous build (the rule of .github/scripts/continuous-version.sh,
+# as the CI's): the last release's, from the highest vX.Y or vX.Y.Z tag (a
+# missing patch is 0; no tag: 0.0.0), with the UTC time of the build as one
+# more number (0.7.9.20261127093012): above that release, below the next one,
+# and each build above the one before. Outside a git checkout: 0.0.0.TIME.
+# NXD_BUILD_STAMP sets the time (tests).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,25 +53,16 @@ repo_git() {
 
 # git_version: the version of the checkout (see the header)
 git_version() {
-    local tag base count sha
-    if ! repo_git rev-parse --git-dir > /dev/null 2>&1; then
-        echo 0.0.0
-        return
+    local last base
+    last=""
+    if repo_git rev-parse --git-dir > /dev/null 2>&1; then
+        last="$(repo_git tag --list 'v[0-9]*' |
+            grep -E '^v[0-9]+\.[0-9]+(\.[0-9]+)?$' | sort -V | tail -n 1 || true)"
     fi
-    sha="$(repo_git rev-parse --short=7 HEAD)"
-    tag="$(repo_git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' 2> /dev/null || true)"
-    if [[ -n "${tag}" ]]; then
-        base="${tag#v}"
-        count="$(repo_git rev-list --count "${tag}..HEAD")"
-    else
-        base=0.0.0
-        count="$(repo_git rev-list --count HEAD)"
-    fi
-    if [[ "${count}" -eq 0 ]]; then
-        echo "${base}"
-    else
-        echo "${base}.git${count}.g${sha}"
-    fi
+    base="${last#v}"
+    base="${base:-0.0.0}"
+    [[ "${base}" == *.*.* ]] || base="${base}.0"
+    printf '%s.%s\n' "${base}" "${NXD_BUILD_STAMP:-$(date -u +%Y%m%d%H%M%S)}"
 }
 
 [[ -n "${VERSION}" ]] || VERSION="$(git_version)"

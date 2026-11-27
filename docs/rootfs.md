@@ -104,7 +104,7 @@ tests/test-lists.sh        # offline, no root
 sudo tests/integration.sh  # fake signed L4T repo, runs the spike and a rootfs
 sudo tests/image.sh        # nxd image on a hand-made rootfs
 tests/releases.sh          # fetch-releases.sh against a fake GitHub API on localhost
-tests/version.sh           # scripts/next_version.py in a scratch git repository
+.github/scripts/ci-scripts-test.sh  # the version and publishing scripts of the CI
 ```
 
 `.github/workflows/ci.yml` runs all of them (and shellcheck and pylint) on every
@@ -311,16 +311,16 @@ release asset.
 anyone can use. It starts:
 
 - by hand, from Actions, *Build images*, *Run workflow*: `variant` is `all` or
-  the name of one; ticking `publish` makes a release;
-- when a tag `v*` is pushed: it builds everything and publishes a release for
-  that tag.
+  the name of one; it only builds;
+- when a tag `vX.Y` or `vX.Y.Z` is pushed: it builds everything and publishes
+  the release of that tag (only `vX.Y` and `vX.Y.0` are full releases, any
+  other `vX.Y.Z` is a pre-release); any other `v*` tag fails.
 
 The installers are kept as workflow artifacts for 14 days whether or not a
-release is made. A release is made only if every variant built: one
-`SHA256SUMS` is computed for all the files, the tag comes from
-`scripts/next_version.py` (the scheme of the old release script: `v1.0.0`,
-`v1.0.1`, ... `v1.0.10`, `v1.1.0`, ...) or is the pushed one, and the notes are
-the commits since the previous release. Nothing else is needed: the
+release is made. A release is made only if every variant built, by
+`.github/scripts/publish-release.sh` (a copy of the Retrobox repositories'):
+one `SHA256SUMS` for all the files, the pushed tag, and the notes GitHub
+generates from the commits since the previous release. Nothing else is needed: the
 workflow's own `GITHUB_TOKEN` creates the release and lifts the rate limit of
 the GitHub API calls (the Hekate download and the Retrobox packages).
 

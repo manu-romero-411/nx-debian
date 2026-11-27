@@ -34,7 +34,7 @@ The line numbers are those of `legacy-build:build.sh`.
 | PulseAudio as a user service, GObject typelibs for the applets | 1182-1205 | not needed: Debian's pulseaudio enables its user service and socket; the typelibs come with the packages that need them |
 | Suspend/resume hook: mute audio, resync the backlight, `udevadm trigger` for input | 1571-1633 | not ported: suspend and resume work on the Retrobox image without it, and re-triggering input recreates the pads |
 | `tmpfiles.d` and an early service that repair permissions (sudo, `/home`, `/tmp`) | 1804-1857 | not needed: `mke2fs -d` keeps the owners and modes of the packages; revisit if a boot shows wrong permissions |
-| Release versioning and changelog (`tools/bump_version.py`) | | ported to `scripts/next_version.py` |
+| Release versioning and changelog (`tools/bump_version.py`) | | replaced by the version rule of the Retrobox repositories (`.github/scripts/continuous-version.sh`; a release is a pushed tag) |
 
 The `nvpmodel` indicator is NVIDIA's, with CTCaer's changes, as in
 `switch-bsp` (which ships the original, the `nvpmodel` Python module and the

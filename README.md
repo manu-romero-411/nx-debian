@@ -172,10 +172,12 @@ of the old build script.
 
 * `ci.yml`: the linters and the tests, on every push.
 * `packages.yml`: nx-debian's packages, on every push to `main`, published as
-  the `nxd-latest` pre-release.
-* `build.yml`: the images, on an arm64 runner, by hand (*Actions* → *Build
-  images* → *Run workflow*) or for a `v*` tag; it can publish them as a release,
-  with the packages of that version.
+  the continuous pre-release (tag `continuous`, version `<last release>.<UTC
+  time>`), as in the Retrobox repositories.
+* `build.yml`: the images, on an arm64 runner; a pushed `vX.Y` or `vX.Y.Z` tag
+  publishes the release of that tag (installers and packages of its version;
+  `vX.Y` and `vX.Y.0` full releases, other `vX.Y.Z` pre-releases). Run by hand
+  (*Actions* → *Build images* → *Run workflow*) it only builds.
 
 ---
 

@@ -1,9 +1,16 @@
 name: Build images
 
 # Builds the installers of the variants on a native arm64 runner, with the same
-# command anyone can run by hand (nxd container build). Started by hand
-# (Actions -> Build images -> Run workflow) or by pushing a v* tag. A release
-# is made from a tag, or when "publish" is ticked in a manual run.
+# command anyone can run by hand (nxd container build), the same way as the
+# Retrobox repositories (.github/scripts, copies of theirs):
+#
+# * a pushed tag vX.Y or vX.Y.Z publishes the release of that tag: the
+#   installers, nx-debian's packages of that version and SHA256SUMS; only vX.Y
+#   and vX.Y.0 are full releases, any other vX.Y.Z is a pre-release;
+# * run by hand (Actions -> Build images -> Run workflow), it only builds: the
+#   installers stay as artifacts for 14 days;
+# * every push to main publishes the packages alone as the continuous
+#   pre-release (packages.yml).
 on:
   workflow_dispatch:
     inputs:
@@ -18,10 +25,6 @@ on:
         type: boolean
       prereleases:
         description: Use the pre-releases of the Retrobox packages too (by default, only releases)
-        default: false
-        type: boolean
-      publish:
-        description: Publish a GitHub release (the next version tag is made)
         default: false
         type: boolean
   push:
@@ -46,7 +49,13 @@ jobs:
         id: pick
         env:
           WANTED: ${{ inputs.variant || 'all' }}
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
         run: |
+          if [[ "${EVENT}" == "push" && ! "${REF_NAME}" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
+            echo "Not a release tag: ${REF_NAME} (vX.Y or vX.Y.Z)" >&2
+            exit 1
+          fi
           all="$(./nxd variants | awk '{print $1}')"
           if [[ "${WANTED}" == "all" ]]; then
             picked="${all}"
@@ -104,53 +113,31 @@ jobs:
     name: Publish the release
     runs-on: ubuntu-24.04
     needs: build
-    if: github.event_name == 'push' || inputs.publish
+    if: github.event_name == 'push'
     permissions:
       contents: write
     concurrency:
-      group: release
+      group: publish-${{ github.repository }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # nx-debian's packages take their version from the tags
       - uses: actions/download-artifact@v4
         with:
           pattern: image-*
           merge-multiple: true
           path: dist
-      - name: The release tag
-        id: tag
-        env:
-          EVENT: ${{ github.event_name }}
-          REF_NAME: ${{ github.ref_name }}
-        run: |
-          if [[ "${EVENT}" == "push" ]]; then
-            tag="$(python3 scripts/next_version.py --tag "${REF_NAME}" --notes notes.md)"
-          else
-            tag="$(python3 scripts/next_version.py --notes notes.md)"
-          fi
-          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
       - name: nx-debian's packages of that version (for nxd-update)
         env:
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ github.ref_name }}
         run: ./nxd debs --version "${TAG#v}" dist
-      - name: One SHA256SUMS for everything
-        run: |
-          cd dist
-          rm -f SHA256SUMS
-          find . -maxdepth 1 -type f -printf '%f\n' | sort | xargs sha256sum > SHA256SUMS
-          sha256sum -c SHA256SUMS
-      - name: Make the release
+      - name: Publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PRERELEASES: ${{ inputs.prereleases }}
-          tag: ${{ steps.tag.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
+          # only vX.Y and vX.Y.0 are full releases
           flags=()
-          # an image made with pre-releases of the Retrobox packages is one too
-          [[ "${PRERELEASES}" != "true" ]] || flags+=(--prerelease)
-          gh release create "${tag}" dist/* "${flags[@]}" \
-            --target "${GITHUB_SHA}" \
-            --title "Debian 13 Trixie for the Switch ${tag}" \
-            --notes-file notes.md
+          [[ "${TAG}" =~ ^v[0-9]+\.[0-9]+(\.0)?$ ]] || flags+=(--prerelease)
+          .github/scripts/publish-release.sh tag "${TAG}" dist "${flags[@]}"

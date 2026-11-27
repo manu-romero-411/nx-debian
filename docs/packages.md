@@ -53,29 +53,35 @@ there is one.
 ./nxd debs --print-version            # the version they would get
 ```
 
-No root needed: `dpkg-deb` makes the files belong to root. The version comes
-from git: `X.Y.Z` on a `vX.Y.Z` tag, `X.Y.Z.gitN.gSHA` N commits after it
-(newer than `X.Y.Z`, older than the next release), `0.0.0.gitN.gSHA` before
-the first tag. Two builds of one commit are the same file (the files get the
-commit's date). `nxd rootfs` (and so `nxd build`) builds them for the variant
+No root needed: `dpkg-deb` makes the files belong to root. The version is the
+one of a continuous build, the rule of the Retrobox repositories
+(`.github/scripts/continuous-version.sh`): the last release's, from the
+highest `vX.Y` or `vX.Y.Z` tag (a missing patch is 0, no tag at all is
+`0.0.0`), with the UTC time of the build as one more number
+(`0.7.9.20261127093012`): above that release, below the next one
+(`0.7.10`, `0.8.0`), and each build above the one before. Digits and dots
+only, as GitHub rewrites any other character in an asset's name. A release
+gets the version of its tag (`--version`). The files get the commit's date. `nxd rootfs` (and so `nxd build`) builds them for the variant
 and installs them with the Retrobox packages; `nxd container` works out the
 version outside the container, which has no git (`NXD_PACKAGE_VERSION`
 overrides it).
 
 ## Where they are published
 
+The same way as the Retrobox repositories (`.github/scripts` are copies of
+theirs: keep them equal):
+
 - **Every push to `main`** (`.github/workflows/packages.yml`): the
-  `nxd-latest` pre-release, whose files are replaced each time (the release
-  is never deleted: its tag moves, the new packages go in, then their
-  `SHA256SUMS`, then the old packages go; `nxd-update` skips a package that is
-  not in `SHA256SUMS` yet, and takes the highest version when there are two),
-  with the `.deb` files and
-  their `SHA256SUMS`.
-- **Every release** (`build.yml`, a `vX.Y.Z` tag or a manual run with
-  "publish"): the release has the installers and the packages of its version.
-  An image built from a tag has the packages of that version; one built by a
-  manual run has the `gitN` version of its commit, and `nxd-update` brings the
-  release's.
+  continuous pre-release, tag `continuous`, deleted and made again on the new
+  commit (one release, never offered by `/releases/latest`), with the `.deb`
+  files of the continuous version and their `SHA256SUMS`. The consoles take it
+  with `nxd-update --allow-prereleases`; while it is being made again,
+  `nxd-update` warns that it cannot read it and the next run finds it.
+- **Every `vX.Y` or `vX.Y.Z` tag pushed** (`build.yml`): the release of that
+  tag, with the installers, the packages of its version and `SHA256SUMS`; only
+  `vX.Y` and `vX.Y.0` are full releases, any other `vX.Y.Z` is a
+  pre-release. A manual run of `build.yml` only builds (the installers stay as
+  artifacts for 14 days).
 
 ## nxd-update
 

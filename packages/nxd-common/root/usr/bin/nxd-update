@@ -165,9 +165,9 @@ select_assets() {
 
 # release REPO: the JSON of the release to use (see the header), or nothing
 # The one with the newest packages, never a draft, and a pre-release only with
-# --allow-prereleases: by the date of its packages, not its own, because
-# nx-debian's nxd-latest is not made again on each push, its files are
-# replaced; and nx-debian has releases of images made before it had packages.
+# --allow-prereleases: by the date of its packages, not its own (a release
+# whose files were replaced keeps its date), and nx-debian has releases of
+# images made before it had packages.
 # Not /releases/latest: a repository with pre-releases only answers it 404.
 release() {
     local repo="$1"

@@ -478,19 +478,20 @@ repo="${tmp}/repo"
 git init -q "${repo}"
 commit() { git -C "${repo}" -c user.name=t -c user.email=t@invalid commit -q --allow-empty -m "$1"; }
 BUILD="${NXD_ROOT}/scripts/build-packages.sh"
-version() { NXD_ROOT="${repo}" "${BUILD}" --print-version; }
+version() { NXD_ROOT="${repo}" NXD_BUILD_STAMP="${1:-20261127093012}" "${BUILD}" --print-version; }
 commit one
-commit two
-check "before any tag: 0.0.0.gitN.gSHA" grep -qE '^0\.0\.0\.git2\.g[0-9a-f]{7}$' <<< "$(version)"
-git -C "${repo}" tag v1.4.0
-check "on a tag: its version" test "$(version)" = 1.4.0
-commit three
-v="$(version)"
-check "after a tag: newer than it" dpkg --compare-versions "${v}" gt 1.4.0
-check "...and older than the next release" dpkg --compare-versions "${v}" lt 1.4.1
-commit four
-check "a later commit is newer" dpkg --compare-versions "$(version)" gt "${v}"
-check "outside git: 0.0.0" test "$(NXD_ROOT="${tmp}/debs" "${BUILD}" --print-version)" = 0.0.0
+check "before any tag: 0.0.0 and the time of the build" test "$(version)" = 0.0.0.20261127093012
+for tag in v1.4.0 v1.3.9 continuous nxd-latest v1.5-rc1; do git -C "${repo}" tag "${tag}"; done
+check "after a tag: the highest release's version and the time" test "$(version)" = 1.4.0.20261127093012
+check "...newer than it" dpkg --compare-versions "$(version)" gt 1.4.0
+check "...and older than the next release" dpkg --compare-versions "$(version)" lt 1.4.1
+check "a later build is newer" dpkg --compare-versions "$(version 20261127093013)" gt "$(version)"
+git -C "${repo}" tag v1.5
+check "a tag with no patch gets 0" test "$(version)" = 1.5.0.20261127093012
+check "the same version as the CI's" \
+    test "$(version)" = "$(CONTINUOUS_STAMP=20261127093012 "${NXD_ROOT}/.github/scripts/continuous-version.sh" "${repo}")"
+check "outside git: 0.0.0 and the time" \
+    test "$(NXD_ROOT="${tmp}/debs" NXD_BUILD_STAMP=20261127093012 "${BUILD}" --print-version)" = 0.0.0.20261127093012
 
 ## nxd-update ----------------------------------------------------------------
 
@@ -545,7 +546,7 @@ release() {
 }
 
 release Me/nxd v1.0.0 false nxd-common_1.0.0_all.deb nxd-retrobox_1.0.0_all.deb image-installer.zip
-release Me/nxd nxd-latest true nxd-common_1.0.0.git3.gabcdef0_all.deb nxd-retrobox_1.0.0.git3.gabcdef0_all.deb
+release Me/nxd continuous true nxd-common_1.0.0.git3.gabcdef0_all.deb nxd-retrobox_1.0.0.git3.gabcdef0_all.deb
 release Org/core v2.0 false core_2.0_arm64.deb core_2.0_amd64.deb
 release Org/bad v1.0 false bad_1.1_all.deb badsum
 release Org/images v1.0 false image-installer.zip
@@ -591,14 +592,14 @@ check "a pre-release after the release is newer" \
 mkdir -p "${NXD_STATE_DIR}"
 cp "${tmp}/dl/Me_nxd/state" "${NXD_STATE_DIR}/Me_nxd"
 update --allow-prereleases > /dev/null
-check "a release installed before is not downloaded again" grep -q 'Me/nxd nxd-latest (pre-release): up to date' "${tmp}/log"
+check "a release installed before is not downloaded again" grep -q 'Me/nxd continuous (pre-release): up to date' "${tmp}/log"
 
 # the packages a list names come even when they are not installed yet
 printf '%s\n' "nxd-common 1.0.0" "nxd-retrobox 1.0.0" > "${NXD_UPDATE_INSTALLED}"
 check "a package the list names is installed when it is not yet" test "$(update)" = "core_2.0_arm64.deb "
 check "...and said to be new" grep -q 'Org/core v2.0: core 2.0 (new)' "${tmp}/log"
 
-# a release whose files are being replaced (nx-debian's nxd-latest on a push)
+# a release whose files are being replaced (a release re-uploaded by hand)
 release Org/two v1 false two_1.0_all.deb two_1.5_all.deb
 release Org/half v1 false half_2.0_all.deb
 sed -i '/half_2.0_all.deb/d' "${SITE}/dl/Org/half/v1/SHA256SUMS"

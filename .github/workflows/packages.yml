@@ -1,10 +1,15 @@
 name: Packages
 
-# nx-debian's own packages (nxd-common, nxd-<variant>; `nxd debs`) on every push
-# to main, published as the "nxd-latest" pre-release, whose files are replaced
-# each time (the release itself stays, so that it is always there): the consoles get them with `nxd-update --allow-prereleases`. Releases
-# (a v* tag, build.yml) carry the packages of their version, and are what
-# `nxd-update` takes by default.
+# nx-debian's own packages (nxd-common, nxd-<variant>; `nxd debs`), the same
+# way as the Retrobox repositories (.github/scripts, copies of theirs):
+#
+# * a push to main publishes the continuous pre-release (tag "continuous", made
+#   again on each push): version <last release>.<UTC time>, which installs over
+#   the last release and over the previous build; the consoles get it with
+#   `nxd-update --allow-prereleases`;
+# * a v* tag publishes a release (build.yml: the installers and the packages of
+#   its version), which is what `nxd-update` takes by default;
+# * run by hand, it only builds.
 on:
   push:
     branches: [main]
@@ -19,47 +24,56 @@ concurrency:
 
 jobs:
   packages:
-    name: Build and publish the packages
+    name: Build the packages
     runs-on: ubuntu-24.04
-    permissions:
-      contents: write
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0 # the version is worked out from the tags
+      - name: Choose the version
+        id: version
+        run: echo "version=$(.github/scripts/continuous-version.sh)" >> "${GITHUB_OUTPUT}"
       - name: Build
-        run: |
-          ./nxd debs dist
-          cd dist
-          sha256sum -- *.deb > SHA256SUMS
-          cat SHA256SUMS
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./nxd debs --version "${VERSION}" dist
       - uses: actions/upload-artifact@v4
         with:
           name: packages
           path: dist/
           if-no-files-found: error
           retention-days: 14
-      - name: Publish the nxd-latest pre-release
+
+  publish:
+    name: Publish the continuous pre-release
+    if: github.event_name == 'push'
+    needs: packages
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    concurrency:
+      group: publish-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: packages
+          path: dist
+      # the pre-release of the earlier scheme, whose files were replaced on
+      # each push: "continuous" takes its place
+      - name: Retire nxd-latest
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          version="$(./nxd debs --print-version)"
-          title="nx-debian packages ${version} (pre-release)"
-          notes="nxd-common and nxd-<variant> ${version}, built from ${GITHUB_SHA}. Updated on every push to main. On a console: \`nxd-update --allow-prereleases\`."
-          if ! gh release view nxd-latest > /dev/null 2>&1; then
-            gh release create nxd-latest dist/* --prerelease --latest=false \
-              --target "${GITHUB_SHA}" --title "${title}" --notes "${notes}"
-            exit 0
-          fi
-          # The release is never deleted, so that a console updating meanwhile
-          # always finds one: the tag moves, the new packages go in, then
-          # SHA256SUMS (until then nxd-update skips them), then the old ones go.
-          git tag -f nxd-latest "${GITHUB_SHA}"
-          git push -f origin refs/tags/nxd-latest
-          old="$(gh release view nxd-latest --json assets --jq '.assets[].name')"
-          gh release upload nxd-latest dist/*.deb --clobber
-          gh release upload nxd-latest dist/SHA256SUMS --clobber
-          for asset in ${old}; do
-            [[ -e "dist/${asset}" ]] || gh release delete-asset nxd-latest "${asset}" --yes
-          done
-          gh release edit nxd-latest --prerelease --latest=false --title "${title}" --notes "${notes}"
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete nxd-latest --repo "${GITHUB_REPOSITORY}" --cleanup-tag --yes 2> /dev/null || true
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.packages.outputs.version }}
+          UPDATE_COMMAND: nxd-update
+        run: .github/scripts/publish-release.sh continuous dist "${VERSION}"

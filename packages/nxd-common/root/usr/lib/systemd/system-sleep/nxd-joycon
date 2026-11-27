@@ -1,0 +1,43 @@
+#!/bin/sh
+# The Switch's built-in controllers across a suspend: their driver
+# (joycon_serdev, on an internal serial port) is let go of them before the
+# suspend and takes them again after it.
+#
+# Suspended with the driver on, the controllers sometimes did not answer it
+# at the resume: "Did not receive init response; ret=-110" every 2.7 s,
+# 14 s and more without a controller. Bound again, the driver finds them
+# from scratch, as at boot, and the handshake takes 0.1 s.
+#
+# The devices that were let go of are listed in /run, so that only those are
+# bound again. NXD_SERDEV_DRIVER and NXD_JOYCON_STATE_DIR are for the tests.
+
+driver="${NXD_SERDEV_DRIVER:-/sys/bus/serial/drivers/joycon_serdev}"
+list="${NXD_JOYCON_STATE_DIR:-/run}/nxd-joycon.unbound"
+
+case "${1:-}" in
+    pre)
+        rm -f "${list}"
+        [ -d "${driver}" ] || exit 0
+        for device in "${driver}"/*; do
+            [ -L "${device}" ] || continue
+            name="${device##*/}"
+            case "${name}" in
+                module | bind | unbind | uevent | new_id | remove_id) continue ;;
+                *) ;;
+            esac
+            if echo "${name}" > "${driver}/unbind" 2> /dev/null; then
+                echo "${name}" >> "${list}"
+            fi
+        done
+        ;;
+    post)
+        [ -r "${list}" ] || exit 0
+        while read -r name; do
+            echo "${name}" > "${driver}/bind" 2> /dev/null ||
+                echo "nxd-joycon: could not bind ${name} again" >&2
+        done < "${list}"
+        rm -f "${list}"
+        ;;
+    *) ;;
+esac
+exit 0

@@ -279,6 +279,26 @@ check "...for the users that have a PulseAudio only" test "$(wc -l < "${tmp}/aud
 check "the hook is in nxd-common, executable" \
     grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-audio$' <<< "$(dpkg-deb -c "${COMMON}")"
 
+## the built-in controllers: their driver lets go of them across a suspend
+## (suspended with it, they sometimes did not answer for 14 s and more)
+
+JOYHOOK="${CPKG}/root/usr/lib/systemd/system-sleep/nxd-joycon"
+JOYDRV="${tmp}/joycon/driver"
+mkdir -p "${JOYDRV}" "${tmp}/joycon/run" "${tmp}/joycon/devices/serial0-0"
+ln -s "${tmp}/joycon/devices/serial0-0" "${JOYDRV}/serial0-0"
+ln -s "${tmp}/joycon/module" "${JOYDRV}/module"
+joycon() { NXD_SERDEV_DRIVER="${JOYDRV}" NXD_JOYCON_STATE_DIR="${tmp}/joycon/run" sh "${JOYHOOK}" "$1"; }
+joycon pre
+check "before a suspend the driver lets go of the controllers" test "$(cat "${JOYDRV}/unbind")" = serial0-0
+check "...and only of them" test "$(wc -l < "${JOYDRV}/unbind")" -eq 1
+joycon post
+check "...and takes them again after it" test "$(cat "${JOYDRV}/bind")" = serial0-0
+rm -f "${JOYDRV}/bind"
+joycon post
+check "...once" test ! -e "${JOYDRV}/bind"
+check "the hook is in nxd-common, executable" \
+    grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-joycon$' <<< "$(dpkg-deb -c "${COMMON}")"
+
 ## the touchscreen: a tap is a click, not a short drag (touch slop)
 
 SLOP="${CPKG}/root/usr/lib/nxd/touch-slop"

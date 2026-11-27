@@ -492,7 +492,12 @@ option is ignored. If the screen is still black after that, the logs are
     at most for the programs that asked to be told first
     (`InhibitDelayMaxSec=250ms`, same file): NetworkManager made every
     suspend wait 1.2 s to disconnect the Wi-Fi. Standby works on the Switch's 4.9
-    L4T kernel; the sound stops as soon as a suspend starts
+    L4T kernel; the built-in controllers' driver (`joycon_serdev`) lets go
+    of them before a suspend and takes them again after it
+    (`/usr/lib/systemd/system-sleep/nxd-joycon`, nxd-common): suspended with
+    it, they sometimes did not answer at the resume for 14 s and more ("Did
+    not receive init response"), bound again they shake hands in 0.1 s;
+    the sound stops as soon as a suspend starts
     (`/usr/lib/systemd/system-sleep/nxd-audio`, nxd-common, suspends every
     output of every user's PulseAudio, which drops the sound card's buffer:
     frozen, PulseAudio no longer feeds the card, but the card played the

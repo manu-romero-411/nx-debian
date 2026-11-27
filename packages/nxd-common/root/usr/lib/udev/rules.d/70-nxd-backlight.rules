@@ -1,0 +1,6 @@
+# Installed by nxd-common: the video group (the console's user) may turn the
+# backlight off and on (bl_power) and set its brightness, so that the Retrobox
+# session darkens the screen the moment the power button suspends the console
+# (/usr/share/nxd/retrobox/power-button; X's DPMS does nothing on the Switch).
+SUBSYSTEM=="backlight", ACTION=="add", \
+  RUN+="/bin/sh -c 'for f in bl_power brightness; do [ -e /sys%p/$$f ] || continue; chgrp video /sys%p/$$f; chmod g+w /sys%p/$$f; done'"

@@ -127,11 +127,25 @@ results["asked-stale"] = (b.press(45.0), b.release(45.1)) == (None, "suspend")
 # the screen: dark before the suspend, lit at the resume, DPMS as it was
 os.environ["DISPLAY"] = ":0"
 os.environ["PATH"] = sys.argv[2] + ":" + os.environ["PATH"]
-screen = module.Screen()
+screen = module.Screen(backlights=sys.argv[4] + "/none")
 screen.off()
 screen.on()
 with open(sys.argv[3], encoding="utf-8") as calls:
     results["screen"] = calls.read().split("\n")[:4] == ["q", "dpms force off", "dpms force on", "-dpms"]
+# with a backlight the user may write: that, and no xset
+os.makedirs(sys.argv[4] + "/panel", exist_ok=True)
+with open(sys.argv[4] + "/panel/bl_power", "w", encoding="ascii") as power:
+    power.write("0\n")
+open(sys.argv[3], "w", encoding="utf-8").close()
+screen = module.Screen(backlights=sys.argv[4])
+screen.off()
+with open(sys.argv[4] + "/panel/bl_power", encoding="ascii") as power:
+    dark = power.read().strip()
+screen.on()
+with open(sys.argv[4] + "/panel/bl_power", encoding="ascii") as power:
+    lit = power.read().strip()
+with open(sys.argv[3], encoding="utf-8") as calls:
+    results["backlight"] = (dark, lit, calls.read()) == ("4", "0", "")
 for name, passed in results.items():
     print(f"{name} {'ok' if passed else 'FAIL'}")
 PY
@@ -140,7 +154,7 @@ mkdir -p "${tmp}/xset-bin"
 printf '#!/bin/sh\necho "$*" >> "%s"\n[ "$1" = q ] && echo "  DPMS is Disabled"\nexit 0\n' "${tmp}/xset.log" > "${tmp}/xset-bin/xset"
 chmod +x "${tmp}/xset-bin/xset"
 python3 -I "${tmp}/power-test.py" "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/power-button" \
-    "${tmp}/xset-bin" "${tmp}/xset.log" > "${tmp}/power.log" 2>&1
+    "${tmp}/xset-bin" "${tmp}/xset.log" "${tmp}/backlights" > "${tmp}/power.log" 2>&1
 check "a tap on the power button suspends" grep -qx 'tap ok' "${tmp}/power.log"
 check "holding it a second opens the power menu, without waiting for the release" grep -qx 'hold ok' "${tmp}/power.log"
 check "...once" grep -qx 'once ok' "${tmp}/power.log"
@@ -152,7 +166,11 @@ check "after a suspend it asked for, the press that wakes the console up is not 
     bash -c "grep -qx 'asked-tap ok' \"\$1\" && grep -qx 'asked-wake ok' \"\$1\"" _ "${tmp}/power.log"
 check "...the next one is" grep -qx 'asked-after ok' "${tmp}/power.log"
 check "...and a suspend that never came is forgotten" grep -qx 'asked-stale ok' "${tmp}/power.log"
-check "the screen goes dark before the suspend, and DPMS is as it was after it" grep -qx 'screen ok' "${tmp}/power.log"
+check "without a backlight it may write, the screen goes dark by DPMS, as it was after" grep -qx 'screen ok' "${tmp}/power.log"
+check "the backlight goes off before the suspend and on after it" grep -qx 'backlight ok' "${tmp}/power.log"
+# shellcheck disable=SC2016 # the literal text of the rule
+check "the video group may write the backlight" \
+    grep -q 'chgrp video /sys%p/\$\$f; chmod g+w /sys%p/\$\$f' "${NXD_ROOT}/packages/nxd-common/root/usr/lib/udev/rules.d/70-nxd-backlight.rules"
 check "nxd-retrobox needs xset" grep -qw 'x11-xserver-utils' <<< "$(dpkg-deb -f "${RETRO}" Depends)"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
 check "--variant xfce builds nxd-common and nxd-xfce" bash -c \

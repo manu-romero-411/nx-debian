@@ -7,9 +7,11 @@ console (systemctl suspend); held for HOLD seconds, it opens the Retrobox
 overlay's power options (retrobox-overlay --power: sleep, restart, turn off)
 at once, without waiting for the release.
 
-On a tap the screen goes dark at once (xset dpms force off): the kernel takes
-about a second and a half to suspend the devices, and the display is among
-the last. At the resume it is lit again, and DPMS is left as it was.
+On a tap the screen goes dark at once: the kernel takes about a second and a
+half to suspend the devices, and the display is among the last. The
+backlight is turned off (bl_power 4, which nxd-common's udev rule lets the
+video group write); without one that it may write, X's DPMS (xset dpms force
+off, which the Switch's X driver ignores). At the resume it is lit again.
 
 The Switch's button (max77620_onoff, the PMIC's) sends KEY_SLEEP, which
 logind calls the suspend key, not KEY_POWER; KEY_POWER counts as the same
@@ -169,37 +171,60 @@ def run(command: list[str]) -> None:
 
 
 class Screen:
-    """Darkens the screen before a suspend and lights it at the resume
-    (xset: DPMS), leaving DPMS enabled or not as it found it."""
+    """Darkens the screen before a suspend and lights it at the resume: the
+    backlight's bl_power when the user may write it, else X's DPMS (xset),
+    leaving DPMS enabled or not as it found it."""
 
-    def __init__(self) -> None:
+    def __init__(self, backlights: str = "/sys/class/backlight") -> None:
+        self.backlights = Path(backlights)
         self.xset = shutil.which("xset") if os.environ.get("DISPLAY") else None
-        self.dark = False
+        self.dark: list[Path] | None = None
         self.dpms_was_on = True
 
     def _xset(self, *args: str) -> str:
+        if not self.xset:
+            return ""
         try:
             return subprocess.run([self.xset, *args], capture_output=True, text=True,
                                   timeout=2, check=False).stdout
         except (OSError, subprocess.TimeoutExpired):
             return ""
 
+    def _powers(self) -> list[Path]:
+        try:
+            lights = sorted(self.backlights.iterdir())
+        except OSError:
+            return []
+        return [light / "bl_power" for light in lights
+                if os.access(light / "bl_power", os.W_OK)]
+
+    @staticmethod
+    def _write(path: Path, value: str) -> bool:
+        try:
+            path.write_text(value + "\n", encoding="ascii")
+        except OSError:
+            return False
+        return True
+
     def off(self) -> None:
         """Darkens the screen now."""
-        if not self.xset:
-            return
-        self.dpms_was_on = "DPMS is Enabled" in self._xset("q")
-        self._xset("dpms", "force", "off")
-        self.dark = True
+        powers = [power for power in self._powers() if self._write(power, "4")]
+        if not powers and self.xset:
+            self.dpms_was_on = "DPMS is Enabled" in self._xset("q")
+            self._xset("dpms", "force", "off")
+        self.dark = powers
 
     def on(self) -> None:
         """Lights the screen again, if off() darkened it."""
-        if not self.dark:
+        if self.dark is None:
             return
-        self._xset("dpms", "force", "on")
-        if not self.dpms_was_on:
-            self._xset("-dpms")
-        self.dark = False
+        for power in self.dark:
+            self._write(power, "0")
+        if not self.dark and self.xset:
+            self._xset("dpms", "force", "on")
+            if not self.dpms_was_on:
+                self._xset("-dpms")
+        self.dark = None
 
 
 def act(action: str, overlay: str | None, screen: Screen) -> None:

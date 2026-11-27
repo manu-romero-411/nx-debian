@@ -58,7 +58,8 @@ check "the Capture button's step is executable" grep -q '^-rwxr-xr-x .*\./etc/re
 check "the Capture button's program is executable" grep -q '^-rwxr-xr-x .*\./usr/share/nxd/retrobox/capture-button$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the power button's step is executable" grep -q '^-rwxr-xr-x .*\./etc/retrobox/session.d/61-nxd-power-button$' <<< "$(dpkg-deb -c "${RETRO}")"
 check "the power button's program is executable" grep -q '^-rwxr-xr-x .*\./usr/share/nxd/retrobox/power-button$' <<< "$(dpkg-deb -c "${RETRO}")"
-# the Switch's button is a suspend key (logind: "Suspend key pressed short"):
+# the Switch's button (max77620_onoff) sends KEY_SLEEP, logind's suspend key
+# ("Suspend key pressed short"):
 # a power-key inhibitor alone left it to logind, which suspended on a tap and
 # did nothing on a hold
 check "...run under a handle-power-key and handle-suspend-key inhibitor" \
@@ -67,7 +68,7 @@ check "...run under a handle-power-key and handle-suspend-key inhibitor" \
 check "...which logind respects, for both keys" \
     bash -c "grep -qx 'PowerKeyIgnoreInhibited=no' \"\$1\" && grep -qx 'SuspendKeyIgnoreInhibited=no' \"\$1\"" _ \
     "${NXD_ROOT}/packages/nxd-retrobox/root/etc/systemd/logind.conf.d/10-nxd-power.conf"
-check "...and it listens to the suspend key too" grep -qx 'BUTTON_KEYS = (KEY_POWER, KEY_SLEEP, KEY_SUSPEND)' \
+check "...and it listens to KEY_SLEEP, the key the Switch's button sends" grep -qx 'BUTTON_KEYS = (KEY_SLEEP, KEY_POWER)' \
     "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/power-button"
 cat > "${tmp}/power-test.py" << 'PY'
 """Button: taps, holds and the press that wakes the console up."""

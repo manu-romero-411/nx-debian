@@ -7,8 +7,9 @@ console (systemctl suspend); held for HOLD seconds, it opens the Retrobox
 overlay's power options (retrobox-overlay --power: sleep, restart, turn off)
 at once, without waiting for the release.
 
-The Switch's button is a suspend key to the kernel (KEY_SUSPEND), not a power
-key; KEY_POWER and KEY_SLEEP count as the same button too. logind handles it
+The Switch's button (max77620_onoff, the PMIC's) sends KEY_SLEEP, which
+logind calls the suspend key, not KEY_POWER; KEY_POWER counts as the same
+button too. logind handles it
 by itself (HandleSuspendKey=suspend, HandlePowerKey=suspend in
 /etc/systemd/logind.conf.d/10-nxd-power.conf) whenever this is not running:
 the step runs it under a handle-power-key and handle-suspend-key inhibitor,
@@ -46,8 +47,7 @@ MAX_KEYS = 8
 # the codes the console's button may send (linux/input-event-codes.h)
 KEY_POWER = 116
 KEY_SLEEP = 142
-KEY_SUSPEND = 205
-BUTTON_KEYS = (KEY_POWER, KEY_SLEEP, KEY_SUSPEND)
+BUTTON_KEYS = (KEY_SLEEP, KEY_POWER)
 
 
 def suspended_for() -> float:

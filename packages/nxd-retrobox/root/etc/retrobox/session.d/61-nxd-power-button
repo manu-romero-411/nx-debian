@@ -3,8 +3,8 @@
 # the Switch's power button suspends on a tap and opens the overlay's power
 # options when held for a second (/usr/share/nxd/retrobox/power-button,
 # ended with the session). It runs under a handle-power-key and
-# handle-suspend-key inhibitor (the Switch's button is a suspend key), so
-# that logind leaves the button to it; without the inhibitor (polkit says no,
+# handle-suspend-key inhibitor (the Switch's button sends KEY_SLEEP, logind's
+# suspend key), so that logind leaves the button to it; without the inhibitor (polkit says no,
 # no systemd-inhibit) it does not run, and logind suspends on a tap as before
 # (/etc/systemd/logind.conf.d/10-nxd-power.conf). One at a time: a session
 # started again doesn't add a second one.

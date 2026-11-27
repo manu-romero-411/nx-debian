@@ -116,17 +116,19 @@ b.press(10.0)
 b.woke(10.5, 60.0)
 results["slept-while-down"] = b.release(10.6) is None and b.tick(12.0) is None
 results["hold-time"] = module.HOLD == 0.65
-# the press that wakes the console up after a suspend asked for, when the
-# clocks do not show the sleep (the Switch's kernel): not a new tap
+# after a suspend asked for, the button does nothing for a while: a press
+# while the console falls asleep, the one that wakes it up (the clocks do not
+# show the sleep on the Switch's kernel), a hold
 b = button()
 b.press(10.0)
 results["asked-tap"] = b.release(10.2) == "suspend"
 b.sleeping(10.2)
-results["asked-wake"] = (b.press(11.8), b.release(11.9)) == ("woke", None)
-results["asked-after"] = (b.press(15.0), b.release(15.1)) == (None, "suspend")
-b = button()
-b.sleeping(10.0)
-results["asked-stale"] = (b.press(45.0), b.release(45.1)) == (None, "suspend")
+results["asked-again"] = (b.press(10.9), b.release(11.0)) == (None, None)
+results["asked-wake"] = (b.press(12.6), b.release(12.7)) == (None, None)
+b.press(13.0)
+results["asked-hold"] = (b.tick(14.5), b.release(14.6)) == (None, None)
+results["asked-settled"] = (b.tick(15.2), b.tick(15.3)) == ("settled", None)
+results["asked-after"] = (b.press(16.0), b.release(16.1)) == (None, "suspend")
 # the screen: dark before the suspend, lit at the resume, DPMS as it was
 os.environ["DISPLAY"] = ":0"
 os.environ["PATH"] = sys.argv[2] + ":" + os.environ["PATH"]
@@ -165,10 +167,12 @@ check "the press that wakes the console up does not suspend it again" grep -qx '
 check "...but a tap after it does" grep -qx 'after-wake ok' "${tmp}/power.log"
 check "a press cut by a suspend is forgotten" grep -qx 'slept-while-down ok' "${tmp}/power.log"
 check "the menu opens after 0.65 s" grep -qx 'hold-time ok' "${tmp}/power.log"
-check "after a suspend it asked for, the press that wakes the console up is not a tap" \
-    bash -c "grep -qx 'asked-tap ok' \"\$1\" && grep -qx 'asked-wake ok' \"\$1\"" _ "${tmp}/power.log"
-check "...the next one is" grep -qx 'asked-after ok' "${tmp}/power.log"
-check "...and a suspend that never came is forgotten" grep -qx 'asked-stale ok' "${tmp}/power.log"
+check "a press while the console falls asleep does nothing" \
+    bash -c "grep -qx 'asked-tap ok' \"\$1\" && grep -qx 'asked-again ok' \"\$1\"" _ "${tmp}/power.log"
+check "...nor does the one that wakes it up" grep -qx 'asked-wake ok' "${tmp}/power.log"
+check "...nor a hold" grep -qx 'asked-hold ok' "${tmp}/power.log"
+check "...until the window closes, which lights the screen in case it never slept" grep -qx 'asked-settled ok' "${tmp}/power.log"
+check "...and then a tap suspends again" grep -qx 'asked-after ok' "${tmp}/power.log"
 check "without a backlight it may write, the screen goes dark by DPMS, as it was after" grep -qx 'screen ok' "${tmp}/power.log"
 check "the backlight goes off before the suspend and on after it" grep -qx 'backlight ok' "${tmp}/power.log"
 # shellcheck disable=SC2016 # the literal text of the rule

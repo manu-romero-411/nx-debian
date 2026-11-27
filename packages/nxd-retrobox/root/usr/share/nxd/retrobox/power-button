@@ -23,14 +23,15 @@ which tells logind to leave the button to it. What it finds and does goes to
 the session's log (the step sends it to
 ~/.local/state/retrobox/logs/power-button.log).
 
-The press that wakes the console up is not a new tap: after a suspend this
-asked for, the next press is the one that woke the console and is ignored
-(CLOCK_MONOTONIC stops while it sleeps, so "next" is within WAKE_WINDOW of
-it); whatever the button does in the second after a resume that the clocks
-show (CLOCK_BOOTTIME or CLOCK_REALTIME jumping ahead of CLOCK_MONOTONIC) is
-ignored too. The Switch's L4T kernel does not move CLOCK_BOOTTIME on a
-suspend, so the clocks alone missed it: the press that woke it suspended it
-again. It reads /dev/input, as the
+After a suspend this asked for, the button does nothing for SUSPEND_WINDOW
+seconds of CLOCK_MONOTONIC, which stops while the console sleeps: a press
+while the console is still going to sleep is ignored, and so is the one that
+wakes it up (the time it took to fall asleep is well within the window, so
+it is still open at the resume). When the window closes the screen is lit,
+in case the suspend never came. Whatever the button does in the second after
+a resume that the clocks show (CLOCK_BOOTTIME or CLOCK_REALTIME jumping ahead
+of CLOCK_MONOTONIC) is ignored too; the Switch's L4T kernel does not move
+CLOCK_BOOTTIME on a suspend, so the clocks alone missed it. It reads /dev/input, as the
 input group (Retrobox puts the user there).
 """
 # pylint: disable=invalid-name  # an installed command, named like one
@@ -51,9 +52,10 @@ from pathlib import Path
 HOLD = 0.65
 # what the button does this long after a resume is ignored, in seconds
 WAKE_GUARD = 1.0
-# the first press this long (CLOCK_MONOTONIC, which stops while the console
-# sleeps) after a suspend this asked for is the one that woke it, in seconds
-WAKE_WINDOW = 30.0
+# how long the button does nothing after a suspend this asked for, in seconds
+# of CLOCK_MONOTONIC (which stops while the console sleeps): falling asleep
+# takes about 2.5 s of it, the rest covers the press that wakes it up
+SUSPEND_WINDOW = 5.0
 # how often the devices are looked for again, in seconds
 RESCAN = 5.0
 # a device with more keys than this is a keyboard, not the console's button
@@ -78,8 +80,9 @@ class Button:
     """What the button is doing: when it went down, and what is decided.
 
     press() and release() take the button's events, tick() the passing of
-    time; each returns "suspend", "menu", "woke" (the press that woke the
-    console up: light the screen) or None, the action to take.
+    time; each returns "suspend", "menu", "settled" (the window after a
+    suspend closed: light the screen, in case it never came) or None, the
+    action to take.
     """
 
     hold: float = HOLD
@@ -91,8 +94,10 @@ class Button:
     swallow: bool = False
 
     def sleeping(self, now: float) -> None:
-        """A suspend was asked for: the next press is the one that wakes."""
+        """A suspend was asked for: the button does nothing for a while."""
         self.asleep_at = now
+        self.down_at = None
+        self.fired = False
 
     def woke(self, now: float, slept: float) -> bool:
         """A resume (SLEPT grew): the button is ignored for a while.
@@ -110,12 +115,9 @@ class Button:
         """The button went down."""
         if now < self.ignore_until:
             return None
-        if self.asleep_at is not None:
-            woke = now - self.asleep_at < WAKE_WINDOW
-            self.asleep_at = None
-            if woke:
-                self.swallow = True
-                return "woke"
+        if self.asleep_at is not None and now - self.asleep_at < SUSPEND_WINDOW:
+            self.swallow = True
+            return None
         self.down_at = now
         self.fired = False
         return None
@@ -133,7 +135,11 @@ class Button:
         return "suspend" if now - down_at < self.hold else "menu"
 
     def tick(self, now: float) -> str | None:
-        """Time passing: the menu opens as soon as the button was held HOLD."""
+        """Time passing: the menu opens as soon as the button was held HOLD,
+        and the window after a suspend closes."""
+        if self.asleep_at is not None and now - self.asleep_at >= SUSPEND_WINDOW:
+            self.asleep_at = None
+            return "settled"
         if self.down_at is None or self.fired or now - self.down_at < self.hold:
             return None
         self.fired = True
@@ -235,9 +241,9 @@ class Screen:
 
 def act(action: str, overlay: str | None, screen: Screen) -> None:
     """Does ACTION: suspends, opens the overlay's power options, or lights the
-    screen after the press that woke the console up."""
+    screen when the window after a suspend closes."""
     log(action)
-    if action == "woke":
+    if action == "settled":
         screen.on()
     elif action == "menu" and overlay:
         run([overlay, "--power"])

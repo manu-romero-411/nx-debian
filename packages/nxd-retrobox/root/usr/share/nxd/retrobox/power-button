@@ -146,6 +146,12 @@ class Button:
         return max(self.down_at + self.hold - now, 0.0)
 
 
+def log(message: str) -> None:
+    """A line of the log, with the time to the millisecond (to measure)."""
+    stamp = time.strftime("%H:%M:%S") + f".{int(time.time() * 1000) % 1000:03d}"
+    print(f"{stamp} power-button: {message}", file=sys.stderr, flush=True)
+
+
 def find_overlay() -> str | None:
     """retrobox-overlay: in the PATH, else next to the retrobox command (its
     bin/), else in $RETROBOX_ROOTDIR/bin or /opt/retrobox/bin."""
@@ -167,7 +173,7 @@ def run(command: list[str]) -> None:
             command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             start_new_session=True)
     except OSError as error:
-        print(f"power-button: {command[0]}: {error}", file=sys.stderr)
+        log(f"{command[0]}: {error}")
 
 
 class Screen:
@@ -230,7 +236,7 @@ class Screen:
 def act(action: str, overlay: str | None, screen: Screen) -> None:
     """Does ACTION: suspends, opens the overlay's power options, or lights the
     screen after the press that woke the console up."""
-    print(f"power-button: {action}", file=sys.stderr, flush=True)
+    log(action)
     if action == "woke":
         screen.on()
     elif action == "menu" and overlay:
@@ -267,7 +273,7 @@ class Devices:
             if any(key in keys for key in BUTTON_KEYS) and len(keys) <= MAX_KEYS:
                 self.known[path] = device
                 self.selector.register(device, selectors.EVENT_READ)
-                print(f"power-button: {path} ({device.name})", file=sys.stderr, flush=True)
+                log(f"{path} ({device.name})")
             else:
                 device.close()
 
@@ -292,8 +298,7 @@ def main() -> int:
     """Wait for the power button until the session ends."""
     overlay = find_overlay()
     if overlay is None:
-        print("power-button: retrobox-overlay is not installed: a hold suspends too",
-              file=sys.stderr)
+        log("retrobox-overlay is not installed: a hold suspends too")
     signal.signal(signal.SIGCHLD, signal.SIG_IGN)
     devices = Devices()
     button = Button()

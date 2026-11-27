@@ -270,7 +270,11 @@ before a suspend and reopens it after it — as the user that ran it, with the
 environment and the invocation that ran it (the graphics environment of the
 session that was open at the suspend) — but only when it was running at the
 suspend: a session without a compositor, a desktop one for example, is left
-alone.
+alone. It reopens it in a transient service of its own, `nxd-picom-resume`
+(as the user, without `-b`, a second after the resume): started by the hook
+itself, picom was in `systemd-suspend.service`'s cgroup, which systemd empties
+when that service ends, a moment after the resume, and the session was left
+without a compositor (no vsync: tearing).
 The image's hook `config/hooks/retrobox/30-retrobox-polkit.sh` writes the
 console's polkit rule for the user (`retrobox-polkit-rule`): power off, reboot,
 and the time zone and keyboard layout that EmulationStation's console mode sets

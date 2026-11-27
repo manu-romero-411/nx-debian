@@ -11,7 +11,8 @@
 # The reopening is the same as the session's: the same user, the same
 # environment and the same invocation that ran it before the suspend
 # (recorded in the markers before the suspend; the graphics environment of
-# the session that was open at the suspend is respected). The markers are
+# the session that was open at the suspend is respected), in a transient
+# service, nxd-picom-resume (see the post step). The markers are
 # in /run, which is tmpfs: an interrupted suspend leaves none behind.
 #
 # The markers live in the variable NXD_PICOM_STATE_DIR (/run by default):
@@ -27,13 +28,16 @@ ENV="${STATE_DIR}/nxd-picom.env"
 USER="${STATE_DIR}/nxd-picom.user"
 CMD="${STATE_DIR}/nxd-picom.cmd"
 
-# The pid of the running picom, or nothing. No procps: read /proc directly.
+# The pid of the running picom (not a zombie), or nothing. No procps: read
+# /proc directly.
 picom_pid() {
     local comm pid
     for comm in /proc/[0-9]*/comm; do
         [ -r "${comm}" ] || continue
         if [ "$(cat "${comm}" 2>/dev/null)" = "picom" ]; then
             pid="$(basename "$(dirname "${comm}")")"
+            # a picom that has ended and is not reaped yet is not running
+            grep -q '^State:[[:space:]]*Z' "/proc/${pid}/status" 2>/dev/null && continue
             [ -n "${pid}" ] && printf '%s\n' "${pid}" && return 0
         fi
     done
@@ -83,10 +87,36 @@ post)
         esac
     done
     rm -f "${ENV}" "${USER}" "${CMD}"
-    if [ -n "${cmd}" ]; then
-        runuser -u "${user}" -- env -i "${env_args[@]}" sh -c "${cmd}" || \
-            echo "nxd-picom: could not reopen picom (${cmd}): no compositor" >&2
+    [ -n "${cmd}" ] || exit 0
+    # In a unit of its own: run from here, picom would belong to
+    # systemd-suspend.service, and systemd kills whatever is left in a
+    # service's cgroup when it ends, which is a moment after the resume: the
+    # compositor was gone again, and the session tore. So a transient service
+    # of the system's, as the user and with the session's environment, and
+    # without -b/--daemon, so that the unit lives as long as picom does. It
+    # waits a moment (NXD_PICOM_RESUME_DELAY, 1 s) for the display to be back.
+    words=()
+    read -ra all <<< "${cmd}"
+    for word in "${all[@]}"; do
+        case "${word}" in
+        -b | --daemon) ;;
+        *) words+=("${word}") ;;
+        esac
+    done
+    gid="$(id -g "${user}" 2>/dev/null)"
+    if command -v systemd-run > /dev/null 2>&1 && [ -n "${gid}" ]; then
+        systemctl reset-failed nxd-picom-resume.service 2> /dev/null || true
+        # shellcheck disable=SC2016 # expanded by that sh, not by this one
+        if systemd-run --no-block --collect --quiet --unit=nxd-picom-resume \
+            --uid="${uid}" --gid="${gid}" -p Type=exec \
+            -- env -i "${env_args[@]}" sh -c 'sleep "$0"; exec "$@"' \
+            "${NXD_PICOM_RESUME_DELAY:-1}" "${words[@]}"; then
+            exit 0
+        fi
     fi
+    # no systemd-run: as before (picom may not outlive the suspend's service)
+    runuser -u "${user}" -- env -i "${env_args[@]}" sh -c "${cmd}" || \
+        echo "nxd-picom: could not reopen picom (${cmd}): no compositor" >&2
     ;;
 esac
 exit 0

@@ -227,31 +227,38 @@ check "the hook reopens picom with its environment and invocation" grep -q 'sh -
 check "the hook leaves a session without picom alone" grep -qF 'pid="$(picom_pid)" || exit 0' "${PMHOOK}"
 check "the hook leaves a resumed picom alone" grep -qF 'if [ -n "$(picom_pid)" ]; then' "${PMHOOK}"
 
-# end-to-end, with a fake picom (a process that sleeps, and the kernel
-# calls it "picom") and a runuser stub: the pre hook records the user, the
-# environment and the invocation and kills it; the post hook reopens it as
-# the recorded user, with the recorded environment and invocation.
+# end-to-end, with a fake picom (a script that waits, and the kernel
+# calls it "picom") and a systemd-run stub: the pre hook records the user,
+# the environment and the invocation and kills it; the post hook reopens it
+# in a unit of its own, as the recorded user, with the recorded environment
+# and invocation, without -b (the unit lives as long as picom).
 check "the sleep hook closes the compositor and reopens it at the resume" bash -c '
+    PMHOOK="$1"
     tmp="$(mktemp -d)"
     trap "rm -rf \"${tmp}\"" EXIT
     mkdir -p "${tmp}/bin" "${tmp}/state"
-    ln -s /bin/sleep "${tmp}/bin/picom"
-    printf "#!/bin/sh\necho \"$@\" >\""${tmp}"/runuser.log\"\n" > "${tmp}/bin/runuser"
-    chmod +x "${tmp}/bin/runuser"
+    # a script: the kernel names its process after it, and it takes -b
+    printf "#!/bin/sh\nwhile :; do sleep 1; done\n" > "${tmp}/bin/picom"
+    chmod +x "${tmp}/bin/picom"
+    printf "#!/bin/sh\necho \"\$*\" >\""${tmp}"/run.log\"\n" > "${tmp}/bin/systemd-run"
+    printf "#!/bin/sh\nexit 0\n" > "${tmp}/bin/systemctl"
+    chmod +x "${tmp}/bin/systemd-run" "${tmp}/bin/systemctl"
     PATH="${tmp}/bin:${PATH}" NXD_PICOM_STATE_DIR="${tmp}/state" bash -c "
-        env -i PATH=/usr/bin:/bin DISPLAY=:0 XAUTHORITY=x HOME=/home/user ${tmp}/bin/picom 600 &
+        env -i PATH=/usr/bin:/bin DISPLAY=:0 XAUTHORITY=x HOME=/home/user ${tmp}/bin/picom 600 -b &
         pid=\$!
-        for _ in \$(seq 1 40); do [ -r /proc/\${pid}/cmdline ] && break; sleep 0.25; done
+        for _ in \$(seq 1 40); do grep -qx picom /proc/\${pid}/comm 2> /dev/null && break; sleep 0.25; done
         ${PMHOOK} pre
-        [ ! -d /proc/\${pid} ]
-        [ "\"$(cat ${tmp}/state/nxd-picom.user)\"" = "\"$(id -nu)\"" ]
-        grep -q DISPLAY=:0 ${tmp}/state/nxd-picom.env
-        grep -q . ${tmp}/state/nxd-picom.cmd
-        ${PMHOOK} post
-        grep -q "runuser" ${tmp}/runuser.log && grep -q "DISPLAY=:0" ${tmp}/runuser.log
+        ! grep -q ^State:.*[RS] /proc/\${pid}/status 2> /dev/null &&
+        grep -qx $(id -u) ${tmp}/state/nxd-picom.user &&
+        grep -q DISPLAY=:0 ${tmp}/state/nxd-picom.env &&
+        grep -q . ${tmp}/state/nxd-picom.cmd &&
+        ${PMHOOK} post &&
+        grep -q -- --unit=nxd-picom-resume ${tmp}/run.log && grep -q DISPLAY=:0 ${tmp}/run.log &&
+        grep -q -- --uid=$(id -u)[[:space:]] ${tmp}/run.log &&
+        grep -q picom.600\$ ${tmp}/run.log &&
         ! ls ${tmp}/state/nxd-picom.* > /dev/null 2>&1
     "
-'
+' _ "${PMHOOK}"
 ESSET="${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/emulationstation/es_settings.cfg"
 check "the theme's text is 125 %, for a small screen" grep -q 'name="FontScale" value="1.25"' "${ESSET}"
 check "the menus' text is 125 %" grep -q 'name="MenuFontScale" value="1.25"' "${ESSET}"

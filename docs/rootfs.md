@@ -233,6 +233,7 @@ names files of `config/apt/repos/` (both images add `moonlight-l4t`, for
 | `REPO_KEY_FPR` | the key's fingerprint, checked before every build and spike |
 | `REPO_KEY_URL` | where the key comes from: a build without the key stops with the `curl` command that fetches it |
 | `REPO_LIST` | the package list of what it brings (`nxd spike` does not look for those in Debian) |
+| `REPO_NEEDS` | packages of nx-debian (`packages/`) that what it brings needs: built for the variant and installed with it (`build-packages.sh --with`) |
 
 The image keeps the source (`/etc/apt/sources.list.d/nxd-<name>.sources`), the
 key (`/etc/apt/keyrings`) and the pins (`/etc/apt/preferences.d/20-nxd-<name>.pref`),

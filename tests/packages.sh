@@ -180,8 +180,8 @@ check "the video group may write the backlight" \
     grep -q 'chgrp video /sys%p/\$\$f; chmod g+w /sys%p/\$\$f' "${NXD_ROOT}/packages/nxd-common/root/usr/lib/udev/rules.d/70-nxd-backlight.rules"
 check "nxd-retrobox needs xset" grep -qw 'x11-xserver-utils' <<< "$(dpkg-deb -f "${RETRO}" Depends)"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
-check "--variant xfce builds nxd-xfce and the packages of every image" bash -c \
-    "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant xfce '${tmp}/xfce' && test \"\$(ls '${tmp}/xfce' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-qt6-compat_1_all.deb nxd-xfce_1_all.deb '"
+check "--variant xfce builds nxd-common and nxd-xfce" bash -c \
+    "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant xfce '${tmp}/xfce' && test \"\$(ls '${tmp}/xfce' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-xfce_1_all.deb '"
 XFCE="${tmp}/debs/nxd-xfce_1.2.3_all.deb"
 check "nxd-xfce is built" test -f "${XFCE}"
 check "nxd-xfce needs the nxd-common of its version" grep -q 'nxd-common (= 1.2.3)' <<< "$(dpkg-deb -f "${XFCE}" Depends)"
@@ -190,8 +190,8 @@ check "the desktop's defaults are conffiles" \
     grep -qx '/etc/xdg/nxd/xfce4/panel/default.xml' <<< "$(dpkg-deb --ctrl-tarfile "${XFCE}" | tar -xO ./conffiles)"
 check_not "nxd-xfce owns no file of the XFCE packages" grep -qE '\./etc/xdg/xfce4/' <<< "$(dpkg-deb -c "${XFCE}")"
 check_not "switch-rotate is not in the console" grep -q 'switch-rotate' <<< "$(dpkg-deb -c "${RETRO}")"
-check "--variant retrobox builds its package and the ones of every image" bash -c \
-    "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant retrobox '${tmp}/rb' && test \"\$(ls '${tmp}/rb' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-qt6-compat_1_all.deb nxd-retrobox_1_all.deb '"
+check "--variant retrobox builds both" bash -c \
+    "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant retrobox '${tmp}/rb' && test \"\$(ls '${tmp}/rb' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-retrobox_1_all.deb '"
 check_not "a version that is not one is refused" "${NXD_ROOT}/scripts/build-packages.sh" --version v1 "${tmp}/bad"
 
 ## the performance backend (nxd-common) and indicator (nxd-xfce)
@@ -799,10 +799,12 @@ check "...with Ubuntu's names of the Qt 6 libraries Moonlight asks for" \
 check "...above the versions Debian's libraries break" \
     dpkg --compare-versions 6.8.2+nxd gt 6.8.2+dfsg-99+deb13u99
 check "...on top of Debian's" test "$(dpkg-deb -f "${QT6}" Depends)" = "libqt6gui6 (>= 6.8.2), libqt6network6 (>= 6.8.2)"
-"${NXD_ROOT}/scripts/build-packages.sh" --version 1.2.3 --variant retrobox "${tmp}/vdebs" > /dev/null 2>&1
-check "a variant's build has the packages of every image" test -f "${tmp}/vdebs/nxd-qt6-compat_1.2.3_all.deb" -a -f "${tmp}/vdebs/nxd-common_1.2.3_all.deb"
-check "...its own" test -f "${tmp}/vdebs/nxd-retrobox_1.2.3_all.deb"
-check "...and not another variant's" test ! -e "${tmp}/vdebs/nxd-xfce_1.2.3_all.deb"
+"${NXD_ROOT}/scripts/build-packages.sh" --version 1.2.3 --variant retrobox --with nxd-qt6-compat "${tmp}/vdebs" > /dev/null 2>&1
+check "--with adds a package to a variant's build" test -f "${tmp}/vdebs/nxd-qt6-compat_1.2.3_all.deb" -a -f "${tmp}/vdebs/nxd-retrobox_1.2.3_all.deb"
+check "...and nothing else" test ! -e "${tmp}/vdebs/nxd-xfce_1.2.3_all.deb"
+check_not "--with refuses a package that does not exist" \
+    "${NXD_ROOT}/scripts/build-packages.sh" --version 1.2.3 --variant retrobox --with nxd-nope "${tmp}/vdebs2"
+check "Moonlight's repository needs it" grep -qx 'REPO_NEEDS="nxd-qt6-compat"' "${NXD_ROOT}/config/apt/repos/moonlight-l4t.conf"
 
 
 check "the Megascript's runner is executable" grep -q '^-rwxr-xr-x .*\./usr/lib/nxd/megascript$' <<< "$(dpkg-deb -c "${COMMON}")"

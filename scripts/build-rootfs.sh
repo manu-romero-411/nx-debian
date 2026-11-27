@@ -170,7 +170,7 @@ for repo in "${APT_REPOS[@]}"; do
 done
 # What the extra repositories bring (their REPO_LIST) is installed with
 # nx-debian's packages, not before them: it may need one of them
-# (moonlight-qt, built for Ubuntu, needs nxd-qt6-compat's names).
+# (moonlight-qt, built for Ubuntu, needs nxd-qt6-compat's names: REPO_NEEDS).
 LATE=()
 for repo in "${APT_REPOS[@]}"; do
     list="$(repo_setting "${repo}" REPO_LIST)"
@@ -212,6 +212,12 @@ fi
 HAVE_DEBS=1
 if [[ "${DRY_RUN}" -eq 0 ]]; then
     PACKAGE_ARGS=(--variant "${VARIANT}")
+    # what the variant's extra repositories need of nx-debian's packages
+    for repo in "${APT_REPOS[@]}"; do
+        for need in $(repo_setting "${repo}" REPO_NEEDS); do
+            PACKAGE_ARGS+=(--with "${need}")
+        done
+    done
     [[ -z "${NXD_PACKAGE_VERSION:-}" ]] || PACKAGE_ARGS+=(--version "${NXD_PACKAGE_VERSION}")
     "${SCRIPT_DIR}/build-packages.sh" "${PACKAGE_ARGS[@]}" "${STAGE}/nxd-debs"
 fi

@@ -2,16 +2,16 @@
 # Builds the packages of nx-debian (packages/<name>/) as .deb files: nxd-common,
 # the files of every image, and nxd-<variant>, the files of one variant.
 #
-#   build-packages.sh [--version V] [--variant NAME] DEST_DIR
+#   build-packages.sh [--version V] [--variant NAME [--with PACKAGE]...] DEST_DIR
 #   build-packages.sh --print-version
 #
 # Each packages/<name>/ has root/ (the files, as they go in /) and DEBIAN/
 # (control.in, whose @VERSION@ is replaced, and the maintainer scripts and
 # triggers, copied as they are). Every file under root/etc is a conffile.
 #
-# Without --variant, every package is built; with it, the ones of every image
-# (nxd-common, and any other that is not the nxd-<variant> of a variant of
-# config/variants) and nxd-NAME (if there is one). The version, unless --version gives one, is the
+# Without --variant, every package is built; with it, nxd-common, nxd-NAME
+# (if there is one) and the ones --with names (one per --with: what the
+# variant's extra apt repositories need, their REPO_NEEDS). The version, unless --version gives one, is the
 # one of a continuous build (the rule of .github/scripts/continuous-version.sh,
 # as the CI's): the last release's, from the highest vX.Y or vX.Y.Z tag (a
 # missing patch is 0; no tag: 0.0.0), with the UTC time of the build as one
@@ -30,6 +30,7 @@ VERSION=""
 VARIANT=""
 DEST=""
 PRINT_VERSION=0
+WITH=()
 
 usage() {
     sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
@@ -39,6 +40,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --version) VERSION="${2:?--version needs a value}"; shift 2 ;;
         --variant) VARIANT="${2:?--variant needs a value}"; shift 2 ;;
+        --with) WITH+=("${2:?--with needs a value}"); shift 2 ;;
         --print-version) PRINT_VERSION=1; shift ;;
         -h | --help) usage; exit 0 ;;
         -*) die "unknown option: $1" ;;
@@ -75,24 +77,19 @@ fi
 [[ -n "${DEST}" ]] || { usage >&2; exit 2; }
 need_cmd dpkg-deb "install dpkg (or build in a container: sudo ./nxd container build)"
 
-# variant_package NAME: whether packages/NAME is the package of a variant
-# (nxd-<variant>, for one image only); the others go in every image.
-variant_package() {
-    local variant
-    while IFS= read -r variant; do
-        [[ "$1" != "nxd-${variant}" ]] || return 0
-    done < <(list_variants)
-    return 1
-}
-
 names=(nxd-common)
-for dir in "${PACKAGES_DIR}"/nxd-*/; do
-    name="$(basename "${dir}")"
-    [[ "${name}" != nxd-common ]] || continue
-    if [[ -z "${VARIANT}" ]] || ! variant_package "${name}" || [[ "${name}" == "nxd-${VARIANT}" ]]; then
+if [[ -n "${VARIANT}" ]]; then
+    [[ ! -d "${PACKAGES_DIR}/nxd-${VARIANT}" ]] || names+=("nxd-${VARIANT}")
+    for name in "${WITH[@]}"; do
+        [[ -d "${PACKAGES_DIR}/${name}" ]] || die "--with: no package ${name} in ${PACKAGES_DIR}"
         names+=("${name}")
-    fi
-done
+    done
+else
+    for dir in "${PACKAGES_DIR}"/nxd-*/; do
+        name="$(basename "${dir}")"
+        [[ "${name}" == nxd-common ]] || names+=("${name}")
+    done
+fi
 
 # The files get the date of the last commit, so that two builds of one commit
 # are the same file.

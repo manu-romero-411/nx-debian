@@ -129,8 +129,10 @@ EOF
 # that name them in NXD_APT_REPOS. A repository's file sets REPO_URL,
 # REPO_SUITE, REPO_COMPONENTS, REPO_KEY (a file of config/keys, kept in git
 # like the L4T key), REPO_KEY_FPR, REPO_KEY_URL (where the key was taken
-# from, for whoever refreshes it) and REPO_LIST (the package list of what it
-# brings, which `nxd spike` does not look for in Debian).
+# from, for whoever refreshes it), REPO_LIST (the package list of what it
+# brings, which `nxd spike` does not look for in Debian) and REPO_NEEDS (the
+# packages of nx-debian, packages/, that those need: built and installed with
+# them).
 
 # repo_setting NAME VAR: the value of VAR in config/apt/repos/NAME.conf.
 repo_setting() {

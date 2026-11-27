@@ -1,0 +1,10 @@
+// Installed by nxd-common: the members of the nxd group (the console's user)
+// may run nxd-update through pkexec (the polkit action org.nxd.update) from
+// any session, ssh included, without a password; the action itself already
+// allows the user at the console (the active session).
+polkit.addRule(function(action, subject) {
+  if (action.id == "org.nxd.update" && subject.isInGroup("nxd")) {
+    return polkit.Result.YES;
+  }
+  return polkit.Result.NOT_HANDLED;
+});

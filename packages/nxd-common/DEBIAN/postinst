@@ -4,7 +4,8 @@
 # administrator chose), and has the locales of
 # /usr/share/nxd/locales generated, gives back to root the files of the
 # image's overlay that older images left to the user, and replaces
-# Switchroot's UCM profile with one that leaves the volume alone.
+# Switchroot's UCM profile with one that leaves the volume alone; makes the
+# nxd group, whose members update the system without a password.
 #
 # The Switch's Wi-Fi/Bluetooth chip asks for firmware files under
 # other names than the ones the L4T packages ship: link them, and rebuild the
@@ -53,6 +54,17 @@ locales() {
     /usr/lib/nxd/ensure-locales || echo "nxd-common: the locales could not be generated" >&2
 }
 
+# group: the nxd group, whose members update the system without a password
+# (/etc/sudoers.d/nxd-update, rules.d/50-nxd-update.rules). When it is made,
+# the console's user (uid 1000) goes in, so that a console installed before
+# gets it; the image's user goes in when it is made (config/hooks/20-user.sh).
+group() {
+    getent group nxd > /dev/null 2>&1 && return 0
+    addgroup --system nxd > /dev/null 2>&1 || groupadd --system nxd
+    user="$(getent passwd 1000 | cut -d: -f1)"
+    [ -z "${user}" ] || usermod --append --groups nxd "${user}" || true
+}
+
 # console_font: Terminus (regular, not bold), 8x16, for the text consoles,
 # in /etc/default/console-setup and in debconf (so that a dpkg-reconfigure of
 # console-setup keeps it). Only on the first install: a font chosen later stays.
@@ -99,6 +111,7 @@ case "${1:-}" in
         # $2 is the version that was installed before: none on a first install
         [ -n "${2:-}" ] || console_font
         root_owned
+        group
         units
         locales
         ucm

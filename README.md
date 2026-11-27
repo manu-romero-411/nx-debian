@@ -115,9 +115,12 @@ Hekate is not in the installers: install or update it as you usually do.
 ## Updating
 
 ```bash
-sudo nxd-update                       # Debian, L4T, nx-debian and Retrobox (releases)
-sudo nxd-update --allow-prereleases   # ...including pre-releases
+nxd-update                       # Debian, L4T, nx-debian and Retrobox (releases)
+nxd-update --allow-prereleases   # ...including pre-releases
 ```
+
+The console's user needs no password for it (the `nxd` group: a sudo rule and
+a polkit one).
 
 It upgrades Debian and the L4T packages, then nx-debian's packages and the
 Retrobox ones from their GitHub releases, and cleans up. Files you changed

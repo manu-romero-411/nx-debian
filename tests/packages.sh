@@ -640,7 +640,33 @@ if [[ "${EUID}" -ne 0 ]]; then
     chmod +x "${tmp}/bin/sudo"
     PATH="${tmp}/bin:${PATH}" "${UPDATE}" --allow-prereleases > /dev/null 2>&1 || true
     check "through sudo, with the options it was given" grep -qx -- '--allow-prereleases' "${tmp}/sudo-args"
+    check "...as itself, by its real path (the one sudoers names)" \
+        test "$(sed -n 2p "${tmp}/sudo-args")" = "$(readlink -f "${UPDATE}")"
+    check "...marked, so that it never goes round again" grep -qx -- '--escalated' "${tmp}/sudo-args"
+    check_not "...and a second time it stops instead" "${UPDATE}" --escalated
+    check_not "--download-only is not accepted through sudo" env SUDO_USER=x "${UPDATE}" --download-only "${tmp}/dl-sudo"
 fi
+
+## no password for the nxd group: sudo and polkit
+SUDOERS="${CPKG}/root/etc/sudoers.d/nxd-update"
+check "the sudo rule is the nxd group's, for nxd-update only, with no password" \
+    grep -qx '%nxd ALL=(root) NOPASSWD: NXD_UPDATE, !NXD_UPDATE_DOWNLOAD' "${SUDOERS}"
+check "...for its real path" grep -qx 'Cmnd_Alias NXD_UPDATE = /usr/bin/nxd-update' "${SUDOERS}"
+check "...not for --download-only" grep -qx 'Cmnd_Alias NXD_UPDATE_DOWNLOAD = /usr/bin/nxd-update \*--download-only\*' "${SUDOERS}"
+if command -v visudo > /dev/null 2>&1; then
+    check "...which sudo takes" visudo -cqf "${SUDOERS}"
+fi
+check "...read-only in the package (sudo wants 0440)" \
+    grep -q '^-r--r----- .*\./etc/sudoers.d/nxd-update$' <<< "$(dpkg-deb -c "${COMMON}")"
+check "...a conffile" bash -c "dpkg-deb --ctrl-tarfile '${COMMON}' | tar -xO ./conffiles | grep -qx /etc/sudoers.d/nxd-update"
+check "the polkit rule lets the nxd group run it with pkexec" \
+    grep -q 'action.id == "org.nxd.update" && subject.isInGroup("nxd")' \
+    "${CPKG}/root/usr/share/polkit-1/rules.d/50-nxd-update.rules"
+check "nxd-common makes the group" grep -q 'addgroup --system nxd' "${CPKG}/DEBIAN/postinst"
+check "...with the console's user in it, on a console installed before" grep -q 'getent passwd 1000' "${CPKG}/DEBIAN/postinst"
+# shellcheck disable=SC2016 # the literal text of the hook
+check "the image's user is in it" grep -qx 'usermod --append --groups nxd "${name}"' "${NXD_ROOT}/config/hooks/20-user.sh"
+check "nxd-common needs sudo" grep -qw 'sudo' <<< "$(dpkg-deb -f "${COMMON}" Depends)"
 
 printf '%s\n' "bad 1.0" > "${NXD_UPDATE_INSTALLED}"
 printf '%s\n' Org/bad > "${NXD_RELEASES_DIR}/retrobox.list"

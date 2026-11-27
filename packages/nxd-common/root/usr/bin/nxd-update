@@ -36,13 +36,17 @@
 # --download-only DIR stops after downloading and checking the packages of
 # step 2 into DIR: no apt, nothing installed, root not needed.
 #
-# Runs itself through sudo when it is not root. Sleep, shutdown and the power
-# button are held off while it runs. Configuration files changed by hand are
-# kept (dpkg's --force-confold). GitHub is read without a token.
+# Runs itself through sudo when it is not root; sudo asks no password of the
+# members of the nxd group (/etc/sudoers.d/nxd-update, nxd-common), nor does
+# pkexec (/usr/share/polkit-1/rules.d/50-nxd-update.rules). Sleep, shutdown
+# and the power button are held off while it runs. Configuration files
+# changed by hand are kept (dpkg's --force-confold). GitHub is read without a
+# token (GITHUB_TOKEN, if set, lifts its limit; sudo passes it on).
 set -euo pipefail
 
 PRERELEASES=0
 DOWNLOAD_ONLY=""
+ESCALATED=0
 LISTS_DIR="${NXD_RELEASES_DIR:-/usr/share/nxd/releases.d}"
 # the lists retrobox-update reads; when it is there, those are its
 RETROBOX_LISTS_DIR="${NXD_RETROBOX_RELEASES_DIR:-/etc/retrobox/releases.d}"
@@ -73,7 +77,7 @@ die() {
 }
 
 usage() {
-    sed -n '2,32p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+    sed -n '2,/^set -euo/p' "${BASH_SOURCE[0]}" | sed '$d; s/^# \{0,1\}//'
 }
 
 # the arguments as given, for running again through sudo and systemd-inhibit
@@ -83,13 +87,21 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --allow-prereleases) PRERELEASES=1; shift ;;
         --download-only) DOWNLOAD_ONLY="${2:?--download-only needs a directory}"; shift 2 ;;
+        --escalated) ESCALATED=1; shift ;;
         -h | --help) usage; exit 0 ;;
         *) usage >&2; exit 2 ;;
     esac
 done
 
+# root first: sudo runs this very file (its /usr/bin path, the one the rule
+# of sudoers names). --download-only never goes through sudo, nor is it
+# accepted from it (it writes wherever it is told).
+if [[ -n "${DOWNLOAD_ONLY}" && -n "${SUDO_USER:-}" ]]; then
+    die "--download-only does not run as root through sudo"
+fi
 if [[ -z "${DOWNLOAD_ONLY}" && "${EUID}" -ne 0 ]]; then
-    exec sudo -- "$0" "${ARGS[@]}"
+    [[ "${ESCALATED}" -eq 0 ]] || die "it needs root"
+    exec sudo -- "$(readlink -f -- "$0")" --escalated "${ARGS[@]}"
 fi
 if [[ -z "${DOWNLOAD_ONLY}" && -z "${NXD_UPDATE_INHIBITED:-}" && -d /run/systemd/system ]] &&
     command -v systemd-inhibit > /dev/null 2>&1; then

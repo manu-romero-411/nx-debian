@@ -86,14 +86,27 @@ theirs: keep them equal):
 ## nxd-update
 
 ```
-sudo nxd-update                       # Debian, L4T, nx-debian, Retrobox: releases
-sudo nxd-update --allow-prereleases   # ...and the pre-releases too
+nxd-update                       # Debian, L4T, nx-debian, Retrobox: releases
+nxd-update --allow-prereleases   # ...and the pre-releases too
 ```
 
 It runs itself through `sudo` when needed, and holds off sleep, shutdown and
-the power button while it works. On the Switch the Retrobox overlay's *Update
-system* runs it as root with `pkexec` (nxd-common's polkit action `org.nxd.update`,
-which the user at the console gets without a password). In order:
+the power button while it works. As `retrobox-update` does on the Retrobox
+side, the members of the `nxd` group (the console's user) need no password:
+
+- `sudo`: `/etc/sudoers.d/nxd-update` (a conffile, 0440) lets the group run
+  `/usr/bin/nxd-update` as root with `NOPASSWD`, keeping `GITHUB_TOKEN`; not
+  with `--download-only`, which writes where it is told and needs no root (it
+  refuses to run through sudo). Remove the file, or the user from the group,
+  to get the password prompt back.
+- `pkexec`: the Retrobox overlay's *Update system* runs it as root with
+  nxd-common's polkit action `org.nxd.update`, which the user at the console
+  gets without a password, and the group from any session, ssh included
+  (`/usr/share/polkit-1/rules.d/50-nxd-update.rules`).
+
+nxd-common's `postinst` makes the group, with the console's user (uid 1000) in
+it when it makes it, so a console installed before gets it too; the image puts
+its user in it (`config/hooks/20-user.sh`). In order:
 
 1. `retrobox-update --no-recommends`, run whole (retrobox-system-settings'
    updater): `apt-get update` and `apt-get dist-upgrade` (Debian and the L4T

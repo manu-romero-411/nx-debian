@@ -1,0 +1,12 @@
+# Installed by nxd-common (/etc/sudoers.d): the members of the nxd group (the
+# console's user) update the system with nxd-update without typing the
+# password of sudo, as retrobox-system-settings' sudoers.d/retrobox-nopasswd
+# does for retrobox-update. Only this command, which belongs to root and which
+# the user cannot edit; not with --download-only, which writes where it is
+# told to as root (it needs no root anyway). GITHUB_TOKEN goes through, for
+# the GitHub API's limit. Remove this file, or the user from the group, to get
+# the password prompt back.
+Cmnd_Alias NXD_UPDATE = /usr/bin/nxd-update
+Cmnd_Alias NXD_UPDATE_DOWNLOAD = /usr/bin/nxd-update *--download-only*
+Defaults!NXD_UPDATE env_keep += "GITHUB_TOKEN"
+%nxd ALL=(root) NOPASSWD: NXD_UPDATE, !NXD_UPDATE_DOWNLOAD

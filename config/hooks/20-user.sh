@@ -28,6 +28,10 @@ done
 # without a password (retrobox-system-settings' sudoers.d/retrobox-nopasswd).
 groupadd --system --force retrobox
 usermod --append --groups retrobox "${name}"
+# The same for nxd-update (nxd-common's sudoers.d/nxd-update and its polkit
+# rule); nxd-common made the group already.
+groupadd --system --force nxd
+usermod --append --groups nxd "${name}"
 
 # Straight into the session of the variant, when there is a display manager.
 if [ -n "${session}" ] && [ -d /etc/lightdm ]; then

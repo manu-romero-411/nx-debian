@@ -105,6 +105,10 @@ build() {
     fi
     # what git does not keep: the permissions are the usual ones, executables stay so
     chmod -R u+rwX,go+rX,go-w "${tree}"
+    # sudo wants its rules read-only (0440)
+    if [[ -d "${tree}/etc/sudoers.d" ]]; then
+        find "${tree}/etc/sudoers.d" -type f -exec chmod 0440 {} +
+    fi
     mkdir -p "${tree}/usr/share/doc/${name}"
     install -m 644 "${NXD_ROOT}/LICENSE" "${tree}/usr/share/doc/${name}/copyright"
     for file in "${src}"/DEBIAN/*; do

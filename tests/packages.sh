@@ -68,6 +68,9 @@ check "...run under a handle-power-key and handle-suspend-key inhibitor" \
 check "...which logind respects, for both keys" \
     bash -c "grep -qx 'PowerKeyIgnoreInhibited=no' \"\$1\" && grep -qx 'SuspendKeyIgnoreInhibited=no' \"\$1\"" _ \
     "${NXD_ROOT}/packages/nxd-retrobox/root/etc/systemd/logind.conf.d/10-nxd-power.conf"
+# NetworkManager's delay inhibitor held every suspend 1.2 s
+check "a suspend does not wait long for the delay inhibitors" grep -qx 'InhibitDelayMaxSec=250ms' \
+    "${NXD_ROOT}/packages/nxd-retrobox/root/etc/systemd/logind.conf.d/10-nxd-power.conf"
 check "...and it listens to KEY_SLEEP, the key the Switch's button sends" grep -qx 'BUTTON_KEYS = (KEY_SLEEP, KEY_POWER)' \
     "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/power-button"
 cat > "${tmp}/power-test.py" << 'PY'
@@ -247,37 +250,6 @@ check "after the resume it is on" test "$(cat "${tmp}/bl/sys/panel/bl_power")" =
 check "...with the brightness it had" test "$(cat "${tmp}/bl/sys/plain/brightness")" = 90
 check "the hook is in nxd-common, executable" \
     grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-backlight$' <<< "$(dpkg-deb -c "${COMMON}")"
-
-## the Wi-Fi driver is unloaded before a suspend (it took 0.95 s of 1.41 s)
-
-WIFIHOOK="${CPKG}/root/usr/lib/systemd/system-sleep/nxd-wifi"
-mkdir -p "${tmp}/wifi/bin" "${tmp}/wifi/run" "${tmp}/wifi/modules/brcmfmac"
-printf '#!/bin/sh\necho "modprobe $*" >> "%s"\n' "${tmp}/wifi/calls" > "${tmp}/wifi/bin/modprobe"
-printf '#!/bin/sh\necho "systemd-run $*" >> "%s"\n' "${tmp}/wifi/calls" > "${tmp}/wifi/bin/systemd-run"
-chmod +x "${tmp}/wifi/bin/"*
-wifi() {
-    PATH="${tmp}/wifi/bin:${PATH}" NXD_WIFI_STATE_DIR="${tmp}/wifi/run" NXD_MODULE_DIR="${tmp}/wifi/modules" \
-        NXD_SUSPEND_CONFIG="${tmp}/wifi/config" sh "${WIFIHOOK}" "$1"
-}
-echo NXD_SUSPEND_UNLOAD_WIFI=yes > "${tmp}/wifi/config"
-wifi pre
-check "before a suspend the Wi-Fi driver is unloaded" grep -qx 'modprobe -r brcmfmac' "${tmp}/wifi/calls"
-wifi post
-check "...and loaded again after it, in a unit of its own" \
-    grep -q '^systemd-run --no-block --collect --quiet --unit=nxd-wifi-resume modprobe brcmfmac$' "${tmp}/wifi/calls"
-: > "${tmp}/wifi/calls"
-wifi post
-check "...once" test ! -s "${tmp}/wifi/calls"
-rmdir "${tmp}/wifi/modules/brcmfmac"
-wifi pre
-wifi post
-check "a driver that was not loaded is not loaded after" test ! -s "${tmp}/wifi/calls"
-mkdir "${tmp}/wifi/modules/brcmfmac"
-echo NXD_SUSPEND_UNLOAD_WIFI=no > "${tmp}/wifi/config"
-wifi pre
-check "with NXD_SUSPEND_UNLOAD_WIFI=no it stays" test ! -s "${tmp}/wifi/calls"
-check "the setting is a conffile" bash -c "dpkg-deb --ctrl-tarfile '${COMMON}' | tar -xO ./conffiles | grep -qx /etc/default/nxd-suspend"
-check "...unloading by default" grep -qx 'NXD_SUSPEND_UNLOAD_WIFI=yes' "${CPKG}/root/etc/default/nxd-suspend"
 
 ## the touchscreen: a tap is a click, not a short drag (touch slop)
 

@@ -1,8 +1,0 @@
-# Suspending the console (/usr/lib/systemd/system-sleep/nxd-wifi).
-#
-# The Wi-Fi chip's driver (brcmfmac, on PCIe) takes almost a second to
-# suspend, two thirds of what the kernel spends suspending the devices: with
-# it unloaded first, the console is asleep that much sooner. The price: after
-# the resume the driver loads again and the Wi-Fi takes a few seconds longer
-# to come back. "no" keeps the driver loaded across the suspend.
-NXD_SUSPEND_UNLOAD_WIFI=yes

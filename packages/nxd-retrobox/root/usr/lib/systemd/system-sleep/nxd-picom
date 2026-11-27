@@ -61,14 +61,9 @@ pre)
     echo "${uid}" > "${USER}"
     tr '\0' '\n' < "/proc/${pid}/environ" > "${ENV}" 2>/dev/null || { rm -f "${ENV}" "${USER}" "${CMD}"; exit 0; }
     tr '\0' ' ' < "/proc/${pid}/cmdline" > "${CMD}" 2>/dev/null || { rm -f "${ENV}" "${USER}" "${CMD}"; exit 0; }
-    # a moment to end by itself, then killed: picom took half a second to
-    # end after SIGTERM, all of it added to the suspend (the X server and
-    # the kernel free what it held either way)
-    kill "${pid}" 2>/dev/null || true
-    for _ in 1 2; do
-        running "${pid}" || exit 0
-        sleep 0.1
-    done
+    # killed outright: picom took half a second to end after SIGTERM, all of
+    # it added to the time before the system freezes (the X server and the
+    # kernel free what it held either way)
     kill -KILL "${pid}" 2>/dev/null || true
     for _ in 1 2 3 4 5; do
         running "${pid}" || exit 0

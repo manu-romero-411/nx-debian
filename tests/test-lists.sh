@@ -221,7 +221,7 @@ check "the power button suspends the console" grep -qx 'HandlePowerKey=suspend' 
 PMHOOK="${NXD_ROOT}/packages/nxd-retrobox/root/usr/lib/systemd/system-sleep/nxd-picom"
 check "the hook that closes the compositor across a suspend is executable" test -x "${PMHOOK}"
 check "the hook records the user, environment and invocation before the suspend" grep -q 'nxd-picom.env' "${PMHOOK}"
-check "the hook kills picom before the suspend" grep -q 'kill "${pid}"' "${PMHOOK}"
+check "the hook kills picom outright before the suspend (SIGTERM took half a second)" grep -q 'kill -KILL "${pid}"' "${PMHOOK}"
 check "the hook reopens picom at the resume, as the user that ran it" grep -q 'runuser -u "${user}" -- env -i' "${PMHOOK}"
 check "the hook reopens picom with its environment and invocation" grep -q 'sh -c "${cmd}"' "${PMHOOK}"
 check "the hook leaves a session without picom alone" grep -qF 'pid="$(picom_pid)" || exit 0' "${PMHOOK}"

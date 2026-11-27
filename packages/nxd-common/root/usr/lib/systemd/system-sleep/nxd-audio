@@ -1,0 +1,34 @@
+#!/bin/sh
+# The sound stops when a suspend starts, and comes back at the resume.
+#
+# PulseAudio keeps up to a couple of seconds of sound in the sound card's
+# buffer. Freezing the processes does not stop the card: it plays that
+# buffer until the kernel suspends its driver, well over a second later, so
+# the music went on after the tap. Before the suspend every output of every
+# user's PulseAudio is suspended (pactl suspend-sink NAME 1), which closes
+# the ALSA device and drops the buffer at once; after the resume they are
+# woken up again (PulseAudio would wake them by itself at the first sound).
+#
+# NXD_AUDIO_RUNTIME_DIR (/run/user) is for the tests.
+
+runtime="${NXD_AUDIO_RUNTIME_DIR:-/run/user}"
+
+case "${1:-}" in
+    pre) suspend=1 ;;
+    post) suspend=0 ;;
+    *) exit 0 ;;
+esac
+command -v pactl > /dev/null 2>&1 || exit 0
+
+for dir in "${runtime}"/*; do
+    [ -S "${dir}/pulse/native" ] || continue
+    uid="${dir##*/}"
+    user="$(getent passwd "${uid}" | cut -d: -f1)"
+    [ -n "${user}" ] || continue
+    # shellcheck disable=SC2016 # expanded by that sh, as the user
+    runuser -u "${user}" -- env XDG_RUNTIME_DIR="${dir}" sh -c '
+        pactl list short sinks 2> /dev/null | while read -r _ name _; do
+            pactl suspend-sink "${name}" "$1" 2> /dev/null || true
+        done' _ "${suspend}" || true
+done
+exit 0

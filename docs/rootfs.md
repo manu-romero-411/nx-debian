@@ -492,7 +492,11 @@ option is ignored. If the screen is still black after that, the logs are
     at most for the programs that asked to be told first
     (`InhibitDelayMaxSec=250ms`, same file): NetworkManager made every
     suspend wait 1.2 s to disconnect the Wi-Fi. Standby works on the Switch's 4.9
-    L4T kernel; the backlight goes off as soon as a suspend starts and comes back at the
+    L4T kernel; the sound stops as soon as a suspend starts
+    (`/usr/lib/systemd/system-sleep/nxd-audio`, nxd-common, suspends every
+    output of every user's PulseAudio, which drops the sound card's buffer:
+    frozen, PulseAudio no longer feeds the card, but the card played the
+    second or two of sound it had until its driver was suspended); the backlight goes off as soon as a suspend starts and comes back at the
     resume (`/usr/lib/systemd/system-sleep/nxd-backlight`, nxd-common:
     suspending the devices takes about 1.4 s and the display is among the
     last ones, so the screen stayed lit that long after the tap).

@@ -251,6 +251,30 @@ check "...with the brightness it had" test "$(cat "${tmp}/bl/sys/plain/brightnes
 check "the hook is in nxd-common, executable" \
     grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-backlight$' <<< "$(dpkg-deb -c "${COMMON}")"
 
+## the sound stops when a suspend starts (the card played PulseAudio's buffer
+## until its driver was suspended, over a second after the tap)
+
+AUDIOHOOK="${CPKG}/root/usr/lib/systemd/system-sleep/nxd-audio"
+mkdir -p "${tmp}/audio/bin" "${tmp}/audio/run/$(id -u)/pulse" "${tmp}/audio/run/99999"
+python3 -c "import socket,sys; socket.socket(socket.AF_UNIX).bind(sys.argv[1])" "${tmp}/audio/run/$(id -u)/pulse/native"
+# shellcheck disable=SC2016 # the stand-ins' own text
+printf '#!/bin/sh\nif [ "$1" = list ]; then printf "0\\tspeaker\\tmodule\\n1\\theadphones\\tmodule\\n"; else echo "$* $XDG_RUNTIME_DIR" >> "%s"; fi\n' \
+    "${tmp}/audio/calls" > "${tmp}/audio/bin/pactl"
+# shellcheck disable=SC2016
+printf '#!/bin/sh\n[ "$1" = -u ] && shift 2; [ "$1" = -- ] && shift; exec "$@"\n' > "${tmp}/audio/bin/runuser"
+chmod +x "${tmp}/audio/bin/"*
+audio() { PATH="${tmp}/audio/bin:${PATH}" NXD_AUDIO_RUNTIME_DIR="${tmp}/audio/run" sh "${AUDIOHOOK}" "$1"; }
+audio pre
+check "before a suspend every output of the user's PulseAudio is suspended" \
+    test "$(cat "${tmp}/audio/calls")" = "$(printf 'suspend-sink speaker 1 %s\nsuspend-sink headphones 1 %s' \
+        "${tmp}/audio/run/$(id -u)" "${tmp}/audio/run/$(id -u)")"
+: > "${tmp}/audio/calls"
+audio post
+check "...and woken up after it" grep -qx "suspend-sink speaker 0 ${tmp}/audio/run/$(id -u)" "${tmp}/audio/calls"
+check "...for the users that have a PulseAudio only" test "$(wc -l < "${tmp}/audio/calls")" -eq 2
+check "the hook is in nxd-common, executable" \
+    grep -q '^-rwxr-xr-x .*\./usr/lib/systemd/system-sleep/nxd-audio$' <<< "$(dpkg-deb -c "${COMMON}")"
+
 ## the touchscreen: a tap is a click, not a short drag (touch slop)
 
 SLOP="${CPKG}/root/usr/lib/nxd/touch-slop"

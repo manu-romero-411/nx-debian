@@ -124,11 +124,11 @@ b.press(10.0)
 results["asked-tap"] = b.release(10.2) == "suspend"
 b.sleeping(10.2)
 results["asked-again"] = (b.press(10.9), b.release(11.0)) == (None, None)
-results["asked-wake"] = (b.press(12.6), b.release(12.7)) == (None, None)
-b.press(13.0)
-results["asked-hold"] = (b.tick(14.5), b.release(14.6)) == (None, None)
-results["asked-settled"] = (b.tick(15.2), b.tick(15.3)) == ("settled", None)
-results["asked-after"] = (b.press(16.0), b.release(16.1)) == (None, "suspend")
+results["asked-wake"] = (b.press(11.6), b.release(11.7)) == (None, None)
+b.press(12.0)
+results["asked-hold"] = (b.tick(13.1), b.release(13.15)) == (None, None)
+results["asked-settled"] = (b.tick(13.3), b.tick(13.4)) == ("settled", None)
+results["asked-after"] = (b.press(14.0), b.release(14.1)) == (None, "suspend")
 # the screen: dark before the suspend, lit at the resume, DPMS as it was
 os.environ["DISPLAY"] = ":0"
 os.environ["PATH"] = sys.argv[2] + ":" + os.environ["PATH"]

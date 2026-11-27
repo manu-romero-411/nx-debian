@@ -54,8 +54,8 @@ HOLD = 0.65
 WAKE_GUARD = 1.0
 # how long the button does nothing after a suspend this asked for, in seconds
 # of CLOCK_MONOTONIC (which stops while the console sleeps): falling asleep
-# takes about 2.5 s of it, the rest covers the press that wakes it up
-SUSPEND_WINDOW = 5.0
+# takes less than that, the rest covers the press that wakes it up
+SUSPEND_WINDOW = 3.0
 # how often the devices are looked for again, in seconds
 RESCAN = 5.0
 # a device with more keys than this is a keyboard, not the console's button

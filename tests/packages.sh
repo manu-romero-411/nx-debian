@@ -74,6 +74,7 @@ cat > "${tmp}/power-test.py" << 'PY'
 """Button: taps, holds and the press that wakes the console up."""
 import importlib.machinery
 import importlib.util
+import os
 import sys
 
 loader = importlib.machinery.SourceFileLoader("power_button", sys.argv[1])
@@ -111,16 +112,33 @@ b = button()
 b.press(10.0)
 b.woke(10.5, 60.0)
 results["slept-while-down"] = b.release(10.6) is None and b.tick(12.0) is None
+results["hold-time"] = module.HOLD == 0.65
+# the screen: dark before the suspend, lit at the resume, DPMS as it was
+os.environ["DISPLAY"] = ":0"
+os.environ["PATH"] = sys.argv[2] + ":" + os.environ["PATH"]
+screen = module.Screen()
+screen.off()
+screen.on()
+with open(sys.argv[3], encoding="utf-8") as calls:
+    results["screen"] = calls.read().split("\n")[:4] == ["q", "dpms force off", "dpms force on", "-dpms"]
 for name, passed in results.items():
     print(f"{name} {'ok' if passed else 'FAIL'}")
 PY
-python3 -I "${tmp}/power-test.py" "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/power-button" > "${tmp}/power.log" 2>&1
+mkdir -p "${tmp}/xset-bin"
+# shellcheck disable=SC2016 # the stand-in's own text
+printf '#!/bin/sh\necho "$*" >> "%s"\n[ "$1" = q ] && echo "  DPMS is Disabled"\nexit 0\n' "${tmp}/xset.log" > "${tmp}/xset-bin/xset"
+chmod +x "${tmp}/xset-bin/xset"
+python3 -I "${tmp}/power-test.py" "${NXD_ROOT}/packages/nxd-retrobox/root/usr/share/nxd/retrobox/power-button" \
+    "${tmp}/xset-bin" "${tmp}/xset.log" > "${tmp}/power.log" 2>&1
 check "a tap on the power button suspends" grep -qx 'tap ok' "${tmp}/power.log"
 check "holding it a second opens the power menu, without waiting for the release" grep -qx 'hold ok' "${tmp}/power.log"
 check "...once" grep -qx 'once ok' "${tmp}/power.log"
 check "the press that wakes the console up does not suspend it again" grep -qx 'wake ok' "${tmp}/power.log"
 check "...but a tap after it does" grep -qx 'after-wake ok' "${tmp}/power.log"
 check "a press cut by a suspend is forgotten" grep -qx 'slept-while-down ok' "${tmp}/power.log"
+check "the menu opens after 0.65 s" grep -qx 'hold-time ok' "${tmp}/power.log"
+check "the screen goes dark before the suspend, and DPMS is as it was after it" grep -qx 'screen ok' "${tmp}/power.log"
+check "nxd-retrobox needs xset" grep -qw 'x11-xserver-utils' <<< "$(dpkg-deb -f "${RETRO}" Depends)"
 check "the triggers are in nxd-common" grep -qx './triggers' <<< "$(dpkg-deb --ctrl-tarfile "${COMMON}" | tar -t)"
 check "--variant xfce builds nxd-common and nxd-xfce" bash -c \
     "'${NXD_ROOT}/scripts/build-packages.sh' --version 1 --variant xfce '${tmp}/xfce' && test \"\$(ls '${tmp}/xfce' | tr '\n' ' ')\" = 'nxd-common_1_all.deb nxd-xfce_1_all.deb '"

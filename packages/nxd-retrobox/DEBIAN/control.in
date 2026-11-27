@@ -4,7 +4,7 @@ Architecture: all
 Maintainer: Manuel Jesús Romero Mateos <manu4.2012@gmail.com>
 Section: games
 Priority: optional
-Depends: nxd-common (= @VERSION@), openbox, picom, pulseaudio-utils, dosfstools, util-linux, mount, psmisc
+Depends: nxd-common (= @VERSION@), openbox, picom, pulseaudio-utils, dosfstools, util-linux, mount, psmisc, x11-xserver-utils
 Recommends: retrobox-session-openbox
 Homepage: https://github.com/manu-romero-411/nx-debian
 Description: Debian on the Nintendo Switch: the Retrobox console

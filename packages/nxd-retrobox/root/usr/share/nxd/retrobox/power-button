@@ -2,10 +2,14 @@
 """The Switch's power button: a tap suspends, holding it opens the power menu.
 
 Started by the session's step 61-nxd-power-button (nxd-retrobox) and ended
-with the session. Released before HOLD seconds, the button suspends the
+with the session. Released before HOLD seconds (0.65), the button suspends the
 console (systemctl suspend); held for HOLD seconds, it opens the Retrobox
 overlay's power options (retrobox-overlay --power: sleep, restart, turn off)
 at once, without waiting for the release.
+
+On a tap the screen goes dark at once (xset dpms force off): the kernel takes
+about a second and a half to suspend the devices, and the display is among
+the last. At the resume it is lit again, and DPMS is left as it was.
 
 The Switch's button (max77620_onoff, the PMIC's) sends KEY_SLEEP, which
 logind calls the suspend key, not KEY_POWER; KEY_POWER counts as the same
@@ -36,7 +40,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 # how long the button must be held for the power menu, in seconds
-HOLD = 1.0
+HOLD = 0.65
 # what the button does this long after a resume is ignored, in seconds
 WAKE_GUARD = 1.0
 # how often the devices are looked for again, in seconds
@@ -71,13 +75,16 @@ class Button:
     ignore_until: float = 0.0
     slept: float = field(default_factory=suspended_for)
 
-    def woke(self, now: float, slept: float) -> None:
-        """A resume (SLEPT grew): the button is ignored for a while."""
-        if slept - self.slept > 0.5:
+    def woke(self, now: float, slept: float) -> bool:
+        """A resume (SLEPT grew): the button is ignored for a while.
+        Whether there was one."""
+        resumed = slept - self.slept > 0.5
+        if resumed:
             self.ignore_until = now + self.guard
             self.down_at = None
             self.fired = False
         self.slept = slept
+        return resumed
 
     def press(self, now: float) -> str | None:
         """The button went down."""
@@ -134,12 +141,47 @@ def run(command: list[str]) -> None:
         print(f"power-button: {command[0]}: {error}", file=sys.stderr)
 
 
-def act(action: str, overlay: str | None) -> None:
+class Screen:
+    """Darkens the screen before a suspend and lights it at the resume
+    (xset: DPMS), leaving DPMS enabled or not as it found it."""
+
+    def __init__(self) -> None:
+        self.xset = shutil.which("xset") if os.environ.get("DISPLAY") else None
+        self.dark = False
+        self.dpms_was_on = True
+
+    def _xset(self, *args: str) -> str:
+        try:
+            return subprocess.run([self.xset, *args], capture_output=True, text=True,
+                                  timeout=2, check=False).stdout
+        except (OSError, subprocess.TimeoutExpired):
+            return ""
+
+    def off(self) -> None:
+        """Darkens the screen now."""
+        if not self.xset:
+            return
+        self.dpms_was_on = "DPMS is Enabled" in self._xset("q")
+        self._xset("dpms", "force", "off")
+        self.dark = True
+
+    def on(self) -> None:
+        """Lights the screen again, if off() darkened it."""
+        if not self.dark:
+            return
+        self._xset("dpms", "force", "on")
+        if not self.dpms_was_on:
+            self._xset("-dpms")
+        self.dark = False
+
+
+def act(action: str, overlay: str | None, screen: Screen) -> None:
     """Does ACTION: suspends, or opens the overlay's power options."""
     print(f"power-button: {action}", file=sys.stderr, flush=True)
     if action == "menu" and overlay:
         run([overlay, "--power"])
     elif action == "suspend" or not overlay:
+        screen.off()
         run(["systemctl", "suspend"] if shutil.which("systemctl") else ["loginctl", "suspend"])
 
 
@@ -200,21 +242,24 @@ def main() -> int:
     signal.signal(signal.SIGCHLD, signal.SIG_IGN)
     devices = Devices()
     button = Button()
+    screen = Screen()
     while True:
         now = time.monotonic()
-        button.woke(now, suspended_for())
+        if button.woke(now, suspended_for()):
+            screen.on()
         devices.scan(now)
         waits = [devices.next_scan - now, 1.0, button.timeout(now)]
         wait = min(w for w in waits if w is not None)
         for value in devices.values(wait):
             now = time.monotonic()
-            button.woke(now, suspended_for())
+            if button.woke(now, suspended_for()):
+                screen.on()
             action = {1: button.press, 0: button.release}.get(value, lambda _: None)(now)
             if action:
-                act(action, overlay)
+                act(action, overlay, screen)
         action = button.tick(time.monotonic())
         if action:
-            act(action, overlay)
+            act(action, overlay, screen)
 
 
 if __name__ == "__main__":

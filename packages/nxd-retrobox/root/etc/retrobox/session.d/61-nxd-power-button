@@ -1,7 +1,7 @@
 #!/bin/sh
 # Run by retrobox-openbox-session (retrobox-session-openbox) at every start:
 # the Switch's power button suspends on a tap and opens the overlay's power
-# options when held for a second (/usr/share/nxd/retrobox/power-button,
+# options when held for 0.65 s (/usr/share/nxd/retrobox/power-button,
 # ended with the session). It runs under a handle-power-key and
 # handle-suspend-key inhibitor (the Switch's button sends KEY_SLEEP, logind's
 # suspend key), so that logind leaves the button to it; without the inhibitor (polkit says no,
